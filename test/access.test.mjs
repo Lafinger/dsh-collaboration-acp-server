@@ -32,7 +32,9 @@ async function fixture(t, runtime = new Runtime()) {
   const connect = async account => {
     const peer = await connectAccess(listener.address); peers.push(peer);
     await peer.request('workbench/connect', { ticket: ticket(account) });
-    await peer.request('initialize', { protocolVersion: 1 }); return peer;
+    const initialized = await peer.request('initialize', { protocolVersion: 1 });
+    assert.equal(initialized.agentInfo.name, 'dsh-collaboration-acp-server');
+    assert.equal(initialized.agentInfo.version, '0.2.0'); return peer;
   };
   t.after(async () => { peers.forEach(p => p.close()); await listener.close(); store.close(); });
   return { root, store, runtime, authority, service, listener, connect };

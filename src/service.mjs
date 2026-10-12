@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 import { AccessError, requireText, textPrompt } from './protocol.mjs';
 
 export class AccessService {
@@ -40,7 +42,7 @@ export class AccessService {
     const identity = this.requireIdentity(c);
     if (method === 'initialize') {
       c.initialized = true;
-      return { protocolVersion: 1, agentInfo: { name: 'workbench-isolated-acp', version: '0.1.0' },
+      return { protocolVersion: 1, agentInfo: { name: 'dsh-collaboration-acp-server', version },
         agentCapabilities: { loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false } }, authMethods: [] };
     }
     if (!c.initialized) throw new AccessError(-32600, 'Initialize first');
