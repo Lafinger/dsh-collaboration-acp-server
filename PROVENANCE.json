@@ -1,0 +1,7 @@
+{
+  "sourceRepository": "dsh-project-workbench",
+  "sourceCommit": "3e0b76c",
+  "sourcePath": "prototypes/acp-access",
+  "split": "independent repositories, no inherited git history",
+  "contractVersion": 1
+}

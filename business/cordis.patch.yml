@@ -1,0 +1,6 @@
+- insert:
+    - id: project-workbench
+      name: 'dsh-project-workbench'
+      config:
+        databasePath: !!js process.env.DSH_WORKBENCH_DATABASE ?? '.dsh/workbench.sqlite'
+        fileRoot: !!js process.env.DSH_WORKBENCH_FILES ?? '.dsh/workbench-files'

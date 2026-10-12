@@ -1,0 +1,12 @@
+node_modules/
+.dsh/
+*.tgz
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+business/lib/
+business/lib-test/
+.env
+*.local.json
+*.pem
+*.key

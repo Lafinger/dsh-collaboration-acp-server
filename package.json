@@ -1,0 +1,39 @@
+{
+  "name": "dsh-collaboration-acp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "description": "Single-runtime DSH collaboration ACP service with account-owned conversations and embedded project-workbench business module.",
+  "engines": { "node": ">=24.0.0" },
+  "exports": { "./runtime": "./src/dsh-runtime.mjs", "./service": "./src/service.mjs", "./connector": "./src/connector.mjs", "./protocol": "./src/protocol.mjs", "./package.json": "./package.json" },
+  "bin": { "dsh-collaboration-acp-server": "./bin/server.mjs", "dsh-collaboration-connect": "./src/connector-cli.mjs" },
+  "files": ["bin", "src", "scripts/official-loader.mjs", "scripts/build.mjs", "business/lib", "business/docs", "docs", "GLOSSARY.md", "GLOSSARY-MAP.md", "README.md", "PROVENANCE.json"],
+  "scripts": {
+    "typecheck": "tsc -p business/tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
+    "test:business": "tsc -p business/tsconfig.test.json --noEmitOnError && node --test business/lib-test/**/*.test.js",
+    "test": "node --test test/*.test.mjs",
+    "integration": "node --import ./scripts/official-loader.mjs --test test/*.integration.mjs",
+    "check": "node scripts/check.mjs",
+    "check:joint": "node --import ./scripts/official-loader.mjs --test test/joint/*.joint.mjs",
+    "start": "node --import ./scripts/official-loader.mjs src/server-cli.mjs",
+    "pack:check": "node scripts/check-package.mjs",
+    "check:mutations": "node scripts/check-mutations.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-agent": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-util-values": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2"
+  },
+  "devDependencies": { "typescript": "5.9.3", "@types/node": "24.19.2" }
+}
