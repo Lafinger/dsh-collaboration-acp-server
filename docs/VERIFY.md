@@ -8,7 +8,7 @@
 
 本地Node24.21.0/pnpm11.7.0：282业务、28单元、12集成通过；3联合用例通过，4项身份/重放mutation被检出。实际应用内0.2模块的6项关键插件/冷恢复用例通过，真实tarball installer通过，安装副本的3项启停/隔离测试通过。
 
-打包检查验证MIT文本、main/exports/bin/import、disabled patch、业务lib与配置模板，然后在抽取包启用空配置。真实LinuxSSH/权限、GUI交互和真实模型仍未验收。GitHub上线结果另记录，不能把本地烟测代替github来源安装。
+打包检查验证MIT文本、main/exports/bin/import、disabled patch、业务lib与配置模板，然后在抽取包启用空配置。真实LinuxSSH/权限、GUI交互和真实模型仍未验收。GitHub默认/tag真实来源安装、双平台CI和公开v0.2.0及下载附件已验收，见[线上记录](GITHUB-RELEASE-VERIFY.md)；不是用本地烟测代替github来源。
 
 ## 以下为0.1.0历史验证（不是当前部署方式）
 
