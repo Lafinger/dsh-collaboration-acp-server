@@ -1,0 +1,99 @@
+name: GitHub Plugin CI and Release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.7.0'
+          run_install: false
+      - name: Install frozen dependencies (no lifecycle scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify source, tests and docs
+        run: pnpm run check
+
+  package:
+    name: Package verified plugin
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.7.0'
+          run_install: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate version tag and main ancestry
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/check-release-tag.mjs
+      - name: Pack prebuilt-business GitHub plugin
+        run: |
+          mkdir -p .dsh/release
+          pnpm pack --out .dsh/release/dsh-collaboration-acp-server.tgz
+          node scripts/check-package.mjs .dsh/release/dsh-collaboration-acp-server.tgz
+          node scripts/release-assets.mjs .dsh/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-plugin-${{ github.sha }}
+          path: .dsh/release/*
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release only
+    needs: package
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.repository == 'Lafinger/dsh-collaboration-acp-server'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-plugin-${{ github.sha }}
+          path: .dsh/release
+      - name: Publish verified assets without overwriting a released version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-github-release.mjs .dsh/release

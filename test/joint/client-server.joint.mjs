@@ -4,7 +4,7 @@ import { readFileSync,mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createWorkbenchRuntime } from '../../src/workbench-runtime.mjs';
+import { createTestWorkbench as createWorkbenchRuntime } from '../helpers/host.mjs';
 import { AccessStore } from '../../src/store.mjs';
 import { AccountAuthority,issueTicket } from '../../src/authority.mjs';
 import { AccessService } from '../../src/service.mjs';

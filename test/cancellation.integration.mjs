@@ -4,7 +4,7 @@ import { LlmAdapter } from '@deepseek-ai/dsh-llm';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DshRuntime } from '../src/dsh-runtime.mjs';
+import { createTestRuntime } from './helpers/host.mjs';
 class FailingModel extends LlmAdapter {
   async *stream() { yield { type: 'finish', reason: { kind: 'error', failure: { code: 'FIXTURE_FAIL', message: 'deterministic model failure' } } }; }
 }
@@ -18,12 +18,12 @@ class WaitingModel extends LlmAdapter {
 }
 test('actual DSH errors are not reported as clean completion', async () => {
   const root = mkdtempSync(join(tmpdir(), 'dsh-error-'));
-  const runtime = await new DshRuntime({ provider: 'fixture', model: 'f', adapter: new FailingModel(), persistenceRoot: join(root, 'sessions') }).start();
+  const runtime = await createTestRuntime({ provider: 'fixture', model: 'f', adapter: new FailingModel(), persistenceRoot: join(root, 'sessions') });
   try { const h = await runtime.open({ id: 'error', owner: 'alice', cwd: root, resume: false }); await assert.rejects(runtime.prompt(h, 'fail', new AbortController().signal, () => {}), /deterministic model failure/); }
   finally { await runtime.closeAll(); }
 });
 test('actual DSH cancellation keeps partial stream and persists same session for restore', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'dsh-cancel-')); const runtime = await new DshRuntime({ provider: 'fixture', model: 'f', adapter: new WaitingModel(), persistenceRoot: join(root, 'sessions') }).start();
+  const root = mkdtempSync(join(tmpdir(), 'dsh-cancel-')); const runtime = await createTestRuntime({ provider: 'fixture', model: 'f', adapter: new WaitingModel(), persistenceRoot: join(root, 'sessions') });
   try {
     const h = await runtime.open({ id: 'cancel', owner: 'alice', cwd: root, resume: false }); const controller = new AbortController();
     const updates = []; const response = await runtime.prompt(h, 'wait', controller.signal, u => { updates.push(u); controller.abort(); });

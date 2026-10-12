@@ -2,7 +2,7 @@
 
 ## 数据职责
 
-stateRoot 下 `access.sqlite` 保存会话 owner、请求提交状态、恢复事件；`workbench.sqlite` 是项目业务权威库；官方 JSONL sessions 保存模型对话和工具记录。它们不是跨存储分布式事务，不承诺未知副作用 exactly-once。
+插件stateRoot下 `access.sqlite` 保存会话 owner、请求提交状态、恢复事件；`workbench.sqlite` 是项目业务权威库；宿主DSH的持久化后端保存模型对话和工具记录（通常为宿主JSONL，不由插件另建后端）。它们不是跨存储分布式事务，不承诺未知副作用 exactly-once。
 
 断线取消该会话当前一轮，保留已经提交数据，flush/关闭对应 live agent；共享服务与其他会话继续。恢复要同一账号和同一 sessionId；仅附加/读取历史，不自动 prompt。进程重启将未完成请求标 interrupted，重复 requestId 仍拒绝。
 
@@ -16,4 +16,6 @@ stateRoot 下 `access.sqlite` 保存会话 owner、请求提交状态、恢复�
 
 ## 限制
 
-该运行时只装配工作台工具，不暴露本地 terminal/fs/MCP 给客户端。会话间是逻辑隔离而不是 OS sandbox 多租户隔离；服务器管理员与真实模型路线拥有可信执行能力。管理员权限与项目创建权限仍待后续设计。
+协作Agent只注册工作台工具，不继承宿主terminal/fs/MCP/subagent或新增通用工具；普通宿主会话不拥有本插件业务工具。业务材料导入仅允许服务workspace内管理员预置文件，不是客户端文件上传或任意宿主读取。会话间是逻辑隔离而不是OS多租户隔离；服务器管理员可信，可管理宿主会话和数据库。项目创建/管理员业务授权未扩大。
+
+禁用插件只关闭自身listener/连接/Agent/SQLite，保留提交事实；重新启用用同一config和宿主持久化恢复，不自动prompt。服务provider/model显式固定，不随宿主当前聊天切换，变更后重新启用。每profile单实例；旧独立入口已拒绝启动，不能据历史文档另起第二套运行时。

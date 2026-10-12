@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LlmAdapter, ToolCallId, BlockAssembler } from '@deepseek-ai/dsh-llm';
-import { DshRuntime } from '../src/dsh-runtime.mjs';
+import { createTestRuntime } from './helpers/host.mjs';
 import { AccountAuthority, issueTicket } from '../src/authority.mjs';
 import { AccessStore } from '../src/store.mjs';
 import { AccessService } from '../src/service.mjs';
@@ -33,7 +33,8 @@ class FixtureModel extends LlmAdapter {
   async *stream(options) {
     this.calls.push(options);
     const last = options.messages.at(-1);
-    const results = last?.content.filter(b => b.type === 'tool-result') ?? [];
+    const results = last?.role === 'tool' ? [last] : last?.content.filter(b => b.type === 'tool-result') ?? [];
+    if (this.calls.length > 30) throw new Error('Fixture exceeded bounded model calls');
     if (results.length) {
       const raw = results[0].content.filter(b => b.type === 'text').map(b => b.text).join('');
       yield* textChunks(raw); return;
@@ -55,12 +56,10 @@ async function setup(t) {
   const root = mkdtempSync(join(tmpdir(), 'workbench-dsh-integration-'));
   const db = openDatabase({ path: join(root, 'business.sqlite') });
   const identities = new SessionIdentityService(db); const model = new FixtureModel();
-  const runtime = await new DshRuntime({ provider: 'fixture', model: 'fixture', adapter: model, persistenceRoot: join(root, 'sessions'),
-    setup: (ctx, agent, account) => bindWorkbenchIdentity(ctx, identities, { sessionId: agent.session.id, account }),
-  }).start();
   const tasks = new TaskService(db), projects = new ProjectService(db), plans = new PlanService(db, undefined, tasks);
-  // Register actual business tools. Unused services are not exercised by the fixture model.
-  registerTools(runtime.ctx, { identities, tasks, projects, plans });
+  const runtime = await createTestRuntime({ provider: 'fixture', model: 'fixture', adapter: model, persistenceRoot: join(root, 'sessions'),
+    setup: (ctx, agent, account) => registerTools(ctx, { identities, tasks, projects, plans }, bindWorkbenchIdentity(ctx, identities, { sessionId: agent.session.id, account })),
+  });
   const store = new AccessStore(join(root, 'access.sqlite'));
   const authority = new AccountAuthority({ serviceId: 'integration', accounts: { alice: secret, bob: bobSecret } });
   const service = new AccessService({ authority, store, runtime, cwd: root }); const listener = await listenAccess(service);

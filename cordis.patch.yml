@@ -1,0 +1,7 @@
+# Opt-in host plugin; no runtime or listener is created until private configuration validates.
+- insert:
+    - id: collaboration-acp-server
+      name: dsh-collaboration-acp-server
+      disabled: true
+      config:
+        configFile: !!js process.env.DSH_COLLABORATION_SERVER_CONFIG

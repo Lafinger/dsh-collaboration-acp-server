@@ -4,7 +4,6 @@ node_modules/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
-business/lib/
 business/lib-test/
 .env
 *.local.json

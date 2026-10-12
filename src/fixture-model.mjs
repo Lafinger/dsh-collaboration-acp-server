@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 export class FixtureModel extends LlmAdapter {
   async *stream(options) {
     const last = options.messages.at(-1);
-    const result = last?.content.find(b => b.type === 'tool-result');
+    const result = last?.role === 'tool' ? last : last?.content.find(b => b.type === 'tool-result');
     const user = [...options.messages].reverse().find(m => m.role === 'user' && m.source?.kind === 'user');
     const input = user?.content.filter(b => b.type === 'text').map(b => b.text).join('\n') ?? '';
     if (input === 'whoami' && !result) {

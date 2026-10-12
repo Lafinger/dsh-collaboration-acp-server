@@ -1,54 +1,61 @@
-import { Context } from '@deepseek-ai/cordis';
-import { AgentRegistry, installModelSelection } from '@deepseek-ai/dsh-agent';
-import { AgentLoop } from '@deepseek-ai/dsh-agent-loop';
-import { SessionStore, SessionId } from '@deepseek-ai/dsh-session';
-import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
-import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
-import { ToolRuntime } from '@deepseek-ai/dsh-tools';
-import { LlmRuntime, createUserMessage } from '@deepseek-ai/dsh-llm';
-import persistencePlugin from '@deepseek-ai/dsh-session-persistence-jsonl';
+import { installModelSelection } from '@deepseek-ai/dsh-agent';
+import { SessionId } from '@deepseek-ai/dsh-session';
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
 
-/** Actual official DSH services, mounted once. Tests supply deterministic adapters, not a remote model. */
+/** Borrow host services; this owner never constructs or disposes the host runtime. */
 export class DshRuntime {
-  constructor({ provider, model, adapter, persistenceRoot, setup }) {
-    this.ctx = new Context(); this.provider = provider; this.model = model; this.setup = setup;
-    this.handles = new Set();
-    const ctx = this.ctx;
-    ctx.plugin(SystemPrompt, { includeHarnessIdentity: false, includeRuntimeContext: false, personaPrefix: '', personaSuffix: '' });
-    ctx.plugin(LlmRuntime);
-    ctx.plugin(SessionStore);
-    ctx.plugin(AgentRegistry);
-    ctx.plugin(SessionProjectionRegistry);
-    ctx.plugin(ToolRuntime, { mode: 'native' });
-    ctx.plugin(persistencePlugin, { root: persistenceRoot, compression: 'none' });
-    ctx.plugin(AgentLoop, { agents: [], maxParallelToolCalls: 1 });
-    this.adapter = adapter;
+  constructor({ ctx, provider, model, setup }) {
+    if (!ctx) throw new Error('Host DSH context required');
+    this.ctx = ctx; this.provider = provider; this.model = model; this.setup = setup;
+    this.handles = new Set(); this.opening = new Set(); this.closing = false;
+    this.abort = new AbortController();
   }
   async start() {
-    // Cordis 4 mounts fibers immediately; await their lifecycle, not a removed Context.start().
-    await Promise.all([...this.ctx.registry.values()].flatMap(runtime => [...runtime.fibers]).map(fiber => fiber.await()));
-    this.unregisterAdapter = this.ctx.llm.registerAdapter([this.provider], this.adapter);
+    for (const key of ['agents', 'llm', 'sessions', 'tools', 'sessionPersistence']) {
+      if (!this.ctx.get(key)) throw new Error(`Host DSH service required: ${key}`);
+    }
+    if (!this.ctx.llm.listProviders().some(p => p.id === this.provider)) throw new Error('Configured host model provider is not registered');
+    this.ctx.agents.requireFactory();
     return this;
   }
-  async open({ id, owner, cwd, resume }) {
+  async open(input) {
+    if (this.closing) throw new Error('Collaboration runtime is closing');
+    const task = this.activate(input); this.opening.add(task);
+    try { return await task; } finally { this.opening.delete(task); }
+  }
+  async activate({ id, owner, cwd, resume }) {
     const selection = { provider: this.provider, model: this.model };
     const setup = async (agentCtx, agent) => {
       installModelSelection(agentCtx, { current: selection, assembled: undefined });
-      // identity is captured from authenticated server metadata, never a model argument.
-      // Store identity as scoped service only after explicit isolation; otherwise Cordis shares the service slot.
       agentCtx.isolate('workbenchAuthenticatedAccount').provide('workbenchAuthenticatedAccount', owner);
+      // Never inherit host/ancestor filesystem, terminal, MCP, delegation or future global tools.
+      agentCtx.tools.restrict({ allow: [] });
+      agentCtx.tools.presentAs('native');
       await this.setup?.(agentCtx, agent, owner);
+      // Host publication presets can add scope-local tools later: guard stays monotonic.
+      const allowed = new Map(agentCtx.tools.view(agent).visible);
+      agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+        const assembly = await next();
+        return { ...assembly, tools: assembly.tools.filter(tool => allowed.has(tool.name) && allowed.get(tool.name) === agentCtx.tools.get(tool.name, agent)) };
+      });
+      agentCtx.tools.guard(exec => allowed.has(exec.name) && allowed.get(exec.name) === agentCtx.tools.get(exec.name, agent) ? undefined : 'Only authenticated collaboration business tools are allowed');
+      // A restored durable inbox must not implicitly execute an old business instruction.
+      if (resume) agent.inbox.clear(); // Do not abort the host factory's pre-publication maintenance signal.
     };
+    const options = { agentOptions: selection, setup, signal: this.abort.signal };
     const handle = resume
-      ? await this.ctx.agents.resume({ resumeSessionId: SessionId(id), agentOptions: selection, setup })
-      : await this.ctx.agents.create({ sessionId: SessionId(id), meta: { cwd }, agentOptions: selection, setup });
+      ? await this.ctx.agents.resume({ ...options, resumeSessionId: SessionId(id) })
+      : await this.ctx.agents.create({ ...options, sessionId: SessionId(id), meta: { cwd } });
     this.handles.add(handle);
-    try { await this.ctx.sessions.flush(handle.agent.session); return handle; }
-    catch (error) { await handle.dispose(); this.handles.delete(handle); throw error; }
+    try {
+      if (this.closing) throw new Error('Collaboration runtime closed during activation');
+      await this.ctx.sessions.flush(handle.agent.session); return handle;
+    } catch (error) { await handle.dispose(); this.handles.delete(handle); throw error; }
   }
   async prompt(handle, text, signal, emit) {
+    if (this.closing || !this.handles.has(handle)) throw new Error('Inactive collaboration Agent');
     const agent = handle.agent;
-    let reason = 'end_turn'; let failure;
+    let reason = 'end_turn', failure;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
       if (subject !== agent || frame.type !== 'chunk') return;
       const chunk = frame.chunk;
@@ -56,33 +63,37 @@ export class DshRuntime {
       if (chunk.type === 'reasoning-delta') emit({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: chunk.text } });
     });
     const offEnd = agent.ctx.on('session/event', (session, event) => {
-      if (session !== agent.session) return;
-      if (event.type === 'turn/end') {
-        if (event.data.reason?.kind === 'aborted') reason = 'cancelled';
-        if (event.data.reason?.kind === 'max-tokens') reason = 'max_tokens';
-        if (event.data.reason?.kind === 'blocked') failure = new Error('DSH turn blocked');
-        if (event.data.reason?.kind === 'error') failure = event.data.reason.error;
-      }
+      if (session !== agent.session || event.type !== 'turn/end') return;
+      if (event.data.reason?.kind === 'aborted') reason = 'cancelled';
+      if (event.data.reason?.kind === 'max-tokens') reason = 'max_tokens';
+      if (event.data.reason?.kind === 'blocked') failure = new Error('DSH turn blocked');
+      if (event.data.reason?.kind === 'error') failure = event.data.reason.error;
     });
-    const offError = agent.ctx.on('agent/error', ({ error }) => { failure = error; });
+    const offError = agent.ctx.on('agent/error', ({ agent: subject, error }) => { if (!subject || subject === agent) failure = error; });
     const abort = () => agent.cancel({ kind: 'user' });
     signal.addEventListener('abort', abort, { once: true });
     try {
       if (signal.aborted) return { stopReason: 'cancelled' };
       agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }));
-      await agent.whenIdle();
-      await this.ctx.sessions.flush(agent.session);
+      await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
       return { stopReason: signal.aborted ? 'cancelled' : reason };
     } finally { signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
   }
   async close(handle) {
+    if (!this.handles.has(handle)) return;
     handle.agent.cancel({ kind: 'user' });
-    await handle.agent.whenIdle(); await this.ctx.sessions.flush(handle.agent.session);
-    await handle.dispose(); this.handles.delete(handle);
+    try { await handle.agent.whenIdle(); await this.ctx.sessions.flush(handle.agent.session); }
+    finally { await handle.dispose(); this.handles.delete(handle); }
   }
-  async closeAll() {
-    await Promise.all([...this.handles].map(h => this.close(h)));
-    this.unregisterAdapter?.(); await this.ctx.fiber.dispose();
+  closeAll() {
+    return this.closeTask ??= (async () => {
+      this.closing = true; this.abort.abort(new Error('Collaboration plugin stopping'));
+      for (const handle of this.handles) handle.agent.cancel({ kind: 'user' });
+      await Promise.allSettled([...this.opening]);
+      const results = await Promise.allSettled([...this.handles].map(h => this.close(h)));
+      const errors = results.filter(r => r.status === 'rejected').map(r => r.reason);
+      if (errors.length) throw new AggregateError(errors, 'Collaboration Agent cleanup failed');
+    })();
   }
 }

@@ -1,5 +1,17 @@
 # 服务端验证
 
+## 0.2.0宿主插件改造
+
+当前正式入口是[server plugin](../src/server-plugin.mjs)，复用宿主0.2.0-rc.2；旧独立CLI明确拒绝，不创建第二套DSH。check对照临时编译与已提交业务产物（98文件）、执行282业务回归，再检查接入/配置/真实宿主集成。
+
+新增验证覆盖：空配置无宿主也安全待配置；两个成员独立Agent、共享同一宿主服务对象；可信账号与归属拒绝；普通宿主Agent看不到工作台工具；协作Agent不能继承通用工具，后续scope工具也被guard与模型schema过滤；业务导入拒绝workspace之外文件；单实例；禁用后宿主/普通Agent存活；启用恢复同id不prompt；在途取消和请求拒重。旧0.1.5替身只识别tool-result块导致0.2工具角色消息重复调用，先复现并添加回归后修复，无真实模型网络。
+
+本地Node24.21.0/pnpm11.7.0：282业务、28单元、12集成通过；3联合用例通过，4项身份/重放mutation被检出。实际应用内0.2模块的6项关键插件/冷恢复用例通过，真实tarball installer通过，安装副本的3项启停/隔离测试通过。
+
+打包检查验证MIT文本、main/exports/bin/import、disabled patch、业务lib与配置模板，然后在抽取包启用空配置。真实LinuxSSH/权限、GUI交互和真实模型仍未验收。GitHub上线结果另记录，不能把本地烟测代替github来源安装。
+
+## 以下为0.1.0历史验证（不是当前部署方式）
+
 `pnpm run check` 独立安装依赖后类型检查/编译业务模块，执行原 282 项业务回归、服务端协议/身份测试与官方 DSH loop 集成；运行时与检查不读取原仓库或客户端源码。
 
 覆盖独立账号签名/过期/nonce、未认证拒绝、固定 cwd、他人会话拒绝、稳定请求 ID 去重、断线取消与保留已提交记录、opening/draining 生命周期、真实 DSH 取消/错误和同 sessionId 持久化恢复、业务 plan_confirm 的可信账号快照、socket+stdio connector 与独立双成员单 PID 启动。

@@ -1,0 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { verifyReleaseTag } from './release-policy.mjs';
+const metadata = JSON.parse(readFileSync('package.json', 'utf8'));
+const tag = process.env.GITHUB_REF_NAME;
+const names = verifyReleaseTag(metadata, tag, process.env.GITHUB_REPOSITORY);
+const result = spawnSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], { stdio: 'inherit' });
+if (result.error) throw result.error;
+if (result.status !== 0) throw new Error('Release tag must point to a commit already present on main');
+console.log(`PASS: ${names.tag} matches package and main ancestry`);

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createWorkbenchRuntime } from '../src/workbench-runtime.mjs';
+import { createTestWorkbench as createWorkbenchRuntime } from './helpers/host.mjs';
 import { AccessStore } from '../src/store.mjs';
 import { AccountAuthority } from '../src/authority.mjs';
 import { AccessService } from '../src/service.mjs';

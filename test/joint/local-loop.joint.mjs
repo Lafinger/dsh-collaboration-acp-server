@@ -4,8 +4,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createWorkbenchRuntime } from '../../src/workbench-runtime.mjs';
-import { DshRuntime } from '../../src/dsh-runtime.mjs';
+import { createTestWorkbench as createWorkbenchRuntime, createTestRuntime } from '../helpers/host.mjs';
 import { AccessStore } from '../../src/store.mjs';
 import { AccountAuthority, issueTicket } from '../../src/authority.mjs';
 import { AccessService } from '../../src/service.mjs';
@@ -27,7 +26,7 @@ test('actual local DSH loop uses independent client adapter and remote DSH loop,
     return peer;
   } });
   const adapter = new MemberAdapter(client);
-  const local = await new DshRuntime({ provider: 'workbench-remote', model: 'server-agent', adapter, persistenceRoot: join(root, 'local-sessions') }).start();
+  const local = await createTestRuntime({ provider: 'workbench-remote', model: 'server-agent', adapter, persistenceRoot: join(root, 'local-sessions') });
   try {
     const handle = await local.open({ id: 'local-loop', owner: 'local-entry', cwd: root, resume: false });
     for (const text of ['first', 'second']) {

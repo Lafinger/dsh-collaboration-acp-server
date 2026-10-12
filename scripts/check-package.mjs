@@ -44,7 +44,7 @@ while (offset + 512 <= tar.length) {
   offset += Math.ceil(size / 512) * 512;
 }
 const metadata = JSON.parse(entries.get('package.json').toString('utf8'));
-for (const name of entries.keys()) assert.ok(!/(^|\/)(?:node_modules|\.git|\.dsh)(?:\/|$)|\.sqlite(?:-|$)/.test(name), `Private/generated file in package: ${name}`);
+for (const name of entries.keys()) assert.ok(!/(^|\/)(?:node_modules|\.git|\.dsh|test|lib-test)(?:\/|$)|\.sqlite(?:-|$)|business\/src\//.test(name), `Private/generated/test file in package: ${name}`);
 const declared = [metadata.main, ...Object.values(metadata.exports ?? {}), ...Object.values(metadata.bin ?? {})].filter(value => typeof value === 'string');
 for (const name of declared) assert.ok(entries.has(name.replace(/^\.\//, '')), `Package entry missing: ${name}`);
 for (const [name, bytes] of entries) {
@@ -54,11 +54,16 @@ for (const [name, bytes] of entries) {
     assert.ok(entries.has(target), `Packaged import missing: ${name} => ${target}`);
   }
 }
-if (metadata.name === 'dsh-collaboration-client') {
-  assert.ok(entries.has('cordis.patch.yml'), 'DSH bundle patch missing');
-  assert.equal(metadata.dsh?.bundle?.patch, 'cordis.patch.yml');
-  assert.match(entries.get('cordis.patch.yml').toString('utf8'), /disabled:\s*true/);
-} else assert.ok(entries.has('business/lib/tool/register.js'), 'Business tool module missing');
+assert.equal(metadata.name, 'dsh-collaboration-acp-server');
+assert.equal(metadata.license, 'MIT'); assert.equal(metadata.private, true);
+assert.match(entries.get('LICENSE')?.toString('utf8') ?? '', /^MIT License\r?\n/);
+assert.ok(entries.has('cordis.patch.yml'), 'DSH bundle patch missing');
+assert.equal(metadata.dsh?.bundle?.patch, 'cordis.patch.yml');
+assert.match(entries.get('cordis.patch.yml').toString('utf8'), /disabled:\s*true/);
+assert.ok(entries.has('business/lib/tool/register.js'), 'Business tool module missing');
+assert.ok(entries.has('src/configuration.mjs')); assert.ok(entries.has('examples/server-config.example.json'));
+assert.ok(!entries.has('bin/server.mjs')); assert.equal(metadata.bin['dsh-collaboration-acp-server'], undefined);
+for (const key of ['prepare','install','prepack']) assert.equal(metadata.scripts[key], undefined);
 mkdirSync(join(root, '.dsh'), { recursive: true });
 const detached = mkdtempSync(join(root, '.dsh/packed-'));
 for (const [name, bytes] of entries) {
@@ -67,9 +72,9 @@ for (const [name, bytes] of entries) {
   writeFileSync(target, bytes);
 }
 // Source is extracted from tarball; external packages resolve normally to this checkout's node_modules.
-const code = metadata.name === 'dsh-collaboration-client'
-  ? `const m=await import(${JSON.stringify(pathToFileURL(join(detached, 'src/member-plugin.mjs')).href)});if(typeof m.apply!=='function'||typeof m.MemberAdapter!=='function')throw new Error('Missing plugin exports');`
-  : `const m=await import(${JSON.stringify(pathToFileURL(join(detached, 'src/workbench-runtime.mjs')).href)});const {runtime}=await m.createWorkbenchRuntime({workspace:${JSON.stringify(join(detached, '.state/workspace'))},stateRoot:${JSON.stringify(join(detached, '.state/data'))},fixture:true});await runtime.closeAll();`;
+const code = `import assert from 'node:assert/strict';import{Context}from'@deepseek-ai/cordis';
+const plugin=await import(${JSON.stringify(pathToFileURL(join(detached, 'src/server-plugin.mjs')).href)});
+const ctx=new Context();try{const entry=ctx.plugin(plugin,{configFile:${JSON.stringify(join(detached, 'missing.json'))}});await entry.await();assert.equal(entry.ctx.get('workbenchServerStatus').state,'configuration-required');assert.equal(entry.ctx.get('workbenchServer'),undefined);}finally{await ctx.fiber.dispose();}`;
 const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: detached, stdio: 'inherit' });
 if (result.error) throw result.error;
 assert.equal(result.status, 0, 'Detached package smoke failed');

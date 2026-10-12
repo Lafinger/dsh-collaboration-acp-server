@@ -1,4 +1,3 @@
 #!/usr/bin/env node
-// Normal installed dependencies by default; optional cache routing is limited to this process.
-await import('../scripts/official-loader.mjs');
+// Compatibility refusal only; no longer advertised as a package bin or shipped.
 await import('../src/server-cli.mjs');

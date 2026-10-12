@@ -9,6 +9,7 @@
  * guarantee entirely.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { analysisToolDefinitions } from './analysis-tools.js'
 import { materialToolDefinitions } from './material-tools.js'
 import { noticeToolDefinitions } from './notice-tools.js'
@@ -41,8 +42,8 @@ export interface Services {
   readonly identities: SessionIdentityService
 }
 
-export function registerTools(ctx: Context, services: Services): void {
-  ctx.inject(['tools'], (toolCtx) => {
+export function registerTools(ctx: Context, services: Services, transform?: (definition: ToolDefinition) => ToolDefinition): void {
+  const register = (toolCtx: Context): void => {
     const tools = toolCtx.get('tools')
     if (tools === undefined) return
 
@@ -71,7 +72,11 @@ export function registerTools(ctx: Context, services: Services): void {
     ]
 
     for (const definition of definitions) {
-      tools.register(definition)
+      tools.register(transform ? transform(definition) : definition)
     }
-  })
+  }
+  // Pre-publication Agent setup needs registrations immediately, before identity shadows.
+  // The caller context owns the scoped effects; delayed injection remains for legacy business tests.
+  if (ctx.get('tools') !== undefined) register(ctx)
+  else ctx.inject(['tools'], register)
 }
