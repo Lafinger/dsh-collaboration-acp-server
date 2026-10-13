@@ -3,7 +3,7 @@ import { mkdirSync, openSync, closeSync, writeSync, renameSync, readFileSync, ex
 import { join, resolve, relative } from 'node:path';
 import { AccessError, requireText } from './protocol.mjs';
 import { ATTACHMENT_CHUNK_BYTES, validateAttachmentManifest } from './attachment-protocol.mjs';
-import { parseAttachment } from './attachment-parser.mjs';
+import { parseAttachment, PARSER_VERSION } from './attachment-parser.mjs';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 export class AttachmentService {
   constructor({ db, root, materials, projects }) {
@@ -59,7 +59,7 @@ export class AttachmentService {
       }
       fsyncSync(fd);closeSync(fd);fd=undefined;if(digest.digest('hex')!==manifest.sha256)throw new AccessError(-32602,'Attachment sha256 mismatch');
       const bytes=readFileSync(temp);let parsed;
-      try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed={kind:'unparsed',content:null,warnings:[error.message],originalSha256:manifest.sha256,textSha256:null,parserVersion:'collaboration-attachment-parser/1',visualAnalysis:'not-performed',parseError:true};}
+      try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed={kind:'unparsed',content:null,warnings:[error.message],originalSha256:manifest.sha256,textSha256:null,parserVersion:PARSER_VERSION,visualAnalysis:'not-performed',parseError:true};}
       if(request.signal.aborted)throw new AccessError(-32010,'Attachment transfer cancelled');
       renameSync(temp,target);
       this.db.prepare('INSERT INTO attachment_receipts(receipt_id,account,session_id,request_id,handle,manifest,filename,parsed,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(receiptId,request.account,request.sessionId,request.requestId,manifest.handle,JSON.stringify(manifest),receiptId+'.bin',JSON.stringify(parsed),new Date().toISOString());

@@ -5,7 +5,7 @@ import { extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { AccessError } from './protocol.mjs';
 import { MAX_ATTACHMENT_TEXT_BYTES } from './attachment-protocol.mjs';
-const PARSER_VERSION='collaboration-attachment-parser/1';
+export const PARSER_VERSION='collaboration-attachment-parser/1.0.1';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 function checkedText(bytes){try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,'');}catch{throw new AccessError(-32602,'Text is not valid UTF-8; encoding must be explicitly converted before upload');}}
 function bounded(text){if(Buffer.byteLength(text)>MAX_ATTACHMENT_TEXT_BYTES)throw new AccessError(-32602,'Extracted text exceeds 256KiB; no silent truncation');return text;}
@@ -20,7 +20,10 @@ function zipDirectory(bytes){
   if(flags&1||![0,8].includes(method)||size===0xffffffff||compressed===0xffffffff)throw new AccessError(-32602,'Encrypted/unsupported DOCX ZIP');
   if(offset+46+n+extra+comment>bytes.length)throw new AccessError(-32602,'Invalid DOCX ZIP entry length');
   const name=checkedText(bytes.subarray(offset+46,offset+46+n));
-  if(name.startsWith('/')||name.includes('\\')||name.split('/').includes('..')||names.has(name))throw new AccessError(-32602,'Unsafe or duplicate DOCX ZIP name');
+  const normalized=name.replaceAll('\\','/'),emptyDirectory=name.endsWith('/')&&size===0;
+  if(normalized.startsWith('/')||normalized.includes(':')||normalized.split('/').includes('..')||names.has(name)||(name.includes('\\')&&!emptyDirectory))throw new AccessError(-32602,'Unsafe or duplicate DOCX ZIP name');
+  // Some Word generators emit backslash-separated empty directory markers. They carry
+  // no data, are never extracted or used as paths, and are harmless after traversal checks.
   entries.set(name,{size,compressed,method,crc:bytes.readUInt32LE(offset+16),localOffset:bytes.readUInt32LE(offset+42)});
   names.add(name);total+=size;if(size>8*1024*1024||total>16*1024*1024||(size>1024*1024&&size>Math.max(compressed,1)*200))throw new AccessError(-32602,'DOCX decompression limit');
   if(/vbaProject|embeddings\/|activeX\//i.test(name))throw new AccessError(-32602,'Active/macro/embedded-object DOCX is unsupported');

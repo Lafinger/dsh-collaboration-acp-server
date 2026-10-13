@@ -16,6 +16,9 @@ test('DOCX extracts body/table text and image gaps; UTF-8 is strict; active/inva
  const corrupted=docx(xml);const local=corrupted.indexOf(Buffer.from('word/document.xml'));corrupted[local+Buffer.byteLength('word/document.xml')+3]^=1;await assert.rejects(parseAttachment(corrupted,'crc-bad.docx'));
  await assert.rejects(parseAttachment(docx(xml,{'word/media/bomb.bin':new Uint8Array(9*1024*1024)}),'bomb.docx'));
  const forged=docx('<w:document xmlns:w="test"><w:body>'+('<w:p><w:r><w:t>data</w:t></w:r></w:p>'.repeat(500))+'</w:body></w:document>');let central=0;while((central=forged.indexOf(Buffer.from([0x50,0x4b,0x01,0x02]),central))>=0){const n=forged.readUInt16LE(central+28),name=forged.subarray(central+46,central+46+n).toString();if(name==='word/document.xml'){forged.writeUInt32LE(1,central+24);break;}central++;}await assert.rejects(parseAttachment(forged,'forged-size.docx'));
+ const wpsStyle=docx(xml,{'word\\theme/':new Uint8Array(),'word\\media/':new Uint8Array(),'word\\_rels/':new Uint8Array()});assert.match((await parseAttachment(wpsStyle,'wps-style.docx')).content,/需求/);
+ await assert.rejects(parseAttachment(docx(xml,{'word\\evil.xml':strToU8('<x/>')}),'backslash-file.docx'));
+ await assert.rejects(parseAttachment(docx(xml,{'word\\..\\evil/':new Uint8Array()}),'unsafe-directory.docx'));
 });
 test('PNG/JPEG/WebP/GIF detected and decoded; unsupported visual content not claimed',async()=>{
  for(const [format,extension]of[['png','png'],['jpeg','jpg'],['webp','webp'],['gif','gif']]){const bytes=await sharp({create:{width:3,height:2,channels:3,background:'#ffffff'}}).toFormat(format).toBuffer();const parsed=await parseAttachment(bytes,'sample.'+extension);assert.equal(parsed.kind,'image');assert.equal(parsed.content,null);assert.equal(parsed.visualAnalysis,'not-performed');assert.equal(parsed.width,3);await assert.rejects(parseAttachment(bytes,'wrong.'+(extension==='png'?'jpg':'png')));}
