@@ -1,6 +1,6 @@
 # 项目背景／目标编辑（v0.4.2）
 
-状态：实现与正式发布／保留升级待核验，本页不是部署完成证据。
+状态：v0.4.2已正式发布并完成Docker保留升级；[发行与保留验收](<PROJECT-DETAILS-RELEASE-VERIFY.md>)记录完整证据。用户真实模型字段更新待明确授权后执行，升级没有自动写草稿。
 
 `project_update_details`只编辑已存在项目的background／goal，不创建替代项目、改key/name、角色成员、资料、分析、方案或任务。未知字段继续pending，不从分析草稿或历史日期自动补全。project_get返回实际project及pending_fields。
 

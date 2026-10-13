@@ -14,7 +14,7 @@ DSH插件管理器安装来源：
 github:Lafinger/dsh-collaboration-acp-server
 ```
 
-当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.4.2`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[新版验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。Linux部署与重装见[运维目录](deploy/docker-linux/README.md)。只发布GitHub，不发布npm或DSH插件市场。
+当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.4.2`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[项目详情v0.4.2验收](docs/PROJECT-DETAILS-RELEASE-VERIFY.md)，此前[改名验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。Linux部署与重装见[运维目录](deploy/docker-linux/README.md)。只发布GitHub，不发布npm或DSH插件市场。
 
 安装后默认disabled；空配置启用为安全待配置，不建库、不监听、不调用模型。复制[空模板](examples/server-config.example.json)到服务账号自己的私有配置文件，填写部署路径、账号独立凭据与宿主已有provider/model，按[部署说明](docs/DEPLOYMENT.md)检查后启用。没有GUI配置表单，也不自动修改sshd或创建系统账号。
 
@@ -49,7 +49,7 @@ DSH_COLLABORATION_CLIENT_ROOT=/absolute/client-checkout pnpm run check:joint
 
 ## 项目背景与目标编辑
 
-v0.4.2新增`project_update_details`，只编辑已存在项目中明确提供的background／goal；未提供字段不变，空白／null拒绝，归档项目与附件turn拒写，不改角色或任何资料／分析／计划／任务。无需重建项目或客户端升版。用法和用户授权模板见[项目详情编辑](<docs/PROJECT-DETAILS.md>)；正式发布与生产保留核验尚待完成。
+v0.4.2新增`project_update_details`，只编辑已存在项目中明确提供的background／goal；未提供字段不变，空白／null拒绝，归档项目与附件turn拒写，不改角色或任何资料／分析／计划／任务。无需重建项目或客户端升版。用法和用户授权模板见[项目详情编辑](<docs/PROJECT-DETAILS.md>)；正式发布与生产保留核验PASS，见[本次发行证据](<docs/PROJECT-DETAILS-RELEASE-VERIFY.md>)。
 
 ## 许可证
 

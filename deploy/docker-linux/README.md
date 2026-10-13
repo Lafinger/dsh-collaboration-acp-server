@@ -16,7 +16,7 @@
 
 ## 项目详情编辑升级
 
-v0.4.2补充`project_update_details`，不自动填南航background／goal，不重建项目、资料或分析。客户端保持v0.3.0；保留部署步骤见[本次升级](<PROJECT-DETAILS-UPDATE.md>)，字段语义与授权模板见[项目详情编辑](<../../docs/PROJECT-DETAILS.md>)。正式部署状态以该指南的最终核验记录为准。
+v0.4.2补充`project_update_details`，不自动填南航background／goal，不重建项目、资料或分析。客户端保持v0.3.0；保留部署步骤见[本次升级](<PROJECT-DETAILS-UPDATE.md>)，字段语义与授权模板见[项目详情编辑](<../../docs/PROJECT-DETAILS.md>)。本次固定镜像上线healthy/Restarts0，全部32业务表和附件／资料／会话／凭据hash一致；南航background／goal仍为空。完整证据见[项目详情发行验收](<../../docs/PROJECT-DETAILS-RELEASE-VERIFY.md>)。
 
 ## 命令
 
