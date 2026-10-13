@@ -3,7 +3,7 @@ services:
   server:
     build:
       context: .
-    image: dsh-collaboration-linux-sim:0.3.0
+    image: dsh-collaboration-linux-sim:0.4.1
     container_name: dsh-collaboration-linux-sim
     init: true
     restart: unless-stopped

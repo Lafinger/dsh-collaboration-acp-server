@@ -16,6 +16,8 @@
 !ssh-policy-check.mjs
 !verify-state-budget.mjs
 !snapshot-state.mjs
+!verify-preserved-data.mjs
+!verify-attachment-fixture.mjs
 !reset-state.mjs
 !verify-empty-state.mjs
 !sshd_config

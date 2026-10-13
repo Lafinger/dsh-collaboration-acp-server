@@ -1,16 +1,18 @@
 # 本机 Linux 模拟协作服务器
 
-此目录是本次确认的本地部署，不是新的插件版本或第二套独立生产运行时。使用正式DSH CLI加载显式最小profile以及GitHub固定v0.3.0插件（协作扩展协议v2）；一套非root DSH宿主与一个sshd。Docker Desktop容器验证Linux/SSH，不等于公网独立主机或完整VM。
+此目录是本次确认的本地部署，不是第二套独立生产运行时。使用正式DSH CLI加载显式最小profile以及GitHub固定v0.4.1插件（协作扩展协议v2＋附件扩展1）；一套非root DSH宿主与一个sshd。Docker Desktop容器验证Linux/SSH，不等于公网独立主机或完整VM。
+
+**本次附件升级必须保留已有项目、会话、业务库、资料、映射与凭据；禁止按下文历史清空步骤操作。** 附件用法见[附件指南](<../../docs/ATTACHMENTS.md>)；此前改名清空是历史单次授权，不能复用到本次升级。
 
 ## 已确认配置
 
-- Debian bookworm slim，Node24.21.0/pnpm11.7.0/DSH0.2.0-rc.2；官方Node镜像固定digest，插件锁到v0.3.0提交。
+- Debian bookworm slim，Node24.21.0/pnpm11.7.0/DSH0.2.0-rc.2；官方Node镜像固定digest，插件锁到v0.4.1提交。
 - 容器 `dsh-collaboration-linux-sim`，专用持久卷 `dsh-collaboration-linux-sim-data`，2CPU/2GiB/256PID，unless-stopped。
 - SSH只发布127.0.0.1、192.168.2.27、10.242.14.211的22222。为避免本机Docker Desktop同target多地址映射冲突，一个sshd在容器内分别监听22/23/24；外部统一22222，成员无需知道内部端口。换IP前显式修改[Compose](compose.yaml)和[防火墙脚本](firewall.ps1)，不自动暴露全部网卡。
 - 模型固定codego/deepseek-v4.1-flash，openai-responses接口https://codegoai.com/v1；只有CODEGO_API_KEY单项复制到私有文件，无镜像/命令行/environment secret，不复制整个Windows凭据库。
 - 不设置来源IP/网段限制；任何可达设备仍须匹配成员SSH私钥。成员alice/bob均publickey+forced connector，无shell/SFTP/SCP/转发/root登录；Docker管理员仍为可信管理者。
 - 正式日常使用按用户选择不设额外每日/单轮请求/时长/输出限制。成员共用现用Codego额度，没有自动费用隔离。
-- 旧轮次真实模型验收模式6轮/24请求/2048token/次/4分钟/轮；本次改名更新不调用真实模型，保持daily，清空旧数据后交付空状态。真实模型失败不自动重发业务请求。无自动模型回退、未加载llm-retry或后台标题模型。
+- 旧轮次真实模型验收模式6轮/24请求/2048token/次/4分钟/轮；此前改名更新清空旧数据后交付空状态是历史事实；之后用户已有新项目/真实GUI会话，本次附件升级不清空且不自动调用真实模型，保持daily。真实模型失败不自动重发业务请求。无自动模型回退、未加载llm-retry或后台标题模型。
 
 ## 命令
 
@@ -34,11 +36,11 @@ Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代�
 
 本机私钥与六份成员/网络入口JSON位于仓库被忽略的 `.dsh/docker-linux-sim/`。known_hosts直接从容器host公钥生成，不盲信ssh-keyscan。只分发对应成员的私钥；私钥无口令，仅用于此测试环境。不要把完整目录同时分发给不同成员。
 
-容器的workspace、业务private-state、DSH会话/Codego凭据、SSH主机密钥在专用卷中。`/tmp`明确挂载exec/nosuid/nodev，因官方DSH native loader需要从临时缓存映射预编译模块；否则会出现failed to map segment。此选项不提供shell接入、提权或额外工具权限。正常停止或重建保留数据；没有启动时自动清空。用户本轮已明确授权无备份清空旧业务/会话；离线清空命令见下节。不要使用docker system prune --volumes、compose down -v或volume rm，删除须另行明确确认。容器/tmp及/run为临时存储，重建会消失。
+容器的workspace、业务private-state、DSH会话/Codego凭据、SSH主机密钥在专用卷中。`/tmp`明确挂载exec/nosuid/nodev，因官方DSH native loader需要从临时缓存映射预编译模块；否则会出现failed to map segment。此选项不提供shell接入、提权或额外工具权限。正常停止或重建保留数据；没有启动时自动清空。此前无备份清空只适用于上一轮旧数据，**本次保留数据，禁止执行reset**；下节仅保留历史步骤。不要使用docker system prune --volumes、compose down -v或volume rm，删除须另行明确确认。容器/tmp及/run为临时存储，重建会消失。
 
-## 已批准的离线清空（不备份）
+## 历史单次离线清空（本次禁止执行）
 
-本轮用户选择重新测试，不迁移旧项目/远端会话。先验证新固定发行版镜像，再停止容器并运行：
+以下仅为上一轮改名授权的历史步骤，不适用于已有新项目与会话的附件升级。不能因为脚本存在就重复删除。此前曾按明确授权执行：
 
 ```powershell
 ./control.ps1 Stop
@@ -75,8 +77,8 @@ Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代�
 - 每次需要使用协作服务，在DSH会话模型选择collaboration-remote / 协作服务（server-agent），而非本机Codego。实际模型由服务器固定选择。
 - 同一段工作继续打开原本地会话，可保持原远端会话/上下文；新建本地会话会得到独立远端会话，但查询同一份项目数据。共享项目不等于共享聊天记录，也不是所有项目工具都有项目级授权。
 - 正常退出再打开DSH即可恢复，不删除本地映射数据库或密钥，不点旧消息重试来触发恢复。不把恢复notice复制成新业务指令。
-- GUI工作区是本机工作区，插件不自动把整个工作区上传给服务器；当前远端入口只接收有稳定ID的纯文本用户消息，执行的是服务器限定业务工具，不是通用远端shell/文件Agent。
-- 写操作必须由用户明确提出，不能把这次只读接入验收当作双GUI写入/并发或业务规则全覆盖验收。本轮旧测试项目及服务端会话按用户确认已列入无备份清空，不保留旧数据；实际清空结果须看当前验收记录。
+- GUI工作区是本机工作区，插件不自动把整个工作区上传给服务器；当前远端入口接收有稳定ID的用户指令与当前消息明确授权附件，执行的是服务器限定业务工具，不是通用远端shell/文件Agent。
+- 写操作必须由用户明确提出，不能把这次只读接入验收当作双GUI写入/并发或业务规则全覆盖验收。本次已有测试项目及南航项目和服务端会话保留，不清空；升级前后用opaque hash/事实计数验证，不备份数据库或输出秘密。
 - 若TIMEOUT/COLLABORATION_NO_REPLAY，先看原会话已保存记录/服务端工具提交事实；不要自动重试写入或重置状态库。未确认结果前错误信息不能证明操作未提交。已有一次Bob模型超时但随后显式新只读请求成功，不代表根因已根治。
 - 日常不加额外调用限额，成员共用Codego额度。无来源网段白名单不等于匿名访问；接入仍需服务器已有成员的SSH私钥。
 
