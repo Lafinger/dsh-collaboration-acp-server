@@ -8,7 +8,7 @@
 
 Node24.21.0/pnpm11.7.0：98构建文件与源码一致，282业务+29单元+12正式宿主接口集成PASS；3显式客户端联合用例PASS，4项安全mutation均检出。新版tarball171文件，相对imports/entry/disabled bundle/精确peers/MIT与抽取挂载PASS，冻结依赖与命名/链接审计PASS。
 
-正式GitHub发布和新Docker空状态交付尚由后续专门记录核验；不把以下历史结果当新版部署或GUI验收。测试无真实模型调用，不修改两台现用客户端。
+正式GitHub发布和新Docker空状态已完成核验，见[新发行记录](RENAME-RELEASE-VERIFY.md)及[Docker验收](../deploy/docker-linux/VERIFY.md)；不把以下历史结果当新版部署或GUI验收。测试无真实模型调用，不修改两台现用客户端。
 
 ## 0.2.0宿主插件改造（历史）
 

@@ -1,6 +1,6 @@
 param([ValidateSet('Build','Start','Stop','Restart','Status','Logs')][string]$Action = 'Status')
 $ErrorActionPreference = 'Stop'
-$dockerBin = 'C:\Users\cjh13\AppData\Local\Programs\DockerDesktop\resources\bin'
+$dockerBin = Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin'
 $docker = Join-Path $dockerBin 'docker.exe'
 $env:PATH = "$dockerBin;$env:PATH"
 # Docker's registry-auth client does not automatically read the Windows proxy setting.
@@ -15,7 +15,7 @@ if ($Action -eq 'Build') {
 $argsForDocker = @('compose','--project-directory',$PSScriptRoot,'-f',(Join-Path $PSScriptRoot 'compose.yaml'))
 switch ($Action) {
   'Build' { $argsForDocker += @('--progress','plain','build') }
-  'Start' { $argsForDocker += @('up','-d') }
+  'Start' { $argsForDocker += @('up','-d','--wait','--wait-timeout','120') }
   'Stop' { $argsForDocker += @('stop','--timeout','45') }
   'Restart' { $argsForDocker += @('restart','--timeout','45') }
   'Status' { $argsForDocker += @('ps') }

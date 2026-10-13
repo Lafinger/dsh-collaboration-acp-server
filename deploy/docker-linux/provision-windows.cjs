@@ -1,8 +1,9 @@
 // Run with the installed Electron in Node mode so its bundled YAML parser is available.
 // Only CODEGO_API_KEY is read into memory. Secret travels on stdin, never argv/stdout/image.
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
-const docker='C:/Users/cjh13/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe';
-const yaml=require('C:/Users/cjh13/AppData/Local/Programs/DeepSeek Harness/resources/app.asar/dsh/node_modules/js-yaml');
+const local=process.env.LOCALAPPDATA;if(!local)throw new Error('Windows LOCALAPPDATA required');
+const docker=path.join(local,'Programs/DockerDesktop/resources/bin/docker.exe');
+const yaml=require(path.join(local,'Programs/DeepSeek Harness/resources/app.asar/dsh/node_modules/js-yaml'));
 const container='dsh-collaboration-linux-sim';
 const privateDir=path.resolve(process.cwd(),'.dsh/docker-linux-sim');
 if(!fs.existsSync(privateDir))throw new Error('Create private directory and restrict its Windows ACL first');
@@ -14,7 +15,7 @@ for(const account of ['alice','bob']){
  run(docker,['cp',key+'.pub',`${container}:/srv/collaboration/ssh/${account}.pub`]);
 }
 let source;
-try { source=yaml.load(fs.readFileSync('C:/Users/cjh13/.dsh/.credentials.yaml','utf8')); }
+try { source=yaml.load(fs.readFileSync(path.join(require('node:os').homedir(),'.dsh/.credentials.yaml'),'utf8')); }
 catch { throw new Error('Cannot parse source credential store; contents are redacted'); }
 const secret=source?.refs?.CODEGO_API_KEY;
 if(typeof secret!=='string'||!secret.trim())throw new Error('Codego credential reference is not a portable configured key');

@@ -1,7 +1,7 @@
 param([switch]$ConfirmDeleteWithoutBackup)
 $ErrorActionPreference = 'Stop'
 if (-not $ConfirmDeleteWithoutBackup) { throw 'Explicit -ConfirmDeleteWithoutBackup is required. No data were changed.' }
-$docker = 'C:\Users\cjh13\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe'
+$docker = Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin\docker.exe'
 $container='dsh-collaboration-linux-sim'
 $volume='dsh-collaboration-linux-sim-data'
 $state = & $docker inspect $container --format '{{json .}}' | ConvertFrom-Json

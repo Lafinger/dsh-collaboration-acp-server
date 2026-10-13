@@ -10,6 +10,7 @@ if (-not (Test-Path -LiteralPath $private)) {
   throw 'Private directory already exists. This first-time provisioning script refuses to replace keys or credentials.'
 }
 $env:ELECTRON_RUN_AS_NODE = '1'
-$process = Start-Process -FilePath 'C:\Users\cjh13\AppData\Local\Programs\DeepSeek Harness\DeepSeek Harness.exe' -ArgumentList @('deploy/docker-linux/provision-windows.cjs') -WorkingDirectory $serverRoot -NoNewWindow -Wait -PassThru
+$electron = Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek Harness\DeepSeek Harness.exe'
+$process = Start-Process -FilePath $electron -ArgumentList @('deploy/docker-linux/provision-windows.cjs') -WorkingDirectory $serverRoot -NoNewWindow -Wait -PassThru
 if ($process.ExitCode -ne 0) { throw 'First-time provisioning failed; inspect redacted error, do not retry overwriting data' }
 & (Join-Path $PSScriptRoot 'control.ps1') Restart

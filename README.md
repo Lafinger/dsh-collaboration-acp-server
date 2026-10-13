@@ -14,7 +14,7 @@ DSH插件管理器安装来源：
 github:Lafinger/dsh-collaboration-acp-server
 ```
 
-当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.3.0`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，实际安装、宿主隔离和旧版本首发证据见[验收记录](docs/GITHUB-RELEASE-VERIFY.md)。只发布GitHub，不发布npm或DSH插件市场。
+当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.3.0`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[新版验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。Linux部署与重装见[运维目录](deploy/docker-linux/README.md)。只发布GitHub，不发布npm或DSH插件市场。
 
 安装后默认disabled；空配置启用为安全待配置，不建库、不监听、不调用模型。复制[空模板](examples/server-config.example.json)到服务账号自己的私有配置文件，填写部署路径、账号独立凭据与宿主已有provider/model，按[部署说明](docs/DEPLOYMENT.md)检查后启用。没有GUI配置表单，也不自动修改sshd或创建系统账号。
 

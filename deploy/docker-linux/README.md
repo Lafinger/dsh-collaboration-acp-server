@@ -14,15 +14,17 @@
 
 ## 命令
 
-Windows PowerShell从任意目录运行[控制脚本](control.ps1)：
+Windows PowerShell在本目录运行[控制脚本](control.ps1)（其他目录请给脚本实际完整路径）：
 
 ```powershell
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\control.ps1' Build
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\control.ps1' Start
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\control.ps1' Status
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\control.ps1' Stop
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\control.ps1' Restart
+./control.ps1 Build
+./control.ps1 Start
+./control.ps1 Status
+./control.ps1 Stop
+./control.ps1 Restart
 ```
+
+程序安装路径从LOCALAPPDATA计算，卷内绝对路径仍固定；不改宿主工作目录。Start等待healthy（最多120秒），失败不假称启动通过。
 
 Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代理；不修改全局PATH或Docker设置。无Docker Hub直连时不要禁TLS或改不可信镜像。Build上下文由[白名单](.dockerignore)限定，无私钥/模型secret。依赖安装--ignore-scripts，业务JS是发布包自带产物，不在安装时编译。
 
@@ -57,7 +59,7 @@ Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代�
 如以后Docker应用允许规则被移除或更换机器，可在管理员PowerShell安装仅针对本服务两IP/TCP22222的任意来源允许规则：
 
 ```powershell
-& 'C:\Users\cjh13\Desktop\项目管理工作台\dsh-collaboration-acp-server\deploy\docker-linux\firewall.ps1' Install
+./firewall.ps1 Install
 ```
 
 此为可选排障步骤，当前未执行，不是开放所有Docker端口。检查/撤销将Install改为Inspect/Remove，操作仅限本次命名规则；若以前已装旧网段规则，脚本拒绝直接覆盖，先检查再显式Remove。网络路由、ZeroTier控制器策略和其他防火墙仍可能影响跨设备接入。
@@ -78,7 +80,7 @@ Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代�
 - 若TIMEOUT/COLLABORATION_NO_REPLAY，先看原会话已保存记录/服务端工具提交事实；不要自动重试写入或重置状态库。未确认结果前错误信息不能证明操作未提交。已有一次Bob模型超时但随后显式新只读请求成功，不代表根因已根治。
 - 日常不加额外调用限额，成员共用Codego额度。无来源网段白名单不等于匿名访问；接入仍需服务器已有成员的SSH私钥。
 
-旧版人工双主机只读验收及一次超时证据见[历史验收记录](VERIFY-LEGACY-v0.2.0.md)，不是新版本部署通过的证明。当前更新结果见[验收记录](VERIFY.md)。
+旧版人工双主机只读验收及一次超时证据见[历史验收记录](VERIFY-LEGACY-v0.2.0.md)，不是新版本部署通过的证明。当前更新结果见[验收记录](VERIFY.md)，两台客户端步骤见[重装清单](CLIENT-REINSTALL.md)。
 
 ## 验收与检查
 
