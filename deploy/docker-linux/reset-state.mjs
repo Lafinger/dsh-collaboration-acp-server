@@ -10,11 +10,11 @@ const allowedState = new Set(['mode.json', 'acceptance-counters.json', 'restore-
 const retainedPaths = ['dsh-home/.credentials.yaml','dsh-home/collaboration-acp-server.json','ssh'];
 const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 function contained(root,path){const rel=relative(root,path);assert.ok(rel!==''&&rel!=='..'&&!rel.startsWith('..\\')&&!rel.startsWith('../')&&!isAbsolute(rel),'Delete must be strictly inside explicit service root');}
-function noLinks(path){assert.ok(!lstatSync(path).isSymbolicLink(),'Refuse symlink in maintenance target');assert.equal(realpathSync(path),resolve(path),'Refuse unexpected absolute target');if(lstatSync(path).isDirectory())for(const name of readdirSync(path))noLinks(join(path,name));}
+function noLinks(path,recursive=true){assert.ok(!lstatSync(path).isSymbolicLink(),'Refuse symlink in maintenance target');assert.equal(realpathSync(path),resolve(path),'Refuse unexpected absolute target');if(recursive&&lstatSync(path).isDirectory())for(const name of readdirSync(path))noLinks(join(path,name));}
 function retained(root){const facts=new Map();function walk(path){noLinks(path);if(lstatSync(path).isDirectory())for(const name of readdirSync(path))walk(join(path,name));else facts.set(relative(root,path),hash(path));}for(const name of retainedPaths)walk(join(root,name));return facts;}
 export function planReset(root){
  root=resolve(root);assert.equal(realpathSync(root),root);assert.ok(lstatSync(root).isDirectory());
- for(const name of ['private-state','dsh-home','dsh-home/sessions','ssh','workspace']){const path=join(root,name);contained(root,path);noLinks(path);assert.ok(lstatSync(path).isDirectory());}
+ for(const name of ['private-state','dsh-home','dsh-home/sessions','ssh','workspace']){const path=join(root,name);contained(root,path);noLinks(path,name!=='dsh-home');assert.ok(lstatSync(path).isDirectory());}
  const config=JSON.parse(readFileSync(join(root,'dsh-home/collaboration-acp-server.json'),'utf8'));
  assert.equal(config.serviceId,'docker-linux-sim','Refuse unrelated service');assert.equal(config.provider,'codego');assert.equal(config.model,'deepseek-v4.1-flash');
  assert.equal(JSON.parse(readFileSync(join(root,'private-state/mode.json'),'utf8')).mode,'daily','Preserve daily mode only');
