@@ -82,7 +82,7 @@ Build仅给该进程加入Docker安装路径并读取已有Windows本地HTTP代�
 - 若TIMEOUT/COLLABORATION_NO_REPLAY，先看原会话已保存记录/服务端工具提交事实；不要自动重试写入或重置状态库。未确认结果前错误信息不能证明操作未提交。已有一次Bob模型超时但随后显式新只读请求成功，不代表根因已根治。
 - 日常不加额外调用限额，成员共用Codego额度。无来源网段白名单不等于匿名访问；接入仍需服务器已有成员的SSH私钥。
 
-旧版人工双主机只读验收及一次超时证据见[历史验收记录](VERIFY-LEGACY-v0.2.0.md)，不是新版本部署通过的证明。当前更新结果见[验收记录](VERIFY.md)，两台客户端步骤见[重装清单](CLIENT-REINSTALL.md)。
+旧版人工双主机只读验收及一次超时证据见[历史验收记录](VERIFY-LEGACY-v0.2.0.md)，不是新版本部署通过的证明。此前改名结果见[历史改名验收](VERIFY.md)；本次附件更新见[发行与保留升级验收](../../docs/ATTACHMENT-RELEASE-VERIFY.md)，两台客户端保留步骤见[附件升级](ATTACHMENT-UPDATE.md)。旧[改名重装清单](CLIENT-REINSTALL.md)不适用本次升级。
 
 ## 验收与检查
 

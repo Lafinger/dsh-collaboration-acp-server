@@ -14,4 +14,4 @@ DOCX使用Node原生inflateRawSync maxOutputLength，先校验central directory�
 
 本地最新PASS：客户端31单元/8宿主集成，服务端282业务/35单元/13宿主集成，双仓joint4项（多块原生/path附件、版本与同id恢复无重放）。两个抽取发行包安全导入PASS（客户端24文件、服务端180文件）。
 
-待收敛：生产Linux固定GitHub包依赖与native sharp加载验证、现有volume/会话/凭据不变快照比较、新release/双平台CI/下载hash/独立installer、人工Alice后续验收。以上本地证据不能称正式发布/实际GUI附件验收完成。
+正式发布/双平台CI/下载hash/独立installer、生产Linux固定GitHub包native sharp和隔离工具fixture、现有volume业务/会话/凭据hash完全一致核对已通过；Docker v0.4.1 healthy/Restarts0，保留2项目/3远端会话/9请求/6session文件。实际GUI附件/真实模型由用户后续Alice操作，未代替执行；见[本次发行证据](<ATTACHMENT-RELEASE-VERIFY.md>)。

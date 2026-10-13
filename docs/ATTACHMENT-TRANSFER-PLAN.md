@@ -1,6 +1,6 @@
 # 成员本地附件工具传输与项目资料归档计划
 
-状态：用户已最终确认正式执行、保留数据、DOCX/MD/TXT＋PNG/JPEG/WebP/GIF传输归档，视觉分析仅有已验证能力时开启；实现中。真实文档获准当前Codego处理，但由用户后续Alice明确上传；自动回归不调用真实模型。本文不是功能已实现或验收通过的证据。
+状态：用户已最终确认正式执行、保留数据、DOCX/MD/TXT＋PNG/JPEG/WebP/GIF传输归档，视觉分析仅有已验证能力时开启；实现/正式发行/Docker保留升级完成，人工GUI附件验收待用户执行。真实文档获准当前Codego处理，但由用户后续Alice明确上传；自动回归不调用真实模型。本文不是功能已实现或验收通过的证据。
 
 ## 用户目标与分层
 
@@ -31,7 +31,7 @@ MD/TXT：严格UTF-8+BOM处理；非UTF-8/损坏/超限显式拒绝或未覆盖�
 
 协作协议基础v2保留；新增严格协商attachmentTransfer版本1能力，只在双方精确支持时启用客户端文件传输，旧客户端/服务器文本行为不能因缺失capability偷偷降级上传。若实现确认此增量无法安全隔离，再明确提出协议升版，不暗中破坏旧会话。
 
-建议客户端v0.3.0、服务端v0.4.0，正式main提交/Windows+UbuntuCI/annotated tag与不可变三附件GitHubRelease（不npm/市场），下载hash/固定来源安装核对；Docker固定新tag/commit，先构建验证再升级。
+最终客户端v0.3.0、服务端v0.4.1（0.4.0保留不可变，POC空目录ZIP标记兼容性以新patch修复），正式main提交/Windows+UbuntuCI/annotated tag与不可变三附件GitHubRelease（不npm/市场），下载hash/固定来源安装核对；Docker固定新tag/commit，先构建验证再升级。
 
 保留当前CSAIR-DH-POC与COLLAB-RETEST-001、资料/业务库/会话、映射数据库、凭据、SSH身份/keys/known_hosts/volume；不清空、不重放已有消息，不轮换密钥。旧会话恢复只挂原id，用户负责两台插件正常重装。容器升级前正常停服，可读校验库和版本迁移，不删卷/业务，不通过未发布源码覆盖正式包。
 
