@@ -10,7 +10,7 @@
  * Verified by a real write outside fileRoot before this guard existed.
  */
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 
 /** Normalise to forward slashes so stored paths are portable across platforms. */
 export function toPosixPath(path: string): string {
@@ -53,7 +53,7 @@ export class FileRoot {
     const target = resolve(this.root, ...segments)
 
     if (!this.contains(target)) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'PATH_ESCAPES_FILE_ROOT',
         `refusing to write outside the storage root: ${segments.join('/')}`,
         { segments: [...segments] },
@@ -66,7 +66,7 @@ export class FileRoot {
   relativeOf(absolutePath: string): string {
     const rel = relative(this.root, resolve(absolutePath))
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'PATH_ESCAPES_FILE_ROOT',
         'path is not inside the storage root',
         { path: absolutePath },
@@ -84,18 +84,18 @@ export class FileRoot {
  */
 export function assertSafeSegment(segment: string): void {
   if (segment === '' || segment === '.' || segment === '..') {
-    throw new WorkbenchError('INVALID_ARGUMENT', `unsafe path segment: "${segment}"`, { segment })
+    throw new CollaborationError('INVALID_ARGUMENT', `unsafe path segment: "${segment}"`, { segment })
   }
   if (segment.includes('/') || segment.includes('\\')) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `path segment must not contain separators: "${segment}"`, {
+    throw new CollaborationError('INVALID_ARGUMENT', `path segment must not contain separators: "${segment}"`, {
       segment,
     })
   }
   if (segment.includes('\0')) {
-    throw new WorkbenchError('INVALID_ARGUMENT', 'path segment must not contain NUL', { segment })
+    throw new CollaborationError('INVALID_ARGUMENT', 'path segment must not contain NUL', { segment })
   }
   if (/^[a-zA-Z]:/.test(segment)) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `path segment must not be a drive path: "${segment}"`, {
+    throw new CollaborationError('INVALID_ARGUMENT', `path segment must not be a drive path: "${segment}"`, {
       segment,
     })
   }
@@ -110,7 +110,7 @@ export function assertSafeSegment(segment: string): void {
  */
 export function versionFileName(version: number, originalName: string): string {
   if (!Number.isInteger(version) || version < 1) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `invalid version number: ${version}`, { version })
+    throw new CollaborationError('INVALID_ARGUMENT', `invalid version number: ${version}`, { version })
   }
   const safe = originalName.replace(/[\\/]/g, '_').replace(/\0/g, '')
   const trimmed = safe.trim() === '' ? 'unnamed' : safe

@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -19,8 +20,8 @@ function configuration(root) {
 }
 async function connect(config, account) {
   const peer = await connectAccess(config.socketPath);
-  await peer.request('workbench/connect', { ticket: issueTicket({ serviceId: config.serviceId, account, secret: config.accounts[account] }) });
-  await peer.request('initialize', {}); return peer;
+  await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ serviceId: config.serviceId, account, secret: config.accounts[account] }) });
+  await peer.request('initialize', initializeParams()); return peer;
 }
 async function send(peer, sessionId, text, requestId = randomUUID()) {
   const updates = [], listener = m => { if (m.params?.sessionId === sessionId) updates.push(m.params.update); }; peer.on('message', listener);
@@ -29,7 +30,7 @@ async function send(peer, sessionId, text, requestId = randomUUID()) {
 }
 test('actual plugin empty enable stays pending without any host/model/database/listener', async () => {
   const root = mkdtempSync(join(tmpdir(), 'plugin-empty-')), ctx = new Context();
-  try { const entry = ctx.plugin(plugin, { configFile: join(root, 'missing.json') }); await entry.await(); assert.equal(entry.ctx.get('workbenchServerStatus').state, 'configuration-required'); assert.equal(entry.ctx.get('workbenchServer'), undefined); assert.equal(existsSync(join(root, 'state')), false); }
+  try { const entry = ctx.plugin(plugin, { configFile: join(root, 'missing.json') }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'configuration-required'); assert.equal(entry.ctx.get('collaborationServer'), undefined); assert.equal(existsSync(join(root, 'state')), false); }
   finally { await ctx.fiber.dispose(); }
 });
 test('plugin borrows one host, isolates members/tools, unload leaves ordinary Agent alive, same-id reenable restores without replay', { timeout: 15000 }, async () => {
@@ -39,9 +40,9 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
   const ordinary = await host.ctx.agents.create({ sessionId: 'ordinary-' + randomUUID(), agentOptions: { provider: 'fixture', model: 'fixture' } });
   let entry, a, b, a2;
   try {
-    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('workbenchServerStatus').state, 'running');
+    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'running');
     for (const [key, original] of Object.entries(hostServices)) assert.equal(canonical(entry.ctx.get(key)), original);
-    const server = entry.ctx.get('workbenchServer');
+    const server = entry.ctx.get('collaborationServer');
     a = await connect(config, 'alice'); b = await connect(config, 'bob');
     const as = await a.request('session/new', {}), bs = await b.request('session/new', {});
     const [ar, br] = await Promise.all([send(a, as.sessionId, 'whoami'), send(b, bs.sessionId, 'whoami')]);
@@ -67,9 +68,9 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
     for (const [key, original] of Object.entries(hostServices)) assert.equal(canonical(host.ctx.get(key)), original);
     ordinary.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'ordinary alive' }] })); await ordinary.agent.whenIdle();
     assert.ok(ordinary.agent.session.deriveMessages().some(m => m.content.some(b => b.type === 'text' && b.text === 'fixture:ordinary alive')));
-    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('workbenchServerStatus').state, 'running');
+    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'running');
     a2 = await connect(config, 'alice'); await a2.request('session/load', { sessionId: as.sessionId });
-    assert.equal(entry.ctx.get('workbenchServer').service.store.events(as.sessionId).length, originalEvents);
+    assert.equal(entry.ctx.get('collaborationServer').service.store.events(as.sessionId).length, originalEvents);
     const next = await send(a2, as.sessionId, 'followup'); assert.equal(next.text, 'fixture:followup');
     await send(a2, as.sessionId, 'once', 'stable-request');
     await assert.rejects(send(a2, as.sessionId, 'again', 'stable-request'), /already submitted/);

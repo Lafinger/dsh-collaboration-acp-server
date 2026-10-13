@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { AccessError } from './protocol.mjs';
 
-/** Access metadata only. Business records remain in the workbench's own authoritative database. */
+/** Access metadata only. Business records remain in the collaboration's own authoritative database. */
 export class AccessStore {
   constructor(path) {
     this.db = new DatabaseSync(path);

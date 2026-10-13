@@ -1,4 +1,4 @@
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 import { newId } from '../domain/ids.js';
 import { assertWritable, isArchived, pendingFields } from '../domain/project.js';
 import { isRoleId } from '../domain/roles.js';
@@ -41,7 +41,7 @@ export class ProjectService {
         }
         catch (error) {
             if (isUniqueViolation(error)) {
-                throw new WorkbenchError('PROJECT_EXISTS', `project key "${key}" is already in use`, { key });
+                throw new CollaborationError('PROJECT_EXISTS', `project key "${key}" is already in use`, { key });
             }
             throw error;
         }
@@ -64,7 +64,7 @@ export class ProjectService {
     setMember(projectId, role, member) {
         this.requireWritable(projectId);
         if (!isRoleId(role)) {
-            throw new WorkbenchError('ROLE_UNKNOWN', `unknown role "${role}"`, { role });
+            throw new CollaborationError('ROLE_UNKNOWN', `unknown role "${role}"`, { role });
         }
         const label = member === null ? null : requireText(member, 'member', 120);
         this.projects.setMember(projectId, role, label, this.clock.now());
@@ -79,7 +79,7 @@ export class ProjectService {
     requireProject(id) {
         const project = this.projects.findById(id);
         if (project === null) {
-            throw new WorkbenchError('PROJECT_NOT_FOUND', `no project with id ${id}`, { id });
+            throw new CollaborationError('PROJECT_NOT_FOUND', `no project with id ${id}`, { id });
         }
         return project;
     }
@@ -90,11 +90,11 @@ export class ProjectService {
 }
 function requireText(value, field, max) {
     if (typeof value !== 'string' || value.trim() === '') {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field });
     }
     const trimmed = value.trim();
     if (trimmed.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
     }
     return trimmed;
 }
@@ -102,13 +102,13 @@ function optionalText(value, max) {
     if (value === undefined || value === null)
         return null;
     if (typeof value !== 'string') {
-        throw new WorkbenchError('INVALID_ARGUMENT', 'expected a string', {});
+        throw new CollaborationError('INVALID_ARGUMENT', 'expected a string', {});
     }
     const trimmed = value.trim();
     if (trimmed === '')
         return null;
     if (trimmed.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `value exceeds ${max} characters`, {});
+        throw new CollaborationError('INVALID_ARGUMENT', `value exceeds ${max} characters`, {});
     }
     return trimmed;
 }
@@ -117,7 +117,7 @@ function normaliseKey(value) {
     const raw = requireText(value, 'key', MAX_KEY_LENGTH);
     const key = raw.toUpperCase();
     if (!/^[A-Z0-9][A-Z0-9_-]*$/.test(key)) {
-        throw new WorkbenchError('INVALID_ARGUMENT', 'key must start with a letter or digit and contain only letters, digits, "-" or "_"', { key: raw });
+        throw new CollaborationError('INVALID_ARGUMENT', 'key must start with a letter or digit and contain only letters, digits, "-" or "_"', { key: raw });
     }
     return key;
 }

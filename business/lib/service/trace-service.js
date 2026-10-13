@@ -1,4 +1,4 @@
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 import { PlanRepository } from '../sqlite/plan-repository.js';
 import { TaskRepository } from '../sqlite/task-repository.js';
 import { ResultRepository } from '../sqlite/result-repository.js';
@@ -15,7 +15,7 @@ export class TraceService {
     traceTask(taskId) {
         const task = this.tasks.findById(taskId);
         if (task === null) {
-            throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId });
+            throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId });
         }
         const versions = this.tasks.versionsOf(taskId);
         const decisions = [];
@@ -113,11 +113,11 @@ export class TraceService {
     traceResult(resultId, version) {
         const r = this.results.findResultVersion(resultId, version);
         if (r === null) {
-            throw new WorkbenchError('RESULT_NOT_FOUND', `no result ${resultId} version ${version}`, { resultId, version });
+            throw new CollaborationError('RESULT_NOT_FOUND', `no result ${resultId} version ${version}`, { resultId, version });
         }
         const task = this.tasks.findById(r.taskId);
         if (task === null) {
-            throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${r.taskId}`, { taskId: r.taskId });
+            throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${r.taskId}`, { taskId: r.taskId });
         }
         const decisions = [
             {
@@ -174,7 +174,7 @@ export class TraceService {
     tracePlan(planId) {
         const latest = this.plans.findLatest(planId);
         if (latest === null) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
         }
         // Every version that still exists, oldest first, so the history reads in order.
         const versions = [];

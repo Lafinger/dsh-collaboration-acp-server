@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-import { AccessError, requireText, textPrompt } from './protocol.mjs';
+import { AccessError, requireText, textPrompt, ACP_PROTOCOL_VERSION, collaborationMeta, requireCollaborationVersion } from './protocol.mjs';
 
 export class AccessService {
   constructor({ authority, store, runtime, cwd }) {
@@ -34,19 +34,23 @@ export class AccessService {
     return entry;
   }
   async dispatch(c, method, p) {
-    if (method === 'workbench/connect') {
+    if (method === 'collaboration/connect') {
       if (c.closed || c.identity || this.closing) throw new AccessError(-32003, 'Connection already bound or closed');
+      requireCollaborationVersion(p);
       c.identity = this.authority.verify(p.ticket); clearTimeout(c.authTimer);
-      return { ...c.identity, connectionId: c.id, runtimePid: process.pid };
+      return { ...c.identity, connectionId: c.id, runtimePid: process.pid, _meta: collaborationMeta() };
     }
     const identity = this.requireIdentity(c);
     if (method === 'initialize') {
+      c.initialized = false;
+      requireCollaborationVersion(p);
+      if (p.protocolVersion !== ACP_PROTOCOL_VERSION) throw new AccessError(-32011, 'Unsupported ACP-shaped base protocol version');
       c.initialized = true;
-      return { protocolVersion: 1, agentInfo: { name: 'dsh-collaboration-acp-server', version },
+      return { protocolVersion: ACP_PROTOCOL_VERSION, _meta: collaborationMeta(), agentInfo: { name: 'dsh-collaboration-acp-server', version },
         agentCapabilities: { loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false } }, authMethods: [] };
     }
     if (!c.initialized) throw new AccessError(-32600, 'Initialize first');
-    if (method === 'workbench/whoami') return { ...identity, runtimePid: process.pid };
+    if (method === 'collaboration/whoami') return { ...identity, runtimePid: process.pid };
     if (method === 'session/new') {
       const id = randomUUID(); this.store.create(id, identity.account);
       return this.open(c, id, false);
@@ -61,7 +65,7 @@ export class AccessService {
       return this.open(c, p.sessionId, true);
     }
     if (method === 'session/list') return { sessions: this.store.list(identity.account), nextCursor: null };
-    if (method === 'workbench/history') {
+    if (method === 'collaboration/history') {
       this.store.requireOwner(p.sessionId, identity.account);
       if (p.after !== undefined && (!Number.isSafeInteger(p.after) || p.after < 0)) throw new AccessError(-32602, 'Invalid history cursor');
       return { events: this.store.events(p.sessionId, p.after ?? 0), status: this.store.status(p.sessionId) };

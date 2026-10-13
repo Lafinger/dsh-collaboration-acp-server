@@ -10,7 +10,7 @@ import { LlmRuntime } from '@deepseek-ai/dsh-llm';
 import persistencePlugin from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { FixtureModel } from '../../src/fixture-model.mjs';
 import { DshRuntime } from '../../src/dsh-runtime.mjs';
-import { createWorkbenchRuntime } from '../../src/workbench-runtime.mjs';
+import { createCollaborationRuntime } from '../../src/collaboration-runtime.mjs';
 import { join } from 'node:path';
 export async function createHost({ root, adapter = new FixtureModel(), provider = 'fixture', model = 'fixture', toolsMode = 'native' }) {
   const ctx = new Context();
@@ -28,10 +28,10 @@ export async function createTestRuntime(options) {
   const close = runtime.closeAll.bind(runtime); runtime.closeAll = async () => { try { await close(); } finally { await host.close(); } };
   return runtime;
 }
-export async function createTestWorkbench(config) {
+export async function createTestCollaboration(config) {
   const host = await createHost({ root: join(config.stateRoot, 'host') });
-  const workbench = await createWorkbenchRuntime({ ...config, provider: host.provider, model: host.model }, host.ctx);
-  const close = workbench.runtime.closeAll.bind(workbench.runtime);
-  workbench.runtime.closeAll = async () => { try { await close(); } finally { await host.close(); } };
-  return { ...workbench, host };
+  const collaboration = await createCollaborationRuntime({ ...config, provider: host.provider, model: host.model }, host.ctx);
+  const close = collaboration.runtime.closeAll.bind(collaboration.runtime);
+  collaboration.runtime.closeAll = async () => { try { await close(); } finally { await host.close(); } };
+  return { ...collaboration, host };
 }

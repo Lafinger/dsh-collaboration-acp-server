@@ -1,9 +1,9 @@
-export class WorkbenchError extends Error {
+export class CollaborationError extends Error {
     code;
     details;
     constructor(code, message, details) {
         super(message);
-        this.name = 'WorkbenchError';
+        this.name = 'CollaborationError';
         this.code = code;
         this.details = details;
     }
@@ -48,6 +48,6 @@ export const REJECTION_CODES = [
     'PATH_ESCAPES_FILE_ROOT',
     'STORAGE_CONFLICT',
 ];
-export function isWorkbenchError(value) {
-    return value instanceof WorkbenchError;
+export function isCollaborationError(value) {
+    return value instanceof CollaborationError;
 }

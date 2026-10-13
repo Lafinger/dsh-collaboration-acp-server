@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
@@ -14,7 +15,7 @@ const secret = 'a'.repeat(64);
 async function fixture(t, runtime) {
   const store = new AccessStore(':memory:'); const authority = new AccountAuthority({ serviceId: 'f', accounts: { alice: secret } });
   const service = new AccessService({ runtime, authority, store, cwd: tmpdir() }); const listener = await listenAccess(service);
-  const p = await connectAccess(listener.address); await p.request('workbench/connect', { ticket: issueTicket({ serviceId: 'f', account: 'alice', secret }) }); await p.request('initialize', {});
+  const p = await connectAccess(listener.address); await p.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ serviceId: 'f', account: 'alice', secret }) }); await p.request('initialize', initializeParams());
   t.after(async () => { p.close(); await listener.close(); store.close(); }); return { service, store, listener, p };
 }
 test('malformed/oversized protocol closes and rejects pending calls instead of dropping frames', async () => {

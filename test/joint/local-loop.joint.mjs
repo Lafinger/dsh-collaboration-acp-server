@@ -1,10 +1,11 @@
+import { initializeParams, collaborationMeta } from '../../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createTestWorkbench as createWorkbenchRuntime, createTestRuntime } from '../helpers/host.mjs';
+import { createTestCollaboration as createCollaborationRuntime, createTestRuntime } from '../helpers/host.mjs';
 import { AccessStore } from '../../src/store.mjs';
 import { AccountAuthority, issueTicket } from '../../src/authority.mjs';
 import { AccessService } from '../../src/service.mjs';
@@ -15,18 +16,18 @@ const { MemberClient } = await import(pathToFileURL(resolve(clientRoot, 'src/mem
 const { MemberAdapter } = await import(pathToFileURL(resolve(clientRoot, 'src/member-plugin.mjs')).href);
 test('actual local DSH loop uses independent client adapter and remote DSH loop, no auxiliary business turn', async () => {
   const root = mkdtempSync(join(tmpdir(), 'collab-two-loops-'));
-  const { runtime, workspace } = await createWorkbenchRuntime({ workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), fixture: true });
+  const { runtime, workspace } = await createCollaborationRuntime({ workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), fixture: true });
   const store = new AccessStore(join(root, 'access.sqlite'));
   const secret = 'a'.repeat(64);
   const service = new AccessService({ runtime, store, cwd: workspace, authority: new AccountAuthority({ serviceId: 'loop-joint', accounts: { alice: secret } }) });
   const listener = await listenAccess(service);
   const client = new MemberClient({ databasePath: join(root, 'client.sqlite'), serviceId: 'loop-joint', account: 'alice', connect: async () => {
     const peer = await connectAccess(listener.address);
-    await peer.request('workbench/connect', { ticket: issueTicket({ serviceId: 'loop-joint', account: 'alice', secret }) });
+    await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ serviceId: 'loop-joint', account: 'alice', secret }) });
     return peer;
   } });
   const adapter = new MemberAdapter(client);
-  const local = await createTestRuntime({ provider: 'workbench-remote', model: 'server-agent', adapter, persistenceRoot: join(root, 'local-sessions') });
+  const local = await createTestRuntime({ provider: 'collaboration-remote', model: 'server-agent', adapter, persistenceRoot: join(root, 'local-sessions') });
   try {
     const handle = await local.open({ id: 'local-loop', owner: 'local-entry', cwd: root, resume: false });
     for (const text of ['first', 'second']) {
@@ -39,7 +40,7 @@ test('actual local DSH loop uses independent client adapter and remote DSH loop,
     assert.deepEqual(inputs(), ['first', 'second']);
     const message = { id: 'auxiliary', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'second' }] };
     const chunks = [];
-    for await (const chunk of adapter.stream({ provider: 'workbench-remote', model: 'server-agent', sessionId: 'local-loop', messages: [message], purpose: 'compact' })) chunks.push(chunk);
+    for await (const chunk of adapter.stream({ provider: 'collaboration-remote', model: 'server-agent', sessionId: 'local-loop', messages: [message], purpose: 'compact' })) chunks.push(chunk);
     assert.equal(chunks.at(-1).reason.kind, 'error');
     assert.deepEqual(inputs(), ['first', 'second']);
   } finally { await local.closeAll(); client.close(); await listener.close(); store.close(); }

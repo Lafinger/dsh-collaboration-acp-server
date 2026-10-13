@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -26,13 +27,13 @@ test('unloading during live turn cancels own Agent, preserves request status and
   const configFile = join(root, 'config.json'); writeFileSync(configFile, JSON.stringify(config), { mode: 0o600 });
   let entry, peer;
   try {
-    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); const server = entry.ctx.get('workbenchServer');
-    peer = await connectAccess(config.socketPath); await peer.request('workbench/connect', { ticket: issueTicket({ account: 'alice', serviceId: config.serviceId, secret: config.accounts.alice }) }); await peer.request('initialize', {});
+    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); const server = entry.ctx.get('collaborationServer');
+    peer = await connectAccess(config.socketPath); await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ account: 'alice', serviceId: config.serviceId, secret: config.accounts.alice }) }); await peer.request('initialize', initializeParams());
     const { sessionId } = await peer.request('session/new', {});
     const task = peer.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: 'hold' }], _meta: { requestId: 'hold' } }).catch(e => e);
     await adapter.started.promise;
     await entry.dispose(); await task; assert.equal(server.service.runtime.handles.size, 0); assert.equal(host.ctx.agents.get(sessionId), undefined); host.ctx.agents.requireFactory();
-    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); const store = entry.ctx.get('workbenchServer').service.store;
+    entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); const store = entry.ctx.get('collaborationServer').service.store;
     assert.ok(['cancelled', 'interrupted'].includes(store.status(sessionId).state));
     assert.throws(() => store.begin(sessionId, 'hold'), /already submitted/);
   } finally { peer?.close(); await entry?.dispose(); await host.close(); }

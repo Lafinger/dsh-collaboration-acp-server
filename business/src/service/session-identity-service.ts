@@ -10,7 +10,7 @@
  * per session is the least intrusive form that still makes the statement checkable.
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { MemberLabel, SessionIdentity } from '../domain/roles.js'
 import { SessionIdentityRepository } from '../sqlite/session-identity-repository.js'
 import type { Clock } from './project-service.js'
@@ -42,7 +42,7 @@ export class SessionIdentityService {
     const stored = this.identities.find(sessionId)
     if (stored === null) {
       // Unreachable unless the write silently failed; reported rather than assumed away.
-      throw new WorkbenchError('INTERNAL', 'identity declaration did not persist', { sessionId })
+      throw new CollaborationError('INTERNAL', 'identity declaration did not persist', { sessionId })
     }
     return stored
   }
@@ -60,11 +60,11 @@ export class SessionIdentityService {
 
 function requireText(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field })
   }
   const trimmed = value.trim()
   if (trimmed.length > max) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field })
   }
   return trimmed
 }

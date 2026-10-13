@@ -25,7 +25,7 @@ import {
   type Uncovered,
   type UncoveredReason,
 } from '../domain/analysis.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import { newId } from '../domain/ids.js'
 import { assertWritable } from '../domain/project.js'
 import type { ProjectId } from '../domain/project.js'
@@ -97,7 +97,7 @@ export class AnalysisService {
         // `readOne` returns null content only together with a reason; the invariant is
         // asserted rather than cast, so a future change cannot silently drop the cause.
         if (outcome.reason === null) {
-          throw new WorkbenchError('INTERNAL', 'a scope entry failed without a reason', { entry })
+          throw new CollaborationError('INTERNAL', 'a scope entry failed without a reason', { entry })
         }
         uncovered.push({
           text: outcome.explanation,
@@ -153,7 +153,7 @@ export class AnalysisService {
         version: requirePositiveInt(s.version, 'source version'),
       }))
       if (sources.length === 0) {
-        throw new WorkbenchError(
+        throw new CollaborationError(
           'SOURCE_REQUIRED',
           `an explicit requirement must cite the version that supports it: "${truncate(text)}"`,
           { text },
@@ -162,7 +162,7 @@ export class AnalysisService {
       // A source outside the scope is a fabricated basis (MVP-014).
       for (const s of sources) {
         if (!scopeIndex.has(keyOf(s))) {
-          throw new WorkbenchError(
+          throw new CollaborationError(
             'SOURCE_OUT_OF_SCOPE',
             `source ${s.materialId} v${s.version} is not in this analysis scope`,
             { materialId: s.materialId, version: s.version },
@@ -213,7 +213,7 @@ export class AnalysisService {
   get(id: AnalysisId): Analysis {
     const analysis = this.analyses.findById(id)
     if (analysis === null) {
-      throw new WorkbenchError('ANALYSIS_NOT_FOUND', `no analysis with id ${id}`, { id })
+      throw new CollaborationError('ANALYSIS_NOT_FOUND', `no analysis with id ${id}`, { id })
     }
     return analysis
   }
@@ -240,14 +240,14 @@ export class AnalysisService {
     try {
       resolved = this.materials.resolveReference(entry)
     } catch (error) {
-      if (error instanceof WorkbenchError && error.code === 'MATERIAL_NOT_FOUND') {
+      if (error instanceof CollaborationError && error.code === 'MATERIAL_NOT_FOUND') {
         return {
           ...empty,
           reason: 'material_missing',
           explanation: `material ${entry.materialId} does not exist`,
         }
       }
-      if (error instanceof WorkbenchError && error.code === 'VERSION_NOT_FOUND') {
+      if (error instanceof CollaborationError && error.code === 'VERSION_NOT_FOUND') {
         return {
           ...empty,
           reason: 'version_missing',
@@ -305,7 +305,7 @@ export class AnalysisService {
   private requireProject(projectId: ProjectId) {
     const project = this.projects.findById(projectId)
     if (project === null) {
-      throw new WorkbenchError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, { id: projectId })
+      throw new CollaborationError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, { id: projectId })
     }
     return project
   }
@@ -318,10 +318,10 @@ function keyOf(entry: ScopeEntry): string {
 /** Normalise and de-duplicate the scope, preserving order. */
 export function normaliseScope(scope: readonly ScopeEntry[]): readonly ScopeEntry[] {
   if (!Array.isArray(scope) || scope.length === 0) {
-    throw new WorkbenchError('SCOPE_REQUIRED', 'an analysis needs an explicit non-empty scope', {})
+    throw new CollaborationError('SCOPE_REQUIRED', 'an analysis needs an explicit non-empty scope', {})
   }
   if (scope.length > MAX_ENTRIES) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `scope exceeds ${MAX_ENTRIES} entries`, {
+    throw new CollaborationError('INVALID_ARGUMENT', `scope exceeds ${MAX_ENTRIES} entries`, {
       count: scope.length,
     })
   }
@@ -342,18 +342,18 @@ export function normaliseScope(scope: readonly ScopeEntry[]): readonly ScopeEntr
 
 function requireText(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field })
   }
   const trimmed = value.trim()
   if (trimmed.length > max) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field })
   }
   return trimmed
 }
 
 function requirePositiveInt(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} must be a positive integer`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} must be a positive integer`, { field })
   }
   return value
 }

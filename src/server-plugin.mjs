@@ -7,7 +7,7 @@ import { AccountAuthority } from './authority.mjs';
 import { AccessStore } from './store.mjs';
 import { AccessService } from './service.mjs';
 import { listenAccess } from './transport.mjs';
-import { createWorkbenchRuntime } from './workbench-runtime.mjs';
+import { createCollaborationRuntime } from './collaboration-runtime.mjs';
 import { join } from 'node:path';
 
 export const name = 'collaboration-acp-server';
@@ -23,11 +23,11 @@ function validateSocket(config) {
 }
 
 export async function apply(ctx, input = {}) {
-  if (ctx.get('workbenchServerStatus')) throw new Error('Only one collaboration service may run in this DSH profile');
+  if (ctx.get('collaborationServerStatus')) throw new Error('Only one collaboration service may run in this DSH profile');
   const resolved = resolveServerConfiguration(input);
   let state = Object.freeze({ state: resolved.state, configPath: resolved.configPath, message: resolved.message });
   const status = Object.freeze({ get state() { return state.state; }, get configPath() { return state.configPath; }, get message() { return state.message; } });
-  ctx.provide('workbenchServerStatus', status);
+  ctx.provide('collaborationServerStatus', status);
   const pending = message => { state = Object.freeze({ state: 'configuration-required', configPath: resolved.configPath, message }); ctx.logger?.warn?.(message); };
   if (resolved.state !== 'configured') { pending(resolved.message); return; }
   for (const key of ['agents', 'llm', 'sessions', 'tools', 'sessionPersistence']) {
@@ -66,12 +66,12 @@ async function activate(ctx, resolved, setState, pending) {
       const stat = lstatSync(config.stateRoot);
       if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || (stat.mode & 0o077)) throw new Error('Private plugin stateRoot must be service-owned mode0700');
     }
-    const workbench = await createWorkbenchRuntime(config, ctx); runtime = workbench.runtime;
-    store = new AccessStore(join(workbench.root, 'access.sqlite'));
-    service = new AccessService({ authority, store, runtime, cwd: workbench.workspace });
+    const collaboration = await createCollaborationRuntime(config, ctx); runtime = collaboration.runtime;
+    store = new AccessStore(join(collaboration.root, 'access.sqlite'));
+    service = new AccessService({ authority, store, runtime, cwd: collaboration.workspace });
     listener = await listenAccess(service, { socketPath: config.socketPath });
     if (process.platform !== 'win32') chmodSync(config.socketPath, 0o660);
-    ctx.provide('workbenchServer', Object.freeze({ service, address: listener.address, serviceId: config.serviceId, stop }));
+    ctx.provide('collaborationServer', Object.freeze({ service, address: listener.address, serviceId: config.serviceId, stop }));
     state = { state: 'running', configPath: resolved.configPath, message: '协作服务端已启用；模型与会话使用宿主DSH。' }; setState(state);
     ctx.logger?.info?.(state.message);
     return stop;

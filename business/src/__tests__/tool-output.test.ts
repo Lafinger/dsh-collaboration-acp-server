@@ -31,15 +31,15 @@ import { AnalysisService } from '../service/analysis-service.js'
 import { MaterialService } from '../service/material-service.js'
 import { taskDetailToJson, taskToJson } from '../tool/task-tools.js'
 import { activePlansToJson, projectToolDefinitions } from '../tool/project-tools.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -252,27 +252,27 @@ describe('MVP-005: an archived project is read-only on EVERY write path', () => 
     e.projects.archive(e.projectId)
 
     assert.equal(
-      throwsWorkbench(() => materials.upload({
+      throwsCollaboration(() => materials.upload({
         projectId: e.projectId, role: 'product', purpose: 'requirements',
         originalName: 'm2.md', sourcePath: src, submittedBy: 'Ana',
       })).code,
       'PROJECT_ARCHIVED',
     )
     assert.equal(
-      throwsWorkbench(() => e.plans.register({
+      throwsCollaboration(() => e.plans.register({
         projectId: e.projectId, title: 'late', relevantRoles: ['product'],
         rolesReason: 'r', tasks: [e.add('a', 'product')], undecided: [],
       })).code,
       'PROJECT_ARCHIVED',
     )
     assert.equal(
-      throwsWorkbench(() => e.projects.setMember(e.projectId, 'backend', 'late')).code,
+      throwsCollaboration(() => e.projects.setMember(e.projectId, 'backend', 'late')).code,
       'PROJECT_ARCHIVED',
     )
     // The one that was MISSING: an analysis is a new write too. A valid scope is supplied so a
     // SCOPE_REQUIRED refusal cannot be mistaken for archive enforcement.
     assert.equal(
-      throwsWorkbench(() => analyses.submit({
+      throwsCollaboration(() => analyses.submit({
         projectId: e.projectId, trigger: 'after archive',
         scope: [{ materialId: up.material.id, version: 1 }],
         requirements: [{ text: 'x', sources: [{ materialId: up.material.id, version: 1 }] }],
@@ -298,31 +298,31 @@ describe('MVP-005: an archived project is read-only on EVERY write path', () => 
     e.projects.archive(e.projectId)
 
     assert.equal(
-      throwsWorkbench(() => e.results.addProgress({
+      throwsCollaboration(() => e.results.addProgress({
         taskId: product, note: 'still going', submittedBy: 'Ana',
       })).code,
       'PROJECT_ARCHIVED',
       'progress is a write',
     )
     assert.equal(
-      throwsWorkbench(() => e.results.submit({
+      throwsCollaboration(() => e.results.submit({
         taskId: design, summary: 'x', files: [], selfCheck: 'y', submittedBy: 'Bo',
       })).code,
       'PROJECT_ARCHIVED',
     )
     assert.equal(
-      throwsWorkbench(() => e.results.review({
+      throwsCollaboration(() => e.results.review({
         resultId: r.resultId, version: 1, outcome: 'complete', role: 'product', submittedBy: 'Ana', declaredMember: 'Ana',
       })).code,
       'PROJECT_ARCHIVED',
       'a review is a decision, and decisions are writes',
     )
     assert.equal(
-      throwsWorkbench(() => e.results.openAcceptances(r.resultId, 1)).code,
+      throwsCollaboration(() => e.results.openAcceptances(r.resultId, 1)).code,
       'PROJECT_ARCHIVED',
     )
     assert.equal(
-      throwsWorkbench(() => e.results.decide({
+      throwsCollaboration(() => e.results.decide({
         resultId: r.resultId, version: 1, taskId: design, outcome: 'accept', submittedBy: 'Bo', declaredMember: 'Bo',
       })).code,
       'PROJECT_ARCHIVED',

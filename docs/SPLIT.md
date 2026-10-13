@@ -11,6 +11,6 @@
 
 [business/src](../business/src/) 是原业务代码和 282 项回归所在模块；构建输出 business/lib。工作台需求与历史 ADR 保留在 business/docs 中，不将历史“多进程/自报身份”文本误作当前部署指令。
 
-[当前部署](DEPLOYMENT.md)、[运行维护](OPERATIONS.md)、[契约](PROTOCOL-v1.json)描述接入方案；[历史原型验证](history/acp-access-original-VERIFY.md)仅记录拆分前结果，不能代替[本仓库验证](VERIFY.md)。
+[当前部署](DEPLOYMENT.md)、[运行维护](OPERATIONS.md)、[契约](PROTOCOL-v2.json)描述接入方案；[历史原型验证](history/acp-access-original-VERIFY.md)仅记录拆分前结果，不能代替[本仓库验证](VERIFY.md)。
 
 以上为0.1.0拆分历史。0.2.0改为[宿主插件](adr/0001-hosted-collaboration-runtime.md)，精确适配DSH0.2.0-rc.2，取消独立生产启动入口，业务编译产物提交以支持无安装脚本GitHub来源。仍不展开管理员授权、文件传输或现用数据库迁移；检查和证据不写现用DSH profile。

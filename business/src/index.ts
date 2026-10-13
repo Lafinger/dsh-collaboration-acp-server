@@ -1,5 +1,5 @@
 /**
- * dsh-project-workbench — plugin entry point.
+ * Project collaboration business module — plugin entry point.
  *
  * One plugin, one SQLite database, no UI and no permission model (see docs/adr/).
  * All writes flow tool → service → sqlite; there is no other write path.
@@ -18,7 +18,7 @@ import { SessionIdentityService } from './service/session-identity-service.js'
 import { TaskService } from './service/task-service.js'
 import { registerTools } from './tool/register.js'
 
-export const name = 'project-workbench'
+export const name = 'project-collaboration'
 
 export interface Config {
   /** SQLite file, relative to the session's working directory. */
@@ -28,8 +28,8 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
-  databasePath: z.string().default('.dsh/workbench.sqlite'),
-  fileRoot: z.string().default('.dsh/workbench-files'),
+  databasePath: z.string().default('.dsh/collaboration.sqlite'),
+  fileRoot: z.string().default('.dsh/collaboration-files'),
 })
 
 export function apply(ctx: Context, config: Config): void {
@@ -59,7 +59,7 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   ctx.logger?.info?.(
-    'project-workbench ready: database=%s fileRoot=%s',
+    'project-collaboration ready: database=%s fileRoot=%s',
     config.databasePath,
     config.fileRoot,
   )

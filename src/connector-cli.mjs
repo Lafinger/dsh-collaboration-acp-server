@@ -7,11 +7,11 @@ import { bridgeConnector, readConnectorConfig } from './connector.mjs';
 // This path is fixed in root-owned deployment code; each account can read ONLY its own root-owned credential.
 const account = userInfo().username;
 if (!/^[a-zA-Z0-9_.-]+$/.test(account)) throw new Error('Unsupported operating-system account id');
-const path = join('/etc/workbench-access/connectors', `${account}.json`);
+const path = join('/etc/collaboration-access/connectors', `${account}.json`);
 try {
   const bridge = await bridgeConnector(readConnectorConfig(path), process.stdin, process.stdout);
   await new Promise(resolve => bridge.client.on('disconnected', resolve));
   bridge.close();
 } catch (error) {
-  console.error(`workbench connector: ${error.message}`); process.exitCode = 1;
+  console.error(`collaboration connector: ${error.message}`); process.exitCode = 1;
 }

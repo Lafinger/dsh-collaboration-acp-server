@@ -18,7 +18,7 @@
  * only thing it needed that was missing was WHICH INPUT VERSION was consumed (ADR-0012).
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { ProjectId } from '../domain/project.js'
 import type { TaskId, TaskVersion } from '../domain/task.js'
 import type { ResultId, ResultVersion } from '../domain/result.js'
@@ -80,7 +80,7 @@ export class TraceService {
   traceTask(taskId: TaskId): Trace {
     const task = this.tasks.findById(taskId)
     if (task === null) {
-      throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
+      throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
     }
     const versions = this.tasks.versionsOf(taskId)
     const decisions: TraceDecision[] = []
@@ -177,7 +177,7 @@ export class TraceService {
   traceResult(resultId: ResultId, version: ResultVersion): Trace {
     const r = this.results.findResultVersion(resultId, version)
     if (r === null) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'RESULT_NOT_FOUND',
         `no result ${resultId} version ${version}`,
         { resultId, version },
@@ -185,7 +185,7 @@ export class TraceService {
     }
     const task = this.tasks.findById(r.taskId)
     if (task === null) {
-      throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${r.taskId}`, { taskId: r.taskId })
+      throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${r.taskId}`, { taskId: r.taskId })
     }
     const decisions: TraceDecision[] = [
       {
@@ -245,7 +245,7 @@ export class TraceService {
   tracePlan(planId: string): Trace {
     const latest = this.plans.findLatest(planId)
     if (latest === null) {
-      throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId })
+      throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId })
     }
     // Every version that still exists, oldest first, so the history reads in order.
     const versions: { version: number; activatedAt: string | null }[] = []

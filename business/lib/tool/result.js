@@ -1,5 +1,5 @@
 import { isJsonValue } from './json.js';
-import { isWorkbenchError } from '../domain/error.js';
+import { isCollaborationError } from '../domain/error.js';
 export function fail(code, message, details) {
     return details === undefined ? { ok: false, code, message } : { ok: false, code, message, details };
 }
@@ -17,7 +17,7 @@ export async function runTool(body) {
         result = { ok: true, ...value };
     }
     catch (error) {
-        if (isWorkbenchError(error)) {
+        if (isCollaborationError(error)) {
             result =
                 error.details === undefined
                     ? fail(error.code, error.message)

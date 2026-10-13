@@ -13,8 +13,8 @@ const prepare = () => {
   const configFile = join(root, 'config.json'); writeFileSync(configFile, JSON.stringify(config), { mode: 0o600 }); return { configFile, root };
 };
 test('complete config but no host services stays pending without opening database', async () => {
-  const f = prepare(), ctx = new Context(); try { const entry = ctx.plugin(plugin, { configFile: f.configFile }); await entry.await(); assert.equal(entry.ctx.get('workbenchServerStatus').state, 'configuration-required'); assert.equal(existsSync(join(f.root, 'state')), false); } finally { await ctx.fiber.dispose(); }
+  const f = prepare(), ctx = new Context(); try { const entry = ctx.plugin(plugin, { configFile: f.configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'configuration-required'); assert.equal(existsSync(join(f.root, 'state')), false); } finally { await ctx.fiber.dispose(); }
 });
 test('unknown host model provider refuses activation before creating data or listener', async () => {
-  const f = prepare(), host = await createHost({ root: join(f.root, 'host') }); try { const entry = host.ctx.plugin(plugin, { configFile: f.configFile }); await entry.await(); assert.equal(entry.ctx.get('workbenchServerStatus').state, 'configuration-required'); assert.equal(entry.ctx.get('workbenchServer'), undefined); assert.equal(existsSync(join(f.root, 'state')), false); } finally { await host.close(); }
+  const f = prepare(), host = await createHost({ root: join(f.root, 'host') }); try { const entry = host.ctx.plugin(plugin, { configFile: f.configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'configuration-required'); assert.equal(entry.ctx.get('collaborationServer'), undefined); assert.equal(existsSync(join(f.root, 'state')), false); } finally { await host.close(); }
 });

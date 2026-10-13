@@ -74,7 +74,7 @@ for (const [name, bytes] of entries) {
 // Source is extracted from tarball; external packages resolve normally to this checkout's node_modules.
 const code = `import assert from 'node:assert/strict';import{Context}from'@deepseek-ai/cordis';
 const plugin=await import(${JSON.stringify(pathToFileURL(join(detached, 'src/server-plugin.mjs')).href)});
-const ctx=new Context();try{const entry=ctx.plugin(plugin,{configFile:${JSON.stringify(join(detached, 'missing.json'))}});await entry.await();assert.equal(entry.ctx.get('workbenchServerStatus').state,'configuration-required');assert.equal(entry.ctx.get('workbenchServer'),undefined);}finally{await ctx.fiber.dispose();}`;
+const ctx=new Context();try{const entry=ctx.plugin(plugin,{configFile:${JSON.stringify(join(detached, 'missing.json'))}});await entry.await();assert.equal(entry.ctx.get('collaborationServerStatus').state,'configuration-required');assert.equal(entry.ctx.get('collaborationServer'),undefined);}finally{await ctx.fiber.dispose();}`;
 const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: detached, stdio: 'inherit' });
 if (result.error) throw result.error;
 assert.equal(result.status, 0, 'Detached package smoke failed');

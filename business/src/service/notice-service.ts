@@ -12,7 +12,7 @@
  *   - a todo does not disappear when read
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import {
   type ItemKind,
   type Notice,
@@ -157,7 +157,7 @@ export class NoticeService {
   markRead(ref: SlotRef): { readonly changed: boolean } {
     this.requireProject(ref.projectId)
     if (!this.slotExists(ref)) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'NOTICE_NOT_FOUND',
         `no todo or notice at ${ref.kind} ${ref.objectId} v${ref.version} for role ${ref.role}`,
         {
@@ -208,7 +208,7 @@ export class NoticeService {
 
   private requireProject(projectId: ProjectId): void {
     if (this.projects.findById(projectId) === null) {
-      throw new WorkbenchError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, {
+      throw new CollaborationError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, {
         projectId,
       })
     }

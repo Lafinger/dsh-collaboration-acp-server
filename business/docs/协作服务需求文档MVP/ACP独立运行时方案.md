@@ -39,7 +39,7 @@
 
 ```
 成员 A ──spawn──> dsh --profile acp (进程1) ─┐
-成员 B ──spawn──> dsh --profile acp (进程2) ─┼─> 同一个 workbench.sqlite
+成员 B ──spawn──> dsh --profile acp (进程2) ─┼─> 同一个 collaboration.sqlite
 成员 C ──spawn──> dsh --profile acp (进程3) ─┘
 ```
 
@@ -51,16 +51,16 @@
 ## 三、`cwd` 是隔离轴，不是身份轴
 
 客户端唯一能影响服务端的业务输入就是 `cwd`，而插件的存储路径**相对于 cwd**：
-`databasePath` 默认 `.dsh/workbench.sqlite`、`fileRoot` 默认 `.dsh/workbench-files`，两者都 `resolve` 成绝对路径。
+`databasePath` 默认 `.dsh/collaboration.sqlite`、`fileRoot` 默认 `.dsh/collaboration-files`，两者都 `resolve` 成绝对路径。
 
 **所以按 cwd 给人分目录是错的**：每人得到**自己的库**，那是几个互不相干的仓库，不是共享仓库 —— 张三传的资料李四看不见。
 
 正确做法是**所有人 cwd 相同**，身份靠会话声明：
 
 ```
-/srv/workbench/            <-- 所有成员的客户端都用这个 cwd
-  workbench.sqlite         <-- 唯一的仓库（N 个进程都指向它）
-  workbench-files/         <-- 唯一的资料根
+/srv/collaboration/            <-- 所有成员的客户端都用这个 cwd
+  collaboration.sqlite         <-- 唯一的仓库（N 个进程都指向它）
+  collaboration-files/         <-- 唯一的资料根
 ```
 
 身份不靠 cwd，也不靠连接推断，靠**人在会话里说出来**（`session_declare_member`）。
@@ -121,7 +121,7 @@ ACP **只走 stdio，服务端没有任何网络监听**，所以客户端必须
 会话生命周期（同一连接上）：
 
 ```
-session.new(cwd = "/srv/workbench")   → 服务端生成 sessionId
+session.new(cwd = "/srv/collaboration")   → 服务端生成 sessionId
   ↓ prompt("我是张三") → 模型调用 session_declare_member
   ↓ 此后该会话的角色决定都以"张三"为准
   ↓ 断线后 session.list 找回来，session.resume 按同一 sessionId 重连

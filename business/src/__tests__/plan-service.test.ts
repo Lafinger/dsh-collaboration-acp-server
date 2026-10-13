@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { migrate, inTransaction } from '../sqlite/schema.js'
 import { ProjectService } from '../service/project-service.js'
 import { PlanService, findCycle } from '../service/plan-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 
 interface Env {
@@ -114,7 +114,7 @@ describe('registration (MVP-017)', () => {
         projectId: e.projectId, title: 't', relevantRoles: [] as never,
         rolesReason: 'because', tasks: [], undecided: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'ROLES_REQUIRED',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'ROLES_REQUIRED',
     )
     e.cleanup()
   })
@@ -126,7 +126,7 @@ describe('registration (MVP-017)', () => {
         projectId: e.projectId, title: 't', relevantRoles: ['wizard'] as never,
         rolesReason: 'because', tasks: [], undecided: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'ROLE_UNKNOWN',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'ROLE_UNKNOWN',
     )
     e.cleanup()
   })
@@ -199,7 +199,7 @@ describe('dependency validation at registration (MVP-017)', () => {
         projectId: e.projectId, title: 't', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [e.task('t1', 'product', ['nope'])], undecided: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'DEPENDENCY_MISSING_TASK',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'DEPENDENCY_MISSING_TASK',
     )
     e.cleanup()
   })
@@ -215,7 +215,7 @@ describe('dependency validation at registration (MVP-017)', () => {
       })
       assert.fail('should have thrown')
     } catch (err) {
-      assert.ok(err instanceof WorkbenchError)
+      assert.ok(err instanceof CollaborationError)
       assert.equal(err.code, 'DEPENDENCY_CYCLE')
       // Naming the cycle is what makes the error actionable.
       assert.match(err.message, /a -> b -> a/)
@@ -230,7 +230,7 @@ describe('dependency validation at registration (MVP-017)', () => {
         projectId: e.projectId, title: 't', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [e.task('a', 'product', ['a'])], undecided: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'DEPENDENCY_CYCLE',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'DEPENDENCY_CYCLE',
     )
     e.cleanup()
   })
@@ -242,7 +242,7 @@ describe('dependency validation at registration (MVP-017)', () => {
         projectId: e.projectId, title: 't', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [e.task('a', 'product'), e.task('a', 'design')], undecided: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'DUPLICATE_TASK_REF',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'DUPLICATE_TASK_REF',
     )
     e.cleanup()
   })
@@ -388,7 +388,7 @@ describe('the gate: all roles must agree (MVP-019, MVP-020)', () => {
       () => e.plans.confirm({
         planId: plan.id, role: 'frontend', outcome: 'agree', submittedBy: 'Wang', declaredMember: 'Wang',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'ROLE_NOT_RELEVANT',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'ROLE_NOT_RELEVANT',
     )
     e.cleanup()
   })
@@ -400,7 +400,7 @@ describe('the gate: all roles must agree (MVP-019, MVP-020)', () => {
       () => e.plans.confirm({
         planId: plan.id, role: 'wizard' as never, outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'ROLE_UNKNOWN',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'ROLE_UNKNOWN',
     )
     e.cleanup()
   })
@@ -612,7 +612,7 @@ describe('revision voids, never deletes (MVP-021)', () => {
         planId: plan.id, title: 'x', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [], undecided: [], reason: 'y',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'PLAN_ALREADY_ACTIVE',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'PLAN_ALREADY_ACTIVE',
     )
     e.cleanup()
   })

@@ -3,7 +3,7 @@
 ## Contexts
 
 - [协作服务接入](GLOSSARY.md)：成员登录身份、会话归属与多人共享业务服务。
-- [原工作台业务 MVP](business/docs/项目管理工作台需求文档MVP/GLOSSARY.md)：项目、资料、分析、计划、任务、成果、接收与追溯；保留原业务语境与身份历史。
+- [原工作台业务 MVP](business/docs/协作服务需求文档MVP/GLOSSARY.md)：项目、资料、分析、计划、任务、成果、接收与追溯；保留原业务语境与身份历史。
 
 ## Relationships
 

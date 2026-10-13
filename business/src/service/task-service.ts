@@ -15,7 +15,7 @@
  *      modify a task that was completed while the plan waited — breaking the freeze.
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import { newId } from '../domain/ids.js'
 import type { Plan, PlanId, PlannedTask, PlanVersion, TaskChange } from '../domain/plan.js'
 import type { ProjectId } from '../domain/project.js'
@@ -65,7 +65,7 @@ export class TaskService {
     for (const p of proposals) {
       if (p.change === 'add') {
         if (p.taskId !== null) {
-          throw new WorkbenchError(
+          throw new CollaborationError(
             'INVALID_ARGUMENT',
             `proposal "${p.ref}" is an add, so it must not name an existing task`,
             { ref: p.ref },
@@ -75,7 +75,7 @@ export class TaskService {
       }
 
       if (p.taskId === null) {
-        throw new WorkbenchError(
+        throw new CollaborationError(
           'TASK_TARGET_REQUIRED',
           `proposal "${p.ref}" is a ${p.change}, so it must name the task it changes`,
           { ref: p.ref, change: p.change },
@@ -87,7 +87,7 @@ export class TaskService {
       // write two versions of one task, and it must not depend on a check made elsewhere
       // (and much earlier) to avoid doing that.
       if (seenTargets.has(p.taskId)) {
-        throw new WorkbenchError(
+        throw new CollaborationError(
           'DUPLICATE_TASK_TARGET',
           `task ${p.taskId} is targeted more than once in this plan version`,
           { taskId: p.taskId },
@@ -97,13 +97,13 @@ export class TaskService {
 
       const target = this.tasks.findById(p.taskId)
       if (target === null) {
-        throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${p.taskId}`, {
+        throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${p.taskId}`, {
           taskId: p.taskId,
         })
       }
       const frozen = frozenReason(target)
       if (frozen !== null) {
-        throw new WorkbenchError(
+        throw new CollaborationError(
           'TASK_FROZEN',
           `task ${p.taskId} is ${frozen} and its definition can no longer change`,
           { taskId: p.taskId, reason: frozen },
@@ -113,7 +113,7 @@ export class TaskService {
       if (p.change === 'cancel') {
         const dependents = this.tasks.dependentsOf(p.taskId)
         if (dependents.length > 0) {
-          throw new WorkbenchError(
+          throw new CollaborationError(
             'TASK_HAS_DEPENDENTS',
             `task ${p.taskId} cannot be cancelled: ${dependents.length} task(s) depend on it`,
             { taskId: p.taskId, dependents: [...dependents] },
@@ -151,7 +151,7 @@ export class TaskService {
       if (p.change === 'add') {
         const taskId = refToTask.get(p.ref)
         if (taskId === undefined) {
-          throw new WorkbenchError('INTERNAL', `ref "${p.ref}" was not mapped`, { ref: p.ref })
+          throw new CollaborationError('INTERNAL', `ref "${p.ref}" was not mapped`, { ref: p.ref })
         }
         this.writeVersion(plan, p, taskId, 1, at, refToTask)
         this.tasks.recordOutcome({
@@ -163,7 +163,7 @@ export class TaskService {
 
       const taskId = p.taskId
       if (taskId === null) {
-        throw new WorkbenchError('INTERNAL', `proposal "${p.ref}" lost its target`, { ref: p.ref })
+        throw new CollaborationError('INTERNAL', `proposal "${p.ref}" lost its target`, { ref: p.ref })
       }
 
       if (p.change === 'cancel') {
@@ -179,7 +179,7 @@ export class TaskService {
       // modify: append a version
       const existing = this.tasks.findById(taskId)
       if (existing === null) {
-        throw new WorkbenchError('INTERNAL', `task ${taskId} vanished mid-activation`, { taskId })
+        throw new CollaborationError('INTERNAL', `task ${taskId} vanished mid-activation`, { taskId })
       }
       const next = existing.currentVersion + 1
       this.writeVersion(plan, p, taskId, next, at, refToTask)
@@ -217,7 +217,7 @@ export class TaskService {
       // Not created here: it must be an existing task in the same project.
       const existing = this.tasks.findById(dep)
       if (existing === null || existing.projectId !== plan.projectId) {
-        throw new WorkbenchError(
+        throw new CollaborationError(
           'DEPENDENCY_MISSING_TASK',
           `task "${proposal.ref}" depends on "${dep}", which resolved to no task in this project`,
           { ref: proposal.ref, dependsOn: dep },
@@ -250,7 +250,7 @@ export class TaskService {
   get(taskId: TaskId): TaskWithVersions {
     const found = this.tasks.withVersions(taskId)
     if (found === null) {
-      throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
+      throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
     }
     return found
   }
@@ -286,7 +286,7 @@ export class TaskService {
 
 function requireRole(role: unknown, ref: string): RoleId {
   if (!isRoleId(role)) {
-    throw new WorkbenchError('ROLE_UNKNOWN', `task "${ref}" has unknown role ${String(role)}`, {
+    throw new CollaborationError('ROLE_UNKNOWN', `task "${ref}" has unknown role ${String(role)}`, {
       ref,
       role,
     })

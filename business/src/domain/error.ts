@@ -4,7 +4,7 @@
  * Tools convert these into messages the model can act on — never stack traces.
  * Codes are part of the contract: tests and the smoke script assert on them.
  */
-export type WorkbenchErrorCode =
+export type CollaborationErrorCode =
   // input / validation
   | 'INVALID_ARGUMENT'
   | 'ROLE_UNKNOWN'
@@ -58,24 +58,24 @@ export type WorkbenchErrorCode =
   // unexpected
   | 'INTERNAL'
 
-export class WorkbenchError extends Error {
-  readonly code: WorkbenchErrorCode
+export class CollaborationError extends Error {
+  readonly code: CollaborationErrorCode
   readonly details: Readonly<Record<string, unknown>> | undefined
 
   constructor(
-    code: WorkbenchErrorCode,
+    code: CollaborationErrorCode,
     message: string,
     details?: Readonly<Record<string, unknown>>,
   ) {
     super(message)
-    this.name = 'WorkbenchError'
+    this.name = 'CollaborationError'
     this.code = code
     this.details = details
   }
 }
 
 /** Error codes that mean "the caller asked for something impossible", not "we broke". */
-export const REJECTION_CODES: readonly WorkbenchErrorCode[] = [
+export const REJECTION_CODES: readonly CollaborationErrorCode[] = [
   'INVALID_ARGUMENT',
   'ROLE_UNKNOWN',
   'PROJECT_NOT_FOUND',
@@ -115,6 +115,6 @@ export const REJECTION_CODES: readonly WorkbenchErrorCode[] = [
   'STORAGE_CONFLICT',
 ]
 
-export function isWorkbenchError(value: unknown): value is WorkbenchError {
-  return value instanceof WorkbenchError
+export function isCollaborationError(value: unknown): value is CollaborationError {
+  return value instanceof CollaborationError
 }

@@ -6,7 +6,7 @@
 
 ```text
 github:Lafinger/dsh-collaboration-acp-server
-github:Lafinger/dsh-collaboration-acp-server#v0.2.0
+github:Lafinger/dsh-collaboration-acp-server#v0.3.0
 ```
 
 默认入口读取main，不自动下载latest Release。首个宿主插件发行版v0.2.0，精确DSH0.2.0-rc.2、Node>=24；安装默认禁用，无prepare/install/prepack编译脚本。业务源码和核验后的JS/声明文件均提交，CI拒绝源码与产物不符，而不是重建后掩盖问题。
@@ -27,11 +27,11 @@ dsh plugin --profile collaboration-compat-server-github add github:Lafinger/dsh-
 
 1. 修改源码并升package.version，更新必要文档，`pnpm run build`同步业务产物。
 2. 冻结安装、check、打包检查通过，push main并等待CI成功。
-3. 创建对应带注释tag并push，例如下一次v0.2.1：
+3. 创建对应带注释tag并push，例如下一次v0.3.1：
 
 ```sh
-git tag -a v0.2.1 -m "Release v0.2.1"
-git push origin v0.2.1
+git tag -a v0.3.1 -m "Release v0.3.1"
+git push origin v0.3.1
 ```
 
 4. 验证Actions、公开Release、附件hash和固定tag安装。prerelease版本自动标预发布，不覆盖latest。

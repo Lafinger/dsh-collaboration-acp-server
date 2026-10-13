@@ -14,7 +14,7 @@
  * generally.
  */
 import type { DatabaseSync } from 'node:sqlite'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import { newId } from '../domain/ids.js'
 import { assertCanActAsRole, assertWritable } from '../domain/project.js'
 import type { ProjectId } from '../domain/project.js'
@@ -104,7 +104,7 @@ export class ResultService {
     // Progress on a frozen task is pointless and would misrepresent it as still in flight.
     const frozen = frozenReason(task)
     if (frozen !== null) {
-      throw new WorkbenchError('TASK_FROZEN', `task ${input.taskId} is ${frozen}`, {
+      throw new CollaborationError('TASK_FROZEN', `task ${input.taskId} is ${frozen}`, {
         taskId: input.taskId,
         reason: frozen,
       })
@@ -138,7 +138,7 @@ export class ResultService {
     this.requireWritableProject(task.projectId)
     const frozen = frozenReason(task)
     if (frozen !== null) {
-      throw new WorkbenchError('TASK_FROZEN', `task ${input.taskId} is ${frozen}`, {
+      throw new CollaborationError('TASK_FROZEN', `task ${input.taskId} is ${frozen}`, {
         taskId: input.taskId,
         reason: frozen,
       })
@@ -179,7 +179,7 @@ export class ResultService {
   review(input: ReviewInput): ResultVersionRecord {
     const existing = this.results.findResultVersion(input.resultId, input.version)
     if (existing === null) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'RESULT_NOT_FOUND',
         `no result ${input.resultId} version ${input.version}`,
         { resultId: input.resultId, version: input.version },
@@ -192,21 +192,21 @@ export class ResultService {
 
     const slot = this.results.confirmationOf(input.resultId, input.version)
     if (slot === null) {
-      throw new WorkbenchError('RESULT_NOT_FOUND', 'result has no review slot', {
+      throw new CollaborationError('RESULT_NOT_FOUND', 'result has no review slot', {
         resultId: input.resultId,
       })
     }
     // Reviewing is per ROLE, exactly like plan confirmation: naming the wrong one is refused
     // rather than silently accepted, or "the owning role decided" would mean nothing.
     if (slot.role !== input.role) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'ROLE_NOT_RELEVANT',
         `result is reviewed by role ${slot.role}, not ${input.role}`,
         { expected: slot.role, got: input.role },
       )
     }
     if (slot.outcome !== null) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'RESULT_ALREADY_REVIEWED',
         `result ${input.resultId} version ${input.version} was already reviewed as ${slot.outcome}`,
         { resultId: input.resultId, version: input.version, outcome: slot.outcome },
@@ -267,7 +267,7 @@ export class ResultService {
 
       const updated = this.results.findResultVersion(input.resultId, input.version)
       if (updated === null) {
-        throw new WorkbenchError('INTERNAL', 'result vanished during review', {})
+        throw new CollaborationError('INTERNAL', 'result vanished during review', {})
       }
       return updated
     })
@@ -285,7 +285,7 @@ export class ResultService {
   decide(input: AcceptInput): Acceptance {
     const result = this.results.findResultVersion(input.resultId, input.version)
     if (result === null) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'RESULT_NOT_FOUND',
         `no result ${input.resultId} version ${input.version}`,
         { resultId: input.resultId, version: input.version },
@@ -296,7 +296,7 @@ export class ResultService {
     const downstreamProject = downstream.projectId
     this.requireWritableProject(downstreamProject)
     if (input.taskId === result.taskId) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'INVALID_ARGUMENT',
         'a task cannot accept its own result',
         { taskId: input.taskId },
@@ -307,14 +307,14 @@ export class ResultService {
       .acceptancesOf(input.resultId, input.version)
       .find((a) => a.taskId === input.taskId)
     if (slot === undefined) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'ACCEPTANCE_NOT_OPEN',
         `task ${input.taskId} has no acceptance slot for this result`,
         { taskId: input.taskId, resultId: input.resultId },
       )
     }
     if (slot.outcome !== null) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'ALREADY_DECIDED',
         `task ${input.taskId} already ${slot.outcome}ed this result`,
         { taskId: input.taskId, outcome: slot.outcome },
@@ -328,7 +328,7 @@ export class ResultService {
      */
     const decidingRole = this.tasks.findById(input.taskId)?.role
     if (decidingRole === undefined) {
-      throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${input.taskId}`, {
+      throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${input.taskId}`, {
         taskId: input.taskId,
       })
     }
@@ -370,7 +370,7 @@ export class ResultService {
       .acceptancesOf(input.resultId, input.version)
       .find((a) => a.taskId === input.taskId)
     if (after === undefined) {
-      throw new WorkbenchError('INTERNAL', 'acceptance vanished', {})
+      throw new CollaborationError('INTERNAL', 'acceptance vanished', {})
     }
     return after
   }
@@ -385,7 +385,7 @@ export class ResultService {
   openAcceptances(resultId: ResultId, version: ResultVersion): readonly TaskId[] {
     const result = this.results.findResultVersion(resultId, version)
     if (result === null) {
-      throw new WorkbenchError('RESULT_NOT_FOUND', `no result ${resultId} version ${version}`, {
+      throw new CollaborationError('RESULT_NOT_FOUND', `no result ${resultId} version ${version}`, {
         resultId,
         version,
       })
@@ -467,7 +467,7 @@ export class ResultService {
     }
 
     if (unmet.length > 0) {
-      throw new WorkbenchError(
+      throw new CollaborationError(
         'REQUIRED_INPUT_NOT_ACCEPTED',
         `cannot complete: required input(s) not accepted — ${unmet
           .map((u) => `${u.ref} (${u.why})`)
@@ -486,7 +486,7 @@ export class ResultService {
   private requireTask(taskId: TaskId) {
     const task = this.tasks.findById(taskId)
     if (task === null) {
-      throw new WorkbenchError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
+      throw new CollaborationError('TASK_NOT_FOUND', `no task with id ${taskId}`, { taskId })
     }
     return task
   }
@@ -514,7 +514,7 @@ export class ResultService {
 
 function normaliseFiles(files: readonly ResultFile[]): readonly ResultFile[] {
   if (!Array.isArray(files)) {
-    throw new WorkbenchError('INVALID_ARGUMENT', 'files must be an array', {})
+    throw new CollaborationError('INVALID_ARGUMENT', 'files must be an array', {})
   }
   return files.map((f) => ({
     relPath: requireText(f.relPath, 'file path', 1_000),
@@ -526,11 +526,11 @@ function normaliseFiles(files: readonly ResultFile[]): readonly ResultFile[] {
 
 function requireText(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field })
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field })
   }
   const trimmed = value.trim()
   if (trimmed.length > max) {
-    throw new WorkbenchError('INVALID_ARGUMENT', `${field} is too long`, {
+    throw new CollaborationError('INVALID_ARGUMENT', `${field} is too long`, {
       field,
       max,
       actual: trimmed.length,

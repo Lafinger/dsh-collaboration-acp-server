@@ -1,6 +1,6 @@
 {
   "name": "dsh-collaboration-acp-server",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "repository": { "type": "git", "url": "git+https://github.com/Lafinger/dsh-collaboration-acp-server.git" },
   "homepage": "https://github.com/Lafinger/dsh-collaboration-acp-server#readme",
   "bugs": { "url": "https://github.com/Lafinger/dsh-collaboration-acp-server/issues" },
-  "description": "DSH-hosted collaboration ACP plugin: account-owned conversations and scoped project-workbench business tools.",
+  "description": "DSH-hosted collaboration ACP plugin: account-owned conversations and scoped project-collaboration business tools.",
   "engines": { "node": ">=24.0.0", "dsh": "0.2.0-rc.2" },
   "main": "src/server-plugin.mjs",
   "exports": { ".": "./src/server-plugin.mjs", "./runtime": "./src/dsh-runtime.mjs", "./service": "./src/service.mjs", "./connector": "./src/connector.mjs", "./protocol": "./src/protocol.mjs", "./package.json": "./package.json" },

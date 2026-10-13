@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
@@ -21,9 +22,9 @@ test('stdio connector fixes trusted account and forbids client identity renegoti
   const bridge = await bridgeConnector({ account: 'alice', serviceId: 'connector', secret, endpoint: listener.address }, input, output);
   const member = new JsonPeer(output, input);
   t.after(async () => { member.close(); bridge.close(); await listener.close(); store.close(); });
-  await member.request('initialize', {});
-  assert.equal((await member.request('workbench/whoami', {})).account, 'alice');
-  await assert.rejects(member.request('workbench/connect', { ticket: { account: 'bob' } }), /cannot choose/);
+  await member.request('initialize', initializeParams());
+  assert.equal((await member.request('collaboration/whoami', {})).account, 'alice');
+  await assert.rejects(member.request('collaboration/connect', { ticket: { account: 'bob' } }), /cannot choose/);
   await assert.rejects(member.request('fs/read_text_file', { path: 'private' }), /Unsupported/);
   assert.equal(service.connections.size, 1);
 });

@@ -1,4 +1,4 @@
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 import { newId } from '../domain/ids.js';
 import { assertCanActAsRole } from '../domain/project.js';
 import { isRoleId } from '../domain/roles.js';
@@ -80,15 +80,15 @@ export class PlanService {
     revise(input) {
         const latest = this.plans.findLatest(input.planId);
         if (latest === null) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, { id: input.planId });
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, { id: input.planId });
         }
         if (latest.activatedAt !== null) {
-            throw new WorkbenchError('PLAN_ALREADY_ACTIVE', `plan ${input.planId} is already active and cannot be revised`, { id: input.planId, version: latest.version });
+            throw new CollaborationError('PLAN_ALREADY_ACTIVE', `plan ${input.planId} is already active and cannot be revised`, { id: input.planId, version: latest.version });
         }
         const reason = requireText(input.reason, 'revision reason', MAX_REASON);
         const existingPlan = this.plans.findLatest(input.planId);
         if (existingPlan === null) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, {
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, {
                 id: input.planId,
             });
         }
@@ -138,16 +138,16 @@ export class PlanService {
     confirm(input) {
         const latest = this.plans.findLatest(input.planId);
         if (latest === null) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, { id: input.planId });
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${input.planId}`, { id: input.planId });
         }
         if (!isRoleId(input.role)) {
-            throw new WorkbenchError('ROLE_UNKNOWN', `unknown role: ${String(input.role)}`, { role: input.role });
+            throw new CollaborationError('ROLE_UNKNOWN', `unknown role: ${String(input.role)}`, { role: input.role });
         }
         if (!latest.relevantRoles.includes(input.role)) {
-            throw new WorkbenchError('ROLE_NOT_RELEVANT', `role "${input.role}" is not among this plan's relevant roles`, { role: input.role, relevantRoles: [...latest.relevantRoles] });
+            throw new CollaborationError('ROLE_NOT_RELEVANT', `role "${input.role}" is not among this plan's relevant roles`, { role: input.role, relevantRoles: [...latest.relevantRoles] });
         }
         if (latest.activatedAt !== null) {
-            throw new WorkbenchError('PLAN_ALREADY_ACTIVE', `plan ${input.planId} is already active`, { id: input.planId });
+            throw new CollaborationError('PLAN_ALREADY_ACTIVE', `plan ${input.planId} is already active`, { id: input.planId });
         }
         /*
          * Who may confirm (MVP-019, ADR-0014).
@@ -178,7 +178,7 @@ export class PlanService {
             // activate in the same transaction if it just closed.
             const refreshed = this.plans.findVersion(latest.id, latest.version);
             if (refreshed === null) {
-                throw new WorkbenchError('INTERNAL', 'plan version vanished mid-confirmation', {
+                throw new CollaborationError('INTERNAL', 'plan version vanished mid-confirmation', {
                     id: latest.id,
                     version: latest.version,
                 });
@@ -211,7 +211,7 @@ export class PlanService {
     get(planId) {
         const latest = this.plans.findLatest(planId);
         if (latest === null) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
         }
         return this.view(latest);
     }
@@ -219,7 +219,7 @@ export class PlanService {
     history(planId) {
         const versions = this.plans.listVersions(planId);
         if (versions.length === 0) {
-            throw new WorkbenchError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
+            throw new CollaborationError('PLAN_NOT_FOUND', `no plan with id ${planId}`, { id: planId });
         }
         return versions.map((p) => this.view(p));
     }
@@ -250,10 +250,10 @@ export class PlanService {
     requireProject(projectId) {
         const project = this.projects.findById(projectId);
         if (project === null) {
-            throw new WorkbenchError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, { id: projectId });
+            throw new CollaborationError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, { id: projectId });
         }
         if (project.archivedAt !== null) {
-            throw new WorkbenchError('PROJECT_ARCHIVED', `project ${projectId} is archived`, { id: projectId });
+            throw new CollaborationError('PROJECT_ARCHIVED', `project ${projectId} is archived`, { id: projectId });
         }
         return project;
     }
@@ -270,20 +270,20 @@ owner) {
     const title = requireText(input.title, 'title', MAX_TITLE);
     const rolesReason = requireText(input.rolesReason, 'roles reason', MAX_REASON);
     if (!Array.isArray(input.relevantRoles) || input.relevantRoles.length === 0) {
-        throw new WorkbenchError('ROLES_REQUIRED', 'a plan must name the roles that must confirm it', {});
+        throw new CollaborationError('ROLES_REQUIRED', 'a plan must name the roles that must confirm it', {});
     }
     if (input.relevantRoles.length > MAX_ROLES) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `too many relevant roles`, {
+        throw new CollaborationError('INVALID_ARGUMENT', `too many relevant roles`, {
             count: input.relevantRoles.length,
         });
     }
     const roles = [];
     for (const r of input.relevantRoles) {
         if (!isRoleId(r)) {
-            throw new WorkbenchError('ROLE_UNKNOWN', `unknown role: ${String(r)}`, { role: r });
+            throw new CollaborationError('ROLE_UNKNOWN', `unknown role: ${String(r)}`, { role: r });
         }
         if (roles.includes(r)) {
-            throw new WorkbenchError('INVALID_ARGUMENT', `role "${r}" listed twice`, { role: r });
+            throw new CollaborationError('INVALID_ARGUMENT', `role "${r}" listed twice`, { role: r });
         }
         roles.push(r);
     }
@@ -292,18 +292,18 @@ owner) {
     const proposedRoles = input.proposedRoles ?? null;
     const overridden = proposedRoles !== null && !sameRoles(proposedRoles, roles);
     if (input.tasks.length > MAX_TASKS) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `too many tasks`, { count: input.tasks.length });
+        throw new CollaborationError('INVALID_ARGUMENT', `too many tasks`, { count: input.tasks.length });
     }
     const tasks = input.tasks.map((t) => {
         const ref = requireText(t.ref, 'task ref', 100);
         if (!isRoleId(t.role)) {
-            throw new WorkbenchError('ROLE_UNKNOWN', `task "${ref}" has unknown role ${String(t.role)}`, {
+            throw new CollaborationError('ROLE_UNKNOWN', `task "${ref}" has unknown role ${String(t.role)}`, {
                 ref,
                 role: t.role,
             });
         }
         if (!CHANGES.includes(t.change)) {
-            throw new WorkbenchError('INVALID_ARGUMENT', `task "${ref}" has invalid change ${String(t.change)}`, {
+            throw new CollaborationError('INVALID_ARGUMENT', `task "${ref}" has invalid change ${String(t.change)}`, {
                 ref,
                 change: t.change,
             });
@@ -314,11 +314,11 @@ owner) {
         const taskId = t.taskId ?? null;
         if (t.change === 'add') {
             if (taskId !== null) {
-                throw new WorkbenchError('ADD_MUST_NOT_NAME_A_TASK', `task "${ref}" is an add, so it must not name an existing task (got ${taskId})`, { ref, taskId });
+                throw new CollaborationError('ADD_MUST_NOT_NAME_A_TASK', `task "${ref}" is an add, so it must not name an existing task (got ${taskId})`, { ref, taskId });
             }
         }
         else if (taskId === null) {
-            throw new WorkbenchError('TASK_TARGET_REQUIRED', `task "${ref}" is a ${t.change}, so it must name the task it changes`, { ref, change: t.change });
+            throw new CollaborationError('TASK_TARGET_REQUIRED', `task "${ref}" is a ${t.change}, so it must name the task it changes`, { ref, change: t.change });
         }
         return {
             ref,
@@ -334,7 +334,7 @@ owner) {
     const refs = tasks.map((t) => t.ref);
     const refSet = new Set(refs);
     if (refSet.size !== refs.length) {
-        throw new WorkbenchError('DUPLICATE_TASK_REF', 'task refs must be unique within a plan', {
+        throw new CollaborationError('DUPLICATE_TASK_REF', 'task refs must be unique within a plan', {
             refs,
         });
     }
@@ -346,7 +346,7 @@ owner) {
         if (t.taskId === null)
             continue;
         if (targets.has(t.taskId)) {
-            throw new WorkbenchError('DUPLICATE_TASK_TARGET', `task ${t.taskId} is targeted more than once in this plan version`, { taskId: t.taskId });
+            throw new CollaborationError('DUPLICATE_TASK_TARGET', `task ${t.taskId} is targeted more than once in this plan version`, { taskId: t.taskId });
         }
         targets.add(t.taskId);
     }
@@ -360,7 +360,7 @@ owner) {
     for (const t of tasks) {
         for (const d of t.dependsOn) {
             if (d === t.ref) {
-                throw new WorkbenchError('DEPENDENCY_CYCLE', `task "${t.ref}" depends on itself`, {
+                throw new CollaborationError('DEPENDENCY_CYCLE', `task "${t.ref}" depends on itself`, {
                     ref: t.ref,
                 });
             }
@@ -369,16 +369,16 @@ owner) {
             // Not a ref here: it must name an existing task, in this project.
             const ownerProject = owner.findTask(d);
             if (ownerProject === null) {
-                throw new WorkbenchError('DEPENDENCY_MISSING_TASK', `task "${t.ref}" depends on "${d}", which is neither a task in this plan nor an existing task`, { ref: t.ref, dependsOn: d });
+                throw new CollaborationError('DEPENDENCY_MISSING_TASK', `task "${t.ref}" depends on "${d}", which is neither a task in this plan nor an existing task`, { ref: t.ref, dependsOn: d });
             }
             if (ownerProject !== owner.projectId) {
-                throw new WorkbenchError('DEPENDENCY_MISSING_TASK', `task "${t.ref}" depends on "${d}", which belongs to another project`, { ref: t.ref, dependsOn: d });
+                throw new CollaborationError('DEPENDENCY_MISSING_TASK', `task "${t.ref}" depends on "${d}", which belongs to another project`, { ref: t.ref, dependsOn: d });
             }
         }
     }
     const cycle = findCycle(tasks);
     if (cycle !== null) {
-        throw new WorkbenchError('DEPENDENCY_CYCLE', `dependency cycle: ${cycle.join(' -> ')}`, {
+        throw new CollaborationError('DEPENDENCY_CYCLE', `dependency cycle: ${cycle.join(' -> ')}`, {
             cycle,
         });
     }
@@ -432,11 +432,11 @@ function sameRoles(a, b) {
 }
 function requireText(value, field, max) {
     if (typeof value !== 'string' || value.trim() === '') {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field });
     }
     const trimmed = value.trim();
     if (trimmed.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
     }
     return trimmed;
 }
@@ -444,10 +444,10 @@ function optionalText(value, field, max) {
     if (value === null || value === undefined || value === '')
         return null;
     if (typeof value !== 'string') {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} must be a string`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} must be a string`, { field });
     }
     if (value.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
     }
     return value;
 }

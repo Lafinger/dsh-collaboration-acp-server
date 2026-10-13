@@ -2,7 +2,7 @@ import { userInfo } from 'node:os';
 import { readFileSync, statSync } from 'node:fs';
 import { issueTicket } from './authority.mjs';
 import { connectAccess } from './transport.mjs';
-import { AccessError, JsonPeer } from './protocol.mjs';
+import { AccessError, JsonPeer, collaborationMeta, requireCollaborationVersion } from './protocol.mjs';
 
 /** This config is administrator-provisioned on the SERVER, owned by the account and not writable by it. */
 export function readConnectorConfig(path, { username = userInfo().username, platform = process.platform, gid = process.getgid?.() } = {}) {
@@ -16,11 +16,14 @@ export function readConnectorConfig(path, { username = userInfo().username, plat
   if (typeof config.socketPath !== 'string') throw new Error('Connector requires a deployment-local socket path');
   return config;
 }
-/** stdio carries ordinary ACP only. Client-controlled workbench/connect is deliberately not forwarded. */
+/** stdio carries ordinary ACP only. Client-controlled collaboration/connect is deliberately not forwarded. */
 export async function bridgeConnector(config, input, output) {
   const remote = await connectAccess(config.socketPath ?? config.endpoint);
   let identity;
-  try { identity = await remote.request('workbench/connect', { ticket: issueTicket(config) }); }
+  try {
+    identity = await remote.request('collaboration/connect', { ticket: issueTicket(config), _meta: collaborationMeta() });
+    requireCollaborationVersion(identity);
+  }
   catch (error) { remote.close(); throw error; }
   const client = new JsonPeer(input, output);
   remote.on('message', m => {
@@ -28,7 +31,7 @@ export async function bridgeConnector(config, input, output) {
     else client.notify(m.method, m.params);
   });
   client.on('message', m => {
-    if (m.method === 'workbench/connect') { client.error(m.id, new AccessError(-32003, 'Client cannot choose its identity')); return; }
+    if (m.method === 'collaboration/connect') { client.error(m.id, new AccessError(-32003, 'Client cannot choose its identity')); return; }
     if (m.id === undefined) { try { remote.notify(m.method, m.params); } catch { client.close(); } return; }
     void remote.request(m.method, m.params, { timeoutMs: m.method === 'session/prompt' ? 0 : 30000 })
       .then(result => client.result(m.id, result), error => client.error(m.id, error)).catch(() => client.close());

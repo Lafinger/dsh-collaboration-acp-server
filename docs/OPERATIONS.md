@@ -2,7 +2,7 @@
 
 ## 数据职责
 
-插件stateRoot下 `access.sqlite` 保存会话 owner、请求提交状态、恢复事件；`workbench.sqlite` 是项目业务权威库；宿主DSH的持久化后端保存模型对话和工具记录（通常为宿主JSONL，不由插件另建后端）。它们不是跨存储分布式事务，不承诺未知副作用 exactly-once。
+插件stateRoot下 `access.sqlite` 保存会话 owner、请求提交状态、恢复事件；`collaboration.sqlite` 是项目业务权威库；宿主DSH的持久化后端保存模型对话和工具记录（通常为宿主JSONL，不由插件另建后端）。它们不是跨存储分布式事务，不承诺未知副作用 exactly-once。
 
 断线取消该会话当前一轮，保留已经提交数据，flush/关闭对应 live agent；共享服务与其他会话继续。恢复要同一账号和同一 sessionId；仅附加/读取历史，不自动 prompt。进程重启将未完成请求标 interrupted，重复 requestId 仍拒绝。
 

@@ -19,14 +19,14 @@ import { TaskService } from '../service/task-service.js'
 import { ResultService } from '../service/result-service.js'
 import { SessionIdentityService } from '../service/session-identity-service.js'
 import { assertCanActAsRole } from '../domain/project.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -138,7 +138,7 @@ describe('declaring who this session is', () => {
     const e = env()
     assert.throws(
       () => e.identities.declare({ sessionId: 's1', member: '   ' }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'INVALID_ARGUMENT',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'INVALID_ARGUMENT',
     )
     e.cleanup()
   })
@@ -158,7 +158,7 @@ describe('a role decision must come from that role\'s member (MVP-019)', () => {
 
     // Naming the role's own member is not enough: the check reads what the SESSION declared.
     // If `submitted_by` satisfied the check, this would succeed — which is the hole ADR-0014 closes.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({ planId, role: 'product', outcome: 'agree', submittedBy: 'Chen' }),
     )
     assert.equal(err.code, 'MEMBER_NOT_DECLARED')
@@ -187,7 +187,7 @@ describe('a role decision must come from that role\'s member (MVP-019)', () => {
     const planId = e.register([e.task('a', 'product')], ['product'])
 
     // 'Su' holds design, not product. This is the exact move that used to succeed silently.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({
         planId,
         role: 'product',
@@ -210,7 +210,7 @@ describe('a role decision must come from that role\'s member (MVP-019)', () => {
     e.projects.setMember(e.projectId, 'design', null)
     const planId = e.register([e.task('a', 'design')], ['design'])
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({
         planId,
         role: 'design',
@@ -227,7 +227,7 @@ describe('a role decision must come from that role\'s member (MVP-019)', () => {
     const e = env()
     const planId = e.register([e.task('a', 'product')], ['product'])
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({
         planId,
         role: 'product',
@@ -302,7 +302,7 @@ describe('a result decision must come from the deciding role\'s member', () => {
 
   test('a non-member cannot review', () => {
     const { e, resultId } = withResult()
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId,
         version: 1,
@@ -377,7 +377,7 @@ describe('a result decision must come from the deciding role\'s member', () => {
     e.results.openAcceptances(r.resultId, 1)
 
     // design decides; 'Chen' holds product, not design.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId,
         version: 1,
@@ -394,7 +394,7 @@ describe('a result decision must come from the deciding role\'s member', () => {
 
 describe('the eligibility rule itself', () => {
   test('an undeclared session is told to declare, not told it is the wrong person', () => {
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       assertCanActAsRole({ role: 'product', memberOfRole: 'Chen', declaredMember: null }),
     )
     assert.equal(err.code, 'MEMBER_NOT_DECLARED')
@@ -411,7 +411,7 @@ describe('the eligibility rule itself', () => {
   })
 
   test('a mismatch is refused and names both parties', () => {
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       assertCanActAsRole({ role: 'product', memberOfRole: 'Chen', declaredMember: 'Su' }),
     )
     assert.equal(err.code, 'NOT_ROLE_MEMBER')
@@ -424,7 +424,7 @@ describe('the eligibility rule itself', () => {
    * holds the role — two round trips for one problem.
    */
   test('a vacancy is reported ahead of an undeclared identity', () => {
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       assertCanActAsRole({ role: 'product', memberOfRole: null, declaredMember: null }),
     )
     assert.equal(err.code, 'MEMBER_NOT_DECLARED')

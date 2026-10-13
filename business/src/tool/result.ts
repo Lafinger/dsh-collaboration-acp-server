@@ -6,7 +6,7 @@
  */
 import type { JsonObject, JsonValue } from './json.js'
 import { isJsonValue } from './json.js'
-import { isWorkbenchError } from '../domain/error.js'
+import { isCollaborationError } from '../domain/error.js'
 
 export interface ToolFailure extends JsonObject {
   readonly ok: false
@@ -36,7 +36,7 @@ export async function runTool<T extends JsonObject>(
     const value = await body()
     result = { ok: true, ...value }
   } catch (error) {
-    if (isWorkbenchError(error)) {
+    if (isCollaborationError(error)) {
       result =
         error.details === undefined
           ? fail(error.code, error.message)

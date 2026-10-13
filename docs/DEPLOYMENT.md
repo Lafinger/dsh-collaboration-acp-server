@@ -46,7 +46,7 @@ node scripts/check-config.mjs /absolute/server.json
 
 成员DSH客户端 → SSH公钥登录 → root配置forced-command轻量connector → 本地socket → 宿主内协作插件。每账号独立HMAC凭据签发30秒一次性票据，绑定serviceId；凭据/票据不交给客户端。聊天自报姓名、客户端account字段不构成认证。
 
-root配置`/etc/workbench-access/connectors/<account>.json`，root-owned、账号独立主组可读、mode0440；成员不能属于他人凭据组：
+root配置`/etc/collaboration-access/connectors/<account>.json`，root-owned、账号独立主组可读、mode0440；成员不能属于他人凭据组：
 
 ```json
 {
@@ -60,7 +60,7 @@ root配置`/etc/workbench-access/connectors/<account>.json`，root-owned、账�
 root-owned connector代码位置应固定到核验安装副本；推荐直接Node执行入口，不依赖成员可修改PATH：
 
 ```text
-Match Group workbench-members
+Match Group collaboration-members
   ForceCommand /opt/node/bin/node /opt/collaboration-profile/node_modules/dsh-collaboration-acp-server/src/connector-cli.mjs
   AuthenticationMethods publickey
   PasswordAuthentication no
@@ -79,7 +79,7 @@ Match Group workbench-members
 
 成员可创建/恢复自己的独立会话、操作共享业务事实。工具仅在认证Agent scope注册，并移除继承的宿主工具，原生业务执行有单调拒绝guard；宿主后来加入的工具也不在业务许可集合中。普通本地会话不能调用本插件工作台工具。现有业务材料导入仅允许管理员预置在服务workspace内的文件，realpath拒绝外部路径/符号链接逃逸；不是客户端文件上传或任意宿主文件读取接口。
 
-服务器管理员可管理宿主与业务数据，属于可信主体；插件不保证对其隐藏会话。逻辑隔离不是OS多租户隔离。仍是有限ACP-shaped/workbench协议，无文件传输、client fs/terminal/MCP或多人共编。
+服务器管理员可管理宿主与业务数据，属于可信主体；插件不保证对其隐藏会话。逻辑隔离不是OS多租户隔离。仍是有限ACP-shaped/collaboration协议，无文件传输、client fs/terminal/MCP或多人共编。
 
 ## 数据迁移
 

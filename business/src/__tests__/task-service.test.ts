@@ -12,7 +12,7 @@ import { migrate } from '../sqlite/schema.js'
 import { ProjectService } from '../service/project-service.js'
 import { PlanService } from '../service/plan-service.js'
 import { TaskService } from '../service/task-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 import type { TaskVersionRecord } from '../domain/task.js'
@@ -96,16 +96,16 @@ function versionOf(e: Env, taskId: string, version: number): TaskVersionRecord {
 }
 
 /**
- * Capture a thrown WorkbenchError.
+ * Capture a thrown CollaborationError.
  *
  * `assert.throws` does not hand the error back, so reading `.code` off its result is always
  * undefined. This wraps it so the code and details can actually be asserted on.
  */
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -203,7 +203,7 @@ describe('dependency resolution runs in two passes', () => {
 
   test('a dependency on a nonexistent ref is refused and nothing is created', () => {
     const e = env()
-    const err = throwsWorkbench(() => e.activate([e.add('a', 'product', ['ghost'])]))
+    const err = throwsCollaboration(() => e.activate([e.add('a', 'product', ['ghost'])]))
     assert.equal(err.code, 'DEPENDENCY_MISSING_TASK')
     assert.equal(e.tasks.listByProject(e.projectId).length, 0, 'no half-created task survives')
     e.cleanup()
@@ -214,7 +214,7 @@ describe('the two identifiers are enforced (ADR-0008)', () => {
   test('add must not name a task', () => {
     const e = env()
     const bad = { ...e.add('a', 'product'), taskId: 'some-existing-task' }
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [bad], undecided: [],
@@ -227,7 +227,7 @@ describe('the two identifiers are enforced (ADR-0008)', () => {
   test('modify must name a task', () => {
     const e = env()
     const bad = { ...e.add('a', 'product'), change: 'modify' as const }
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [bad], undecided: [],
@@ -240,7 +240,7 @@ describe('the two identifiers are enforced (ADR-0008)', () => {
   test('cancelling one task twice in a plan is refused', () => {
     const e = env()
     const ids = e.activate([e.add('a', 'product')])
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r',
@@ -258,7 +258,7 @@ describe('the two identifiers are enforced (ADR-0008)', () => {
   test('modify and cancel of the same task in one plan is refused', () => {
     const e = env()
     const ids = e.activate([e.add('a', 'product')])
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r',
@@ -299,7 +299,7 @@ describe('the two identifiers are enforced (ADR-0008)', () => {
   test('two modifies of the same task in one plan is refused', () => {
     const e = env()
     const ids = e.activate([e.add('a', 'product')])
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r',
@@ -419,7 +419,7 @@ describe('cancellation is terminal and keeps history', () => {
     const taskId = ids[0] as string
     e.activate([e.cancel('a2', taskId, 'product')])
 
-    const err = throwsWorkbench(() => e.activate([e.modify('a3', taskId, 'product')]))
+    const err = throwsCollaboration(() => e.activate([e.modify('a3', taskId, 'product')]))
     assert.equal(err.code, 'TASK_FROZEN')
     assert.equal(err.details?.reason, 'cancelled')
     e.cleanup()
@@ -434,7 +434,7 @@ describe('cancellation is terminal and keeps history', () => {
       .prepare('UPDATE tasks SET completed_at = ? WHERE id = ?')
       .run('2026-01-01T00:00:00.000Z', taskId)
 
-    const err = throwsWorkbench(() => e.activate([e.modify('a2', taskId, 'product')]))
+    const err = throwsCollaboration(() => e.activate([e.modify('a2', taskId, 'product')]))
     assert.equal(err.code, 'TASK_FROZEN')
     assert.equal(err.details?.reason, 'completed')
     e.cleanup()
@@ -451,7 +451,7 @@ describe('cancellation is terminal and keeps history', () => {
     const taskA = list.find((t) => t.task.role === 'product')?.task.id
     assert.ok(taskA !== undefined, 'the product task exists')
 
-    const err = throwsWorkbench(() => e.activate([e.cancel('a2', taskA, 'product')]))
+    const err = throwsCollaboration(() => e.activate([e.cancel('a2', taskA, 'product')]))
     assert.equal(err.code, 'TASK_HAS_DEPENDENTS')
 
     // And the rollback left it alone.
@@ -491,7 +491,7 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
       .run('2026-01-01T00:00:00.000Z', taskId)
 
     // The second agreement closes the gate — and activation must refuse.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({ planId: plan.id, role: 'design', outcome: 'agree', submittedBy: 'L', declaredMember: 'L' }),
     )
     assert.equal(err.code, 'TASK_FROZEN')
@@ -527,7 +527,7 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
       .prepare('UPDATE tasks SET completed_at = ? WHERE id = ?')
       .run('2026-01-01T00:00:00.000Z', taskId)
 
-    throwsWorkbench(() =>
+    throwsCollaboration(() =>
       e.plans.confirm({ planId: plan.id, role: 'design', outcome: 'agree', submittedBy: 'L', declaredMember: 'L' }),
     )
 
@@ -561,7 +561,7 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
     e.db
       .prepare('UPDATE tasks SET completed_at = ? WHERE id = ?')
       .run('2026-01-01T00:00:00.000Z', taskId)
-    throwsWorkbench(() =>
+    throwsCollaboration(() =>
       e.plans.confirm({ planId: plan.id, role: 'design', outcome: 'agree', submittedBy: 'L', declaredMember: 'L' }),
     )
 
@@ -598,7 +598,7 @@ describe('reads', () => {
 
   test('an unknown task is TASK_NOT_FOUND, not an empty result', () => {
     const e = env()
-    const err = throwsWorkbench(() => e.tasks.get('nope'))
+    const err = throwsCollaboration(() => e.tasks.get('nope'))
     assert.equal(err.code, 'TASK_NOT_FOUND')
     e.cleanup()
   })
@@ -626,14 +626,14 @@ describe('reads', () => {
     })
     const foreignTask = e.tasks.listByProject(other.id)[0]?.task.id as string
 
-    const err = throwsWorkbench(() => e.activate([e.add('a', 'product', [foreignTask])]))
+    const err = throwsCollaboration(() => e.activate([e.add('a', 'product', [foreignTask])]))
     assert.equal(err.code, 'DEPENDENCY_MISSING_TASK', 'a cross-project dependency is not allowed')
     e.cleanup()
   })
 
   test('an unknown role in a proposal is refused', () => {
     const e = env()
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.register({
         projectId: e.projectId, title: 'p', relevantRoles: ['product'] as never,
         rolesReason: 'r', tasks: [e.add('a', 'wizard')], undecided: [],

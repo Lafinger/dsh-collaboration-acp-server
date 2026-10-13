@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve, join, isAbsolute } from 'node:path';
 import { DshRuntime } from './dsh-runtime.mjs';
-import { bindWorkbenchIdentity } from './workbench-binding.mjs';
+import { bindCollaborationIdentity } from './collaboration-binding.mjs';
 import { openDatabase } from '../business/lib/sqlite/connection.js';
 import { SessionIdentityService } from '../business/lib/service/session-identity-service.js';
 import { ProjectService } from '../business/lib/service/project-service.js';
@@ -15,12 +15,12 @@ import { ResultService } from '../business/lib/service/result-service.js';
 import { registerTools } from '../business/lib/tool/register.js';
 
 /** One business database, borrowed host services, tools registered only into authenticated Agent scopes. */
-export async function createWorkbenchRuntime(config, ctx) {
+export async function createCollaborationRuntime(config, ctx) {
   if (!ctx) throw new Error('Host DSH context required');
   if (!isAbsolute(config.workspace ?? '') || !isAbsolute(config.stateRoot ?? '')) throw new Error('Explicit absolute isolated workspace/stateRoot required');
   const workspace = resolve(config.workspace), root = resolve(config.stateRoot);
   mkdirSync(workspace, { recursive: true }); mkdirSync(root, { recursive: true });
-  const db = openDatabase({ path: join(root, 'workbench.sqlite') });
+  const db = openDatabase({ path: join(root, 'collaboration.sqlite') });
   const identities = new SessionIdentityService(db), tasks = new TaskService(db), materials = new MaterialService(db, join(root, 'files'));
   const services = {
     identities, tasks, materials, projects: new ProjectService(db), plans: new PlanService(db, undefined, tasks),
@@ -28,7 +28,7 @@ export async function createWorkbenchRuntime(config, ctx) {
   };
   const runtime = new DshRuntime({ ctx, provider: config.provider, model: config.model,
     setup: (agentCtx, agent, account) => {
-      const transform = bindWorkbenchIdentity(agentCtx, identities, { sessionId: agent.session.id, account, workspace });
+      const transform = bindCollaborationIdentity(agentCtx, identities, { sessionId: agent.session.id, account, workspace });
       registerTools(agentCtx, services, transform);
     },
   });

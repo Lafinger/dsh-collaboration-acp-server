@@ -10,7 +10,7 @@ import { MaterialRepository } from '../sqlite/material-repository.js'
 import { ProjectService, systemClock } from '../service/project-service.js'
 import { MaterialService } from '../service/material-service.js'
 import { FileRoot, versionFileName, assertSafeSegment } from '../service/file-root.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 
 interface Env {
   db: DatabaseSync
@@ -200,7 +200,7 @@ describe('upload and immutable versions', () => {
       () => e.materials.upload({
         projectId: e.projectId, sourcePath: e.write('x.txt', 'x'), purpose: 'p', submittedBy: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'PROJECT_ARCHIVED',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'PROJECT_ARCHIVED',
     )
     e.cleanup()
   })
@@ -213,7 +213,7 @@ describe('source handling and failure atomicity', () => {
       () => e.materials.upload({
         projectId: e.projectId, sourcePath: join(e.outside, 'nope.txt'), purpose: 'p', submittedBy: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SOURCE_NOT_FOUND',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SOURCE_NOT_FOUND',
     )
     e.cleanup()
   })
@@ -251,7 +251,7 @@ describe('source handling and failure atomicity', () => {
       () => e.materials.upload({
         projectId: e.projectId, sourcePath: dir, purpose: 'p', submittedBy: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SOURCE_NOT_A_FILE',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SOURCE_NOT_A_FILE',
     )
     e.cleanup()
   })
@@ -274,7 +274,7 @@ describe('source handling and failure atomicity', () => {
       () => e.materials.upload({
         projectId: 'nope', sourcePath: e.write('x.txt', 'x'), purpose: 'p', submittedBy: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'PROJECT_NOT_FOUND',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'PROJECT_NOT_FOUND',
     )
     e.cleanup()
   })
@@ -305,7 +305,7 @@ describe('fixed references (MVP-009)', () => {
 
     assert.throws(
       () => e.materials.resolveReference({ materialId: material.id, version: 99 }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'VERSION_NOT_FOUND',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'VERSION_NOT_FOUND',
     )
     e.cleanup()
   })
@@ -398,7 +398,7 @@ describe('storage root guard (ADR-0004)', () => {
     for (const hostile of ['../../../../ESCAPED', '..\\..\\ESCAPED', '..', '.', 'a/b', 'a\\b']) {
       assert.throws(
         () => root.resolve(hostile, 'product', 'materials', '1'),
-        (err: unknown) => err instanceof WorkbenchError &&
+        (err: unknown) => err instanceof CollaborationError &&
           (err.code === 'PATH_ESCAPES_FILE_ROOT' || err.code === 'INVALID_ARGUMENT'),
         `expected ${JSON.stringify(hostile)} to be refused`,
       )
@@ -416,7 +416,7 @@ describe('storage root guard (ADR-0004)', () => {
     // The trap: path.relative would return "..\\..\\..." silently.
     assert.throws(
       () => root.relativeOf(join(tmpdir(), 'somewhere-else', 'x.txt')),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'PATH_ESCAPES_FILE_ROOT',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'PATH_ESCAPES_FILE_ROOT',
     )
   })
 
@@ -442,7 +442,7 @@ describe('storage root guard (ADR-0004)', () => {
       () => e.materials.upload({
         projectId: 'evil', sourcePath: e.write('x.txt', 'x'), purpose: 'p', submittedBy: 'Z',
       }),
-      (err: unknown) => err instanceof WorkbenchError &&
+      (err: unknown) => err instanceof CollaborationError &&
         (err.code === 'PATH_ESCAPES_FILE_ROOT' || err.code === 'INVALID_ARGUMENT'),
     )
 

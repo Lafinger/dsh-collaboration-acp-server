@@ -27,7 +27,7 @@ export class DshRuntime {
     const selection = { provider: this.provider, model: this.model };
     const setup = async (agentCtx, agent) => {
       installModelSelection(agentCtx, { current: selection, assembled: undefined });
-      agentCtx.isolate('workbenchAuthenticatedAccount').provide('workbenchAuthenticatedAccount', owner);
+      agentCtx.isolate('collaborationAuthenticatedAccount').provide('collaborationAuthenticatedAccount', owner);
       // Never inherit host/ancestor filesystem, terminal, MCP, delegation or future global tools.
       agentCtx.tools.restrict({ allow: [] });
       agentCtx.tools.presentAs('native');

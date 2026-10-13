@@ -12,7 +12,7 @@ test('real host-plugin package has entry, disabled bundle, precise peers and MIT
   assert.match(readFileSync(new URL('../LICENSE', import.meta.url), 'utf8'), /^MIT License\r?\n/);
 });
 test('production runtime files neither construct Context nor mount or dispose host runtime services', () => {
-  for (const file of ['dsh-runtime.mjs','workbench-runtime.mjs','server-plugin.mjs']) {
+  for (const file of ['dsh-runtime.mjs','collaboration-runtime.mjs','server-plugin.mjs']) {
     const source = readFileSync(new URL('../src/' + file, import.meta.url), 'utf8');
     assert.ok(!/new Context\(|ctx\.plugin\(|ctx\.fiber\.dispose\(|registerAdapter\(/.test(source));
   }

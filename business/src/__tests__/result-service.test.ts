@@ -19,7 +19,7 @@ import { ProjectService } from '../service/project-service.js'
 import { PlanService } from '../service/plan-service.js'
 import { TaskService } from '../service/task-service.js'
 import { ResultService } from '../service/result-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 import type { ResultFile } from '../domain/result.js'
@@ -109,11 +109,11 @@ function env(): Env {
   return e
 }
 
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -162,7 +162,7 @@ describe('progress records but completes nothing', () => {
       { ...e.add('c', 'product'), taskId, change: 'cancel' as const, content: 'stop' },
     ])
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.addProgress({ taskId, note: 'too late', submittedBy: 'Z' }),
     )
     assert.equal(err.code, 'TASK_FROZEN')
@@ -172,7 +172,7 @@ describe('progress records but completes nothing', () => {
   test('an empty note is refused', () => {
     const e = env()
     e.activate([e.add('a', 'product')])
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.addProgress({ taskId: e.taskIdOf('product'), note: '   ', submittedBy: 'Z' }),
     )
     assert.equal(err.code, 'INVALID_ARGUMENT')
@@ -233,7 +233,7 @@ describe('submitting is NOT completing', () => {
     const taskId = e.taskIdOf('product')
     e.activate([{ ...e.add('c', 'product'), taskId, change: 'cancel' as const, content: 'stop' }])
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.submit({ taskId, summary: 'x', files: [], selfCheck: 'y', submittedBy: 'Z' }),
     )
     assert.equal(err.code, 'TASK_FROZEN')
@@ -289,7 +289,7 @@ describe('review decides completion', () => {
       taskId, summary: 'attempt', files: [], selfCheck: 'ok', submittedBy: 'Z',
     })
 
-    const blank = throwsWorkbench(() =>
+    const blank = throwsCollaboration(() =>
       e.results.review({
         resultId: r.resultId, version: 1, outcome: 'return', reason: '  ',
         submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
@@ -336,7 +336,7 @@ describe('review decides completion', () => {
       taskId, summary: 'x', files: [], selfCheck: 'y', submittedBy: 'Z',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: r.resultId, version: 1, outcome: 'complete',
         submittedBy: 'Li', declaredMember: 'Li', role: 'design',
@@ -359,7 +359,7 @@ describe('review decides completion', () => {
       submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: r.resultId, version: 1, outcome: 'complete',
         submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
@@ -381,7 +381,7 @@ describe('review decides completion', () => {
       submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: r.resultId, version: 1, outcome: 'return', reason: 'actually no',
         submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
@@ -474,7 +474,7 @@ describe('acceptance is separate from completion', () => {
     assert.equal(slotTaskIds.includes(c), false, 'the unrelated task got nothing')
 
     // And it cannot decide, because it has no slot.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: c, outcome: 'accept', submittedBy: 'Wang', declaredMember: 'Wang',
       }),
@@ -501,7 +501,7 @@ describe('acceptance is separate from completion', () => {
     })
     e.results.openAcceptances(r.resultId, 1)
 
-    const blank = throwsWorkbench(() =>
+    const blank = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: b, outcome: 'reject',
         reason: '', submittedBy: 'Li', declaredMember: 'Li',
@@ -553,7 +553,7 @@ describe('acceptance is separate from completion', () => {
     const r = e.results.submit({
       taskId: a, summary: 'x', files: [], selfCheck: 'y', submittedBy: 'Z',
     })
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: a, outcome: 'accept', submittedBy: 'Z', declaredMember: 'Z',
       }),
@@ -570,7 +570,7 @@ describe('acceptance is separate from completion', () => {
       taskId: a, summary: 'x', files: [], selfCheck: 'y', submittedBy: 'Z',
     })
     // No slots opened at all.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: e.taskIdOf('design'), outcome: 'accept',
         submittedBy: 'Li', declaredMember: 'Li',
@@ -590,7 +590,7 @@ describe('acceptance is separate from completion', () => {
       resultId: r.resultId, version: 1, taskId: b, outcome: 'accept', submittedBy: 'Li', declaredMember: 'Li',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: b, outcome: 'reject',
         reason: 'changed my mind', submittedBy: 'Li', declaredMember: 'Li',
@@ -672,7 +672,7 @@ describe('completion requires accepted inputs', () => {
       taskId: b, summary: 'built', files: [], selfCheck: 'ok', submittedBy: 'Li',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: mine.resultId, version: 1, outcome: 'complete',
         submittedBy: 'Li', declaredMember: 'Li', role: 'design',
@@ -693,7 +693,7 @@ describe('completion requires accepted inputs', () => {
       taskId: b, summary: 'built', files: [], selfCheck: 'ok', submittedBy: 'Li',
     })
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: mine.resultId, version: 1, outcome: 'complete',
         submittedBy: 'Li', declaredMember: 'Li', role: 'design',

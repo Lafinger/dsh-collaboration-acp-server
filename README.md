@@ -2,9 +2,9 @@
 
 **服务器 DSH 的协作 ACP 服务端插件**：安装、配置并启用后，复用宿主运行时，为多个可信登录成员提供独立 Agent 会话与共享工作台业务库。插件不创建第二套 DSH，不改宿主模型注册，不在卸载时关闭宿主。
 
-0.2.0精确支持 **DSH0.2.0-rc.2 / Cordis4.0.4 / Schemastery3.18.4 / Node>=24**。不兼容旧0.1.5独立服务入口，旧CLI明确拒绝启动，不自动迁移旧数据。服务器管理员可信；成员会话逻辑隔离不等于OS多租户隔离。
+0.3.0精确支持 **DSH0.2.0-rc.2 / Cordis4.0.4 / Schemastery3.18.4 / Node>=24**。不兼容旧0.1.5独立服务入口，旧CLI明确拒绝启动，不自动迁移旧数据。服务器管理员可信；成员会话逻辑隔离不等于OS多租户隔离。
 
-> 来源：原工作台提交3e0b76c，历史独立服务提交dac24aa。当前代码无需原仓或客户端源码；保留有限ACP-shaped接口与workbench扩展，不宣称完整ACP兼容。
+> 来源：原工作台提交3e0b76c，历史独立服务提交dac24aa。当前代码无需原仓或客户端源码；保留有限ACP-shaped接口与collaboration扩展，不宣称完整ACP兼容。
 
 ## 安装与启用
 
@@ -14,7 +14,7 @@ DSH插件管理器安装来源：
 github:Lafinger/dsh-collaboration-acp-server
 ```
 
-首版固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.2.0`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，实际安装、宿主隔离和首发证据见[验收记录](docs/GITHUB-RELEASE-VERIFY.md)。只发布GitHub，不发布npm或DSH插件市场。
+当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.3.0`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，实际安装、宿主隔离和旧版本首发证据见[验收记录](docs/GITHUB-RELEASE-VERIFY.md)。只发布GitHub，不发布npm或DSH插件市场。
 
 安装后默认disabled；空配置启用为安全待配置，不建库、不监听、不调用模型。复制[空模板](examples/server-config.example.json)到服务账号自己的私有配置文件，填写部署路径、账号独立凭据与宿主已有provider/model，按[部署说明](docs/DEPLOYMENT.md)检查后启用。没有GUI配置表单，也不自动修改sshd或创建系统账号。
 
@@ -23,10 +23,10 @@ github:Lafinger/dsh-collaboration-acp-server
 ## 实现目录
 
 - [插件入口](src/server-plugin.mjs)、[配置校验](src/configuration.mjs)、[bundle patch](cordis.patch.yml)
-- [宿主运行时适配](src/dsh-runtime.mjs)、[业务装配](src/workbench-runtime.mjs)、[接入服务](src/service.mjs)、[可信身份绑定](src/workbench-binding.mjs)
+- [宿主运行时适配](src/dsh-runtime.mjs)、[业务装配](src/collaboration-runtime.mjs)、[接入服务](src/service.mjs)、[可信身份绑定](src/collaboration-binding.mjs)
 - [轻量SSH connector](src/connector-cli.mjs)：无模型、不另起DSH
-- [业务源码](business/src/)、[核验编译产物](business/lib/)、[历史业务文档](business/docs/项目管理工作台需求文档MVP/README.md)
-- [运维](docs/OPERATIONS.md)、[契约](docs/PROTOCOL-v1.json)、[验证](docs/VERIFY.md)、[架构决定](docs/adr/0001-hosted-collaboration-runtime.md)、[术语](GLOSSARY.md)
+- [业务源码](business/src/)、[核验编译产物](business/lib/)、[历史业务文档](business/docs/协作服务需求文档MVP/README.md)
+- [运维](docs/OPERATIONS.md)、[契约](docs/PROTOCOL-v2.json)、[验证](docs/VERIFY.md)、[架构决定](docs/adr/0001-hosted-collaboration-runtime.md)、[术语](GLOSSARY.md)
 
 ## 开发与验证
 

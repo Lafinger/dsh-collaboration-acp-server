@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 import { newId } from '../domain/ids.js';
 import { roleDirOf } from '../domain/material.js';
 import { assertWritable } from '../domain/project.js';
@@ -60,7 +60,7 @@ export class MaterialService {
         let role = null;
         if (input.role !== undefined && input.role !== null) {
             if (!isRoleId(input.role)) {
-                throw new WorkbenchError('ROLE_UNKNOWN', `unknown role "${input.role}"`, { role: input.role });
+                throw new CollaborationError('ROLE_UNKNOWN', `unknown role "${input.role}"`, { role: input.role });
             }
             role = input.role;
         }
@@ -148,7 +148,7 @@ export class MaterialService {
         const material = this.requireMaterial(reference.materialId);
         const version = this.materials.findVersion(reference.materialId, reference.version);
         if (version === null) {
-            throw new WorkbenchError('VERSION_NOT_FOUND', `material "${material.originalName}" has no version ${reference.version}`, { materialId: reference.materialId, version: reference.version });
+            throw new CollaborationError('VERSION_NOT_FOUND', `material "${material.originalName}" has no version ${reference.version}`, { materialId: reference.materialId, version: reference.version });
         }
         return { material, version };
     }
@@ -199,17 +199,17 @@ export class MaterialService {
     readSource(sourcePath) {
         const path = resolve(sourcePath);
         if (!existsSync(path)) {
-            throw new WorkbenchError('SOURCE_NOT_FOUND', `source file does not exist: ${path}`, { path });
+            throw new CollaborationError('SOURCE_NOT_FOUND', `source file does not exist: ${path}`, { path });
         }
         let stat;
         try {
             stat = statSync(path);
         }
         catch (error) {
-            throw new WorkbenchError('SOURCE_NOT_FOUND', `source file could not be inspected: ${error instanceof Error ? error.message : String(error)}`, { path });
+            throw new CollaborationError('SOURCE_NOT_FOUND', `source file could not be inspected: ${error instanceof Error ? error.message : String(error)}`, { path });
         }
         if (!stat.isFile()) {
-            throw new WorkbenchError('SOURCE_NOT_A_FILE', `source is not a regular file: ${path}`, { path });
+            throw new CollaborationError('SOURCE_NOT_A_FILE', `source is not a regular file: ${path}`, { path });
         }
         try {
             const buf = readFileSync(path);
@@ -233,7 +233,7 @@ export class MaterialService {
     requireMaterial(materialId) {
         const material = this.materials.findById(materialId);
         if (material === null) {
-            throw new WorkbenchError('MATERIAL_NOT_FOUND', `no material with id ${materialId}`, {
+            throw new CollaborationError('MATERIAL_NOT_FOUND', `no material with id ${materialId}`, {
                 materialId,
             });
         }
@@ -246,11 +246,11 @@ export class MaterialService {
 }
 function requireText(value, field, max) {
     if (typeof value !== 'string' || value.trim() === '') {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field });
     }
     const trimmed = value.trim();
     if (trimmed.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
     }
     return trimmed;
 }

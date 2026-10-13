@@ -1,4 +1,4 @@
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 import { SessionIdentityRepository } from '../sqlite/session-identity-repository.js';
 import { systemClock } from './project-service.js';
 const MAX_MEMBER_LENGTH = 200;
@@ -23,7 +23,7 @@ export class SessionIdentityService {
         const stored = this.identities.find(sessionId);
         if (stored === null) {
             // Unreachable unless the write silently failed; reported rather than assumed away.
-            throw new WorkbenchError('INTERNAL', 'identity declaration did not persist', { sessionId });
+            throw new CollaborationError('INTERNAL', 'identity declaration did not persist', { sessionId });
         }
         return stored;
     }
@@ -38,11 +38,11 @@ export class SessionIdentityService {
 }
 function requireText(value, field, max) {
     if (typeof value !== 'string' || value.trim() === '') {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} is required`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} is required`, { field });
     }
     const trimmed = value.trim();
     if (trimmed.length > max) {
-        throw new WorkbenchError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
+        throw new CollaborationError('INVALID_ARGUMENT', `${field} exceeds ${max} characters`, { field });
     }
     return trimmed;
 }

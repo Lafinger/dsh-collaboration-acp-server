@@ -25,15 +25,15 @@ import { MaterialService } from '../service/material-service.js'
 import { AnalysisService } from '../service/analysis-service.js'
 import { PlanService } from '../service/plan-service.js'
 import { TaskService } from '../service/task-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -104,7 +104,7 @@ describe('MVP-013: scope is enforced, not merely respected', () => {
     const inside = e.upload('in.txt', 'x')
     const outside = e.upload('out.txt', 'y')
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.analyses.submit({
         projectId: e.projectId, trigger: 'smuggle',
         scope: [{ materialId: inside, version: 1 }],
@@ -119,7 +119,7 @@ describe('MVP-013: scope is enforced, not merely respected', () => {
   test('an empty scope is refused rather than silently reading everything', () => {
     const e = env()
     e.upload('in.txt', 'x')
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.analyses.submit({
         projectId: e.projectId, trigger: 'all', scope: [],
         requirements: [], undecided: [], inferences: [], notUnderstood: [], basisMissing: [],

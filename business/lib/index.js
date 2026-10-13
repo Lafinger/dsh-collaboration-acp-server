@@ -10,10 +10,10 @@ import { ResultService } from './service/result-service.js';
 import { SessionIdentityService } from './service/session-identity-service.js';
 import { TaskService } from './service/task-service.js';
 import { registerTools } from './tool/register.js';
-export const name = 'project-workbench';
+export const name = 'project-collaboration';
 export const Config = z.object({
-    databasePath: z.string().default('.dsh/workbench.sqlite'),
-    fileRoot: z.string().default('.dsh/workbench-files'),
+    databasePath: z.string().default('.dsh/collaboration.sqlite'),
+    fileRoot: z.string().default('.dsh/collaboration-files'),
 });
 export function apply(ctx, config) {
     const db = openDatabase({ path: config.databasePath });
@@ -38,6 +38,6 @@ export function apply(ctx, config) {
         traces: new TraceService(db),
         identities: new SessionIdentityService(db),
     };
-    ctx.logger?.info?.('project-workbench ready: database=%s fileRoot=%s', config.databasePath, config.fileRoot);
+    ctx.logger?.info?.('project-collaboration ready: database=%s fileRoot=%s', config.databasePath, config.fileRoot);
     registerTools(ctx, services);
 }

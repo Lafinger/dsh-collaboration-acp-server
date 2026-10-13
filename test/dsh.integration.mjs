@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -10,7 +11,7 @@ import { AccountAuthority, issueTicket } from '../src/authority.mjs';
 import { AccessStore } from '../src/store.mjs';
 import { AccessService } from '../src/service.mjs';
 import { listenAccess, connectAccess } from '../src/transport.mjs';
-import { bindWorkbenchIdentity } from '../src/workbench-binding.mjs';
+import { bindCollaborationIdentity } from '../src/collaboration-binding.mjs';
 import { openDatabase } from '../business/lib/sqlite/connection.js';
 import { SessionIdentityService } from '../business/lib/service/session-identity-service.js';
 import { ProjectService } from '../business/lib/service/project-service.js';
@@ -53,12 +54,12 @@ class FixtureModel extends LlmAdapter {
   }
 }
 async function setup(t) {
-  const root = mkdtempSync(join(tmpdir(), 'workbench-dsh-integration-'));
+  const root = mkdtempSync(join(tmpdir(), 'collaboration-dsh-integration-'));
   const db = openDatabase({ path: join(root, 'business.sqlite') });
   const identities = new SessionIdentityService(db); const model = new FixtureModel();
   const tasks = new TaskService(db), projects = new ProjectService(db), plans = new PlanService(db, undefined, tasks);
   const runtime = await createTestRuntime({ provider: 'fixture', model: 'fixture', adapter: model, persistenceRoot: join(root, 'sessions'),
-    setup: (ctx, agent, account) => registerTools(ctx, { identities, tasks, projects, plans }, bindWorkbenchIdentity(ctx, identities, { sessionId: agent.session.id, account })),
+    setup: (ctx, agent, account) => registerTools(ctx, { identities, tasks, projects, plans }, bindCollaborationIdentity(ctx, identities, { sessionId: agent.session.id, account })),
   });
   const store = new AccessStore(join(root, 'access.sqlite'));
   const authority = new AccountAuthority({ serviceId: 'integration', accounts: { alice: secret, bob: bobSecret } });
@@ -66,7 +67,7 @@ async function setup(t) {
   const peers = [];
   const connect = async account => {
     const p = await connectAccess(listener.address); peers.push(p);
-    await p.request('workbench/connect', { ticket: issueTicket({ account, serviceId: 'integration', secret: account === 'alice' ? secret : bobSecret }) }); return p;
+    await p.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ account, serviceId: 'integration', secret: account === 'alice' ? secret : bobSecret }) }); return p;
   };
   t.after(async () => { peers.forEach(p => p.close()); await listener.close(); store.close(); db.close(); });
   return { root, model, runtime, db, identities, store, service, listener, connect, projects, plans };
@@ -81,7 +82,7 @@ async function send(peer, sessionId, text, requestId = randomUUID()) {
 }
 test('actual official DSH loop: isolated accounts, scoped identity override, persisted same-session restore', async t => {
   const f = await setup(t); const a = await f.connect('alice'), b = await f.connect('bob');
-  await a.request('initialize', {}); await b.request('initialize', {});
+  await a.request('initialize', initializeParams()); await b.request('initialize', initializeParams());
   const as = await a.request('session/new', { cwd: '/not/server' }), bs = await b.request('session/new', {});
   const [ar, br] = await Promise.all([send(a, as.sessionId, 'whoami'), send(b, bs.sessionId, 'whoami')]);
   assert.equal(JSON.parse(ar.text).account, 'alice'); assert.equal(JSON.parse(br.text).account, 'bob');
@@ -89,7 +90,7 @@ test('actual official DSH loop: isolated accounts, scoped identity override, per
   const forged = await send(a, as.sessionId, 'declare bob'); assert.equal(JSON.parse(forged.text).code, 'AUTHENTICATED_IDENTITY_IMMUTABLE');
   assert.equal(f.identities.current(as.sessionId), 'alice');
   await a.request('session/close', { sessionId: as.sessionId });
-  const a2 = await f.connect('alice'); await a2.request('initialize', {});
+  const a2 = await f.connect('alice'); await a2.request('initialize', initializeParams());
   await a2.request('session/load', { sessionId: as.sessionId });
   const restored = await send(a2, as.sessionId, 'followup'); assert.equal(restored.text, 'reply:followup');
   const call = f.model.calls.at(-1); assert.equal(String(call.sessionId), as.sessionId);
@@ -102,7 +103,7 @@ test('actual business plan_confirm uses authenticated account, not forged submit
   f.projects.setMember(project.id, 'pm', 'alice');
   const plan = f.plans.register({ projectId: project.id, title: 'fixture plan', rolesReason: 'pm owns this fixture', relevantRoles: ['pm'], tasks: [], undecided: [] });
   f.model.confirmations = { plan_id: plan.plan.id, role: 'pm' };
-  const a = await f.connect('alice'); await a.request('initialize', {}); const as = await a.request('session/new', {});
+  const a = await f.connect('alice'); await a.request('initialize', initializeParams()); const as = await a.request('session/new', {});
   const response = await send(a, as.sessionId, 'confirm'); assert.equal(JSON.parse(response.text).ok, true);
   const records = f.db.prepare('SELECT submitted_by FROM confirmations').all();
   assert.ok(records.length > 0); assert.ok(records.every(r => r.submitted_by === 'alice'));

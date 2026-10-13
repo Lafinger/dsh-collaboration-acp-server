@@ -3,6 +3,20 @@ import { EventEmitter } from 'node:events';
 export class AccessError extends Error {
   constructor(code, message, data) { super(message); this.code = code; this.data = data; }
 }
+// ACP-shaped base version and our private collaboration extension version are independent.
+export const ACP_PROTOCOL_VERSION = 1;
+export const COLLABORATION_PROTOCOL_VERSION = 2;
+export const collaborationMeta = () => ({ collaborationProtocolVersion: COLLABORATION_PROTOCOL_VERSION });
+export const initializeParams = () => ({ protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, _meta: collaborationMeta() });
+export function requireCollaborationVersion(value) {
+  if (value?._meta?.collaborationProtocolVersion !== COLLABORATION_PROTOCOL_VERSION) {
+    throw new AccessError(-32011, 'Collaboration protocol version mismatch; install matching client and server releases. No downgrade or replay.', { expected: COLLABORATION_PROTOCOL_VERSION });
+  }
+}
+export function requireInitializeResult(value) {
+  requireCollaborationVersion(value);
+  if (value?.protocolVersion !== ACP_PROTOCOL_VERSION) throw new AccessError(-32011, 'Unsupported ACP-shaped base protocol version');
+}
 export function requireText(value, label, max = 4096) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new AccessError(-32602, `Invalid ${label}`);
   return value;

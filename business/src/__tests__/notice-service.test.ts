@@ -22,19 +22,19 @@ import { NoticeService } from '../service/notice-service.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 import type { SlotRef } from '../domain/notice.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 
 /**
- * Capture a thrown WorkbenchError.
+ * Capture a thrown CollaborationError.
  *
  * `assert.throws` does not hand the error back, so reading `.code` off its result is always
  * undefined — a trap that produced 13 silently-broken assertions earlier in this project.
  */
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -370,7 +370,7 @@ describe('filtering', () => {
   test('marking a NON-EXISTENT slot read is refused', () => {
     const e = env()
     e.projects.setMember(e.projectId, 'product', 'Zhang')
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.notices.markRead(e.ref('plan_confirmation', 'no-such-plan', 1, 'product')),
     )
     assert.equal(err.code, 'NOTICE_NOT_FOUND')
@@ -596,7 +596,7 @@ describe('a vacant role cannot decide', () => {
     // design is left vacant.
     const planId = e.register([e.add('a', 'product')], ['product', 'design'])
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.confirm({ planId, role: 'design', outcome: 'agree', submittedBy: 'Li', declaredMember: 'Li' }),
     )
     assert.equal(err.code, 'VACANT_ROLE_CANNOT_CONFIRM')
@@ -614,7 +614,7 @@ describe('a vacant role cannot decide', () => {
     const planId = e.register([e.add('a', 'product')], ['product', 'design'])
 
     assert.equal(
-      throwsWorkbench(() =>
+      throwsCollaboration(() =>
         e.plans.confirm({ planId, role: 'design', outcome: 'agree', submittedBy: 'Li', declaredMember: 'Li' }),
       ).code,
       'VACANT_ROLE_CANNOT_CONFIRM',
@@ -641,7 +641,7 @@ describe('a vacant role cannot decide', () => {
       .prepare('DELETE FROM project_roles WHERE project_id = ? AND role = ?')
       .run(e.projectId, 'product')
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.review({
         resultId: r.resultId, version: 1, outcome: 'complete',
         submittedBy: 'Zhang', declaredMember: 'Zhang', role: 'product',
@@ -670,7 +670,7 @@ describe('a vacant role cannot decide', () => {
       .prepare('DELETE FROM project_roles WHERE project_id = ? AND role = ?')
       .run(e.projectId, 'design')
 
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.results.decide({
         resultId: r.resultId, version: 1, taskId: b, outcome: 'accept', submittedBy: 'Li', declaredMember: 'Li',
       }),
@@ -705,7 +705,7 @@ describe('invariants that no reachable state can violate', () => {
     )
 
     // The only way to create fresh undecided slots is a revision, and that is refused.
-    const err = throwsWorkbench(() =>
+    const err = throwsCollaboration(() =>
       e.plans.revise({
         planId, title: 'x', relevantRoles: ['product'],
         rolesReason: 'r', tasks: [e.add('a', 'product')], undecided: [], reason: 'try',

@@ -5,7 +5,7 @@ import { migrate, inTransaction, SCHEMA_VERSION } from '../sqlite/schema.js'
 import { openDatabase } from '../sqlite/connection.js'
 import { isUniqueViolation, isBusy } from '../sqlite/errors.js'
 import { countRows, harness } from './harness.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 
 describe('migration', () => {
   test('a fresh database is migrated to the current version', () => {
@@ -32,7 +32,7 @@ describe('migration', () => {
     assert.throws(
       () => migrate(db),
       (error: unknown) =>
-        error instanceof WorkbenchError && error.code === 'STORAGE_SCHEMA_UNSUPPORTED',
+        error instanceof CollaborationError && error.code === 'STORAGE_SCHEMA_UNSUPPORTED',
     )
     db.close()
   })

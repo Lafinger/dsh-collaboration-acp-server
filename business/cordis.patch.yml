@@ -1,6 +1,6 @@
 - insert:
-    - id: project-workbench
-      name: 'dsh-project-workbench'
+    - id: project-collaboration
+      name: 'dsh-project-collaboration'
       config:
-        databasePath: !!js process.env.DSH_WORKBENCH_DATABASE ?? '.dsh/workbench.sqlite'
-        fileRoot: !!js process.env.DSH_WORKBENCH_FILES ?? '.dsh/workbench-files'
+        databasePath: !!js process.env.DSH_COLLABORATION_DATABASE ?? '.dsh/collaboration.sqlite'
+        fileRoot: !!js process.env.DSH_COLLABORATION_FILES ?? '.dsh/collaboration-files'

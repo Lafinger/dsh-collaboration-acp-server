@@ -26,5 +26,5 @@ toolCtx.tools.register(defineTool({ name, description, parameters, output, execu
 ## 后果
 
 - **不能照抄 `DSH-taskboard` 的插件写法**。它的代码是它那个 SDK 版本的正确答案，未必是本机这个版本的正确答案。任何从它复制的模式都必须经本机实测。
-- **版本错配是持续风险**：SDK 的 schema 校验规则在 `0.1.5-rc.2` 与 `0.1.6-alpha.1` 间不兼容。升级 DSH 后必须重跑冒烟验证（见[实现前验证清单](../项目管理工作台需求文档MVP/docs/验证/实现前验证清单.md)第六节）。
+- **版本错配是持续风险**：SDK 的 schema 校验规则在 `0.1.5-rc.2` 与 `0.1.6-alpha.1` 间不兼容。升级 DSH 后必须重跑冒烟验证（见[实现前验证清单](../协作服务需求文档MVP/docs/验证/实现前验证清单.md)第六节）。
 - `tsc` 默认"有错也产出"，因此**构建脚本必须用 `--noEmitOnError`**，否则会静默通过一个类型错误的构建。

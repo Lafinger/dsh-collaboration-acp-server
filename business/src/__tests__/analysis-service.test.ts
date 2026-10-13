@@ -8,7 +8,7 @@ import { migrate } from '../sqlite/schema.js'
 import { ProjectService } from '../service/project-service.js'
 import { MaterialService } from '../service/material-service.js'
 import { AnalysisService } from '../service/analysis-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import { DEFAULT_CONTENT_LIMIT_BYTES } from '../domain/analysis.js'
 
 interface Env {
@@ -121,7 +121,7 @@ describe('scope is enforced by reading, not by promise (MVP-013)', () => {
     const e = env()
     assert.throws(
       () => e.analyses.readScope({ projectId: e.projectId, scope: [] }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SCOPE_REQUIRED',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SCOPE_REQUIRED',
     )
     e.cleanup()
   })
@@ -235,7 +235,7 @@ describe('submit: source validation (MVP-014)', () => {
         notUnderstood: [],
         basisMissing: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SOURCE_REQUIRED',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SOURCE_REQUIRED',
     )
     e.cleanup()
   })
@@ -254,7 +254,7 @@ describe('submit: source validation (MVP-014)', () => {
         requirements: [{ text: 'claim', sources: [{ materialId: b.materialId, version: 1 }] }],
         undecided: [], inferences: [], notUnderstood: [], basisMissing: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SOURCE_OUT_OF_SCOPE',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SOURCE_OUT_OF_SCOPE',
     )
     e.cleanup()
   })
@@ -275,7 +275,7 @@ describe('submit: source validation (MVP-014)', () => {
         requirements: [{ text: 'claim', sources: [{ materialId: a.materialId, version: 2 }] }],
         undecided: [], inferences: [], notUnderstood: [], basisMissing: [],
       }),
-      (err: unknown) => err instanceof WorkbenchError && err.code === 'SOURCE_OUT_OF_SCOPE',
+      (err: unknown) => err instanceof CollaborationError && err.code === 'SOURCE_OUT_OF_SCOPE',
     )
     e.cleanup()
   })

@@ -5,7 +5,7 @@
  * they are NEVER invented.
  * MVP-005: archiving stops writes but keeps everything readable.
  */
-import { WorkbenchError } from './error.js';
+import { CollaborationError } from './error.js';
 export function isArchived(project) {
     return project.archivedAt !== null;
 }
@@ -22,12 +22,12 @@ export function isArchived(project) {
  */
 export function assertWritable(project, projectId) {
     if (project === null) {
-        throw new WorkbenchError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, {
+        throw new CollaborationError('PROJECT_NOT_FOUND', `no project with id ${projectId}`, {
             id: projectId,
         });
     }
     if (isArchived(project)) {
-        throw new WorkbenchError('PROJECT_ARCHIVED', `project "${project.key}" is archived`, {
+        throw new CollaborationError('PROJECT_ARCHIVED', `project "${project.key}" is archived`, {
             id: projectId,
             key: project.key,
         });
@@ -66,15 +66,15 @@ export function pendingFields(project) {
 export function assertCanActAsRole(input) {
     const { role, memberOfRole, declaredMember } = input;
     if (declaredMember === null) {
-        throw new WorkbenchError('MEMBER_NOT_DECLARED', `this session has not declared who it is, so it cannot act as role "${role}"; ` +
+        throw new CollaborationError('MEMBER_NOT_DECLARED', `this session has not declared who it is, so it cannot act as role "${role}"; ` +
             `declare a member first (session_declare_member), then decide again`, { role });
     }
     if (memberOfRole === null) {
-        throw new WorkbenchError('VACANT_ROLE_CANNOT_CONFIRM', `role "${role}" has no member, so it cannot decide; ` +
+        throw new CollaborationError('VACANT_ROLE_CANNOT_CONFIRM', `role "${role}" has no member, so it cannot decide; ` +
             `assign a member to the role (project_set_role_member), then decide again`, { role });
     }
     if (memberOfRole !== declaredMember) {
-        throw new WorkbenchError('NOT_ROLE_MEMBER', `role "${role}" belongs to "${memberOfRole}", but this session declared itself as ` +
+        throw new CollaborationError('NOT_ROLE_MEMBER', `role "${role}" belongs to "${memberOfRole}", but this session declared itself as ` +
             `"${declaredMember}"; either declare as "${memberOfRole}", or reassign the role to ` +
             `"${declaredMember}" (project_set_role_member)`, { role, memberOfRole, declaredMember });
     }

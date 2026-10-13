@@ -20,12 +20,12 @@ import{SessionStore}from'@deepseek-ai/dsh-session';import{SessionProjectionRegis
 import{ToolRuntime}from'@deepseek-ai/dsh-tools';import{LlmRuntime}from'@deepseek-ai/dsh-llm';import persistence from'@deepseek-ai/dsh-session-persistence-jsonl';
 import * as plugin from'dsh-collaboration-acp-server';
 const{FixtureModel}=await import(${JSON.stringify(pathToFileURL(join(directory, 'node_modules/dsh-collaboration-acp-server/src/fixture-model.mjs')).href)});
-const{createWorkbenchRuntime}=await import(${JSON.stringify(pathToFileURL(join(directory, 'node_modules/dsh-collaboration-acp-server/src/workbench-runtime.mjs')).href)});
+const{createCollaborationRuntime}=await import(${JSON.stringify(pathToFileURL(join(directory, 'node_modules/dsh-collaboration-acp-server/src/collaboration-runtime.mjs')).href)});
 const metadata=JSON.parse(readFileSync('node_modules/dsh-collaboration-acp-server/package.json','utf8'));assert.equal(metadata.version,${JSON.stringify(metadata.version)});assert.equal(metadata.license,'MIT');
 const ctx=new Context();ctx.plugin(SystemPrompt,{includeHarnessIdentity:false,includeRuntimeContext:false,personaPrefix:'',personaSuffix:''});ctx.plugin(LlmRuntime);ctx.plugin(SessionStore);ctx.plugin(AgentRegistry);ctx.plugin(SessionProjectionRegistry);ctx.plugin(ToolRuntime,{mode:'native'});ctx.plugin(persistence,{root:join(process.cwd(),'host-sessions'),compression:'none'});ctx.plugin(AgentLoop,{agents:[]});
 await Promise.all([...ctx.registry.values()].flatMap(r=>[...r.fibers]).map(f=>f.await()));ctx.llm.registerAdapter(['fixture'],new FixtureModel());
-let runtime;try{const entry=ctx.plugin(plugin,{configFile:join(process.cwd(),'missing.json')});await entry.await();assert.equal(entry.ctx.get('workbenchServerStatus').state,'configuration-required');assert.equal(entry.ctx.get('workbenchServer'),undefined);
-({runtime}=await createWorkbenchRuntime({workspace:join(process.cwd(),'workspace'),stateRoot:join(process.cwd(),'state'),provider:'fixture',model:'fixture'},ctx));assert.equal(runtime.ctx,ctx);
+let runtime;try{const entry=ctx.plugin(plugin,{configFile:join(process.cwd(),'missing.json')});await entry.await();assert.equal(entry.ctx.get('collaborationServerStatus').state,'configuration-required');assert.equal(entry.ctx.get('collaborationServer'),undefined);
+({runtime}=await createCollaborationRuntime({workspace:join(process.cwd(),'workspace'),stateRoot:join(process.cwd(),'state'),provider:'fixture',model:'fixture'},ctx));assert.equal(runtime.ctx,ctx);
 const handle=await runtime.open({id:'installed',owner:'alice',cwd:process.cwd(),resume:false});const updates=[];await runtime.prompt(handle,'whoami',new AbortController().signal,u=>updates.push(u));assert.equal(JSON.parse(updates.map(u=>u.content.text).join('')).account,'alice');await runtime.closeAll();ctx.agents.requireFactory();
 console.log(JSON.stringify({githubSource:${JSON.stringify(spec)},version:metadata.version,installedHostRuntime:'PASS',lifecycleBuildRequired:false,sshStarted:false}));}finally{await runtime?.closeAll();await ctx.fiber.dispose();}`;
 const file = join(directory, 'smoke.mjs'); writeFileSync(file, code); run([file], directory);

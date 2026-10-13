@@ -6,7 +6,7 @@
  * data gets corrupted.
  */
 import { DatabaseSync } from 'node:sqlite';
-import { WorkbenchError } from '../domain/error.js';
+import { CollaborationError } from '../domain/error.js';
 export const SCHEMA_VERSION = 9;
 const MIGRATION_1 = `
 CREATE TABLE projects (
@@ -551,7 +551,7 @@ export function migrate(db) {
     const row = db.prepare('PRAGMA user_version').get();
     const current = row?.user_version ?? 0;
     if (current > SCHEMA_VERSION || current < 0) {
-        throw new WorkbenchError('STORAGE_SCHEMA_UNSUPPORTED', `workbench schema ${current} is newer than this build supports (${SCHEMA_VERSION})`, { onDisk: current, supported: SCHEMA_VERSION });
+        throw new CollaborationError('STORAGE_SCHEMA_UNSUPPORTED', `collaboration schema ${current} is newer than this build supports (${SCHEMA_VERSION})`, { onDisk: current, supported: SCHEMA_VERSION });
     }
     if (current === SCHEMA_VERSION)
         return;

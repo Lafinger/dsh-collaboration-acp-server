@@ -1,3 +1,4 @@
+import { initializeParams, collaborationMeta, requireInitializeResult } from '../src/protocol.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -24,22 +25,41 @@ class Runtime {
   async close(h) { this.closed.push(h.id); }
 }
 async function fixture(t, runtime = new Runtime()) {
-  const root = mkdtempSync(join(tmpdir(), 'workbench-access-'));
+  const root = mkdtempSync(join(tmpdir(), 'collaboration-access-'));
   const store = new AccessStore(join(root, 'access.sqlite'));
   const authority = new AccountAuthority({ serviceId: 'fixture-service', accounts: secrets });
   const service = new AccessService({ store, authority, runtime, cwd: root });
   const listener = await listenAccess(service); const peers = [];
   const connect = async account => {
     const peer = await connectAccess(listener.address); peers.push(peer);
-    await peer.request('workbench/connect', { ticket: ticket(account) });
-    const initialized = await peer.request('initialize', { protocolVersion: 1 });
+    await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: ticket(account) });
+    const initialized = await peer.request('initialize', initializeParams());
     assert.equal(initialized.agentInfo.name, 'dsh-collaboration-acp-server');
-    assert.equal(initialized.agentInfo.version, '0.2.0'); return peer;
+    assert.equal(initialized.agentInfo.version, '0.3.0'); return peer;
   };
   t.after(async () => { peers.forEach(p => p.close()); await listener.close(); store.close(); });
   return { root, store, runtime, authority, service, listener, connect };
 }
 const prompt = (peer, id, text, requestId) => peer.request('session/prompt', { sessionId: id, prompt: [{ type: 'text', text }], _meta: { requestId } });
+
+test('v2 rejects absent/old/future/string negotiation before creating sessions or prompts', async t => {
+  const f=await fixture(t), peer=await connectAccess(f.listener.address);t.after(()=>peer.close());
+  for(const meta of [undefined,{collaborationProtocolVersion:1},{collaborationProtocolVersion:3},{collaborationProtocolVersion:'2'}]){
+    await assert.rejects(peer.request('collaboration/connect',{ticket:ticket('alice'),_meta:meta}),e=>e.code===-32011);
+  }
+  const authenticated=await peer.request('collaboration/connect',{ticket:ticket('alice'),_meta:collaborationMeta()});
+  assert.equal(authenticated._meta.collaborationProtocolVersion,2);
+  for(const params of [{},{protocolVersion:1},{protocolVersion:2,_meta:collaborationMeta()},{protocolVersion:1,_meta:{collaborationProtocolVersion:1}}]){
+    await assert.rejects(peer.request('initialize',params),e=>e.code===-32011);
+    await assert.rejects(peer.request('session/new',{}),/Initialize first/);
+  }
+  const initialized=await peer.request('initialize',initializeParams());requireInitializeResult(initialized);
+  const oldNamespace=['work','bench'].join(''); // Only rejection evidence, never an operational alias.
+  await assert.rejects(peer.request(`${oldNamespace}/whoami`,{}),e=>e.code===-32601);
+  assert.equal(f.store.list('alice').length,0);assert.equal(f.runtime.prompts.length,0);
+  await assert.rejects(peer.request('initialize',{protocolVersion:1}),e=>e.code===-32011);
+  await assert.rejects(peer.request('session/new',{}),/Initialize first/);
+});
 
  test('authority verifies account-specific signature, expiry, service and one-time nonce', () => {
   let now = 100000;
@@ -54,26 +74,26 @@ const prompt = (peer, id, text, requestId) => peer.request('session/prompt', { s
  test('all methods reject before connector authentication and initialize', async t => {
   const f = await fixture(t); const peer = await connectAccess(f.listener.address); t.after(() => peer.close());
   await assert.rejects(peer.request('session/new', { account: 'alice' }), /connector required/);
-  await peer.request('workbench/connect', { ticket: ticket('alice') });
+  await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: ticket('alice') });
   await assert.rejects(peer.request('session/new', {}), /Initialize first/);
-  await assert.rejects(peer.request('workbench/connect', { ticket: ticket('bob') }), /already bound/);
+  await assert.rejects(peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: ticket('bob') }), /already bound/);
  });
  test('two authenticated members share one service PID but not identity/history or local cwd', async t => {
   const f = await fixture(t); const a = await f.connect('alice'), b = await f.connect('bob');
-  const [ai, bi] = await Promise.all([a.request('workbench/whoami', {}), b.request('workbench/whoami', {})]);
+  const [ai, bi] = await Promise.all([a.request('collaboration/whoami', {}), b.request('collaboration/whoami', {})]);
   assert.equal(ai.runtimePid, bi.runtimePid); assert.equal(ai.account, 'alice'); assert.equal(bi.account, 'bob');
   const [as, bs] = await Promise.all([a.request('session/new', { cwd: 'C:\\member\\desktop', mcpServers: [{ evil: true }] }), b.request('session/new', { cwd: '/tmp/other' })]);
   assert.notEqual(as.sessionId, bs.sessionId); assert.equal(as.cwd, f.root); assert.equal(bs.cwd, f.root);
   await Promise.all([prompt(a, as.sessionId, 'I am bob', 'a1'), prompt(b, bs.sessionId, 'hello', 'b1')]);
   assert.deepEqual(f.runtime.prompts.map(p => p.owner).sort(), ['alice', 'bob']);
   const list = await b.request('session/list', {}); assert.deepEqual(list.sessions.map(s => s.sessionId), [bs.sessionId]);
-  const history = await b.request('workbench/history', { sessionId: bs.sessionId });
+  const history = await b.request('collaboration/history', { sessionId: bs.sessionId });
   assert.ok(history.events.some(e => e.update.content.text === 'bob:hello')); assert.ok(!JSON.stringify(history).includes('I am bob'));
  });
  test('knowing another member sessionId cannot read, restore, prompt, cancel or close it', async t => {
   const f = await fixture(t); const a = await f.connect('alice'), b = await f.connect('bob');
   const { sessionId } = await a.request('session/new', {});
-  for (const method of ['workbench/history', 'session/load', 'session/resume', 'session/prompt', 'session/cancel', 'session/close']) {
+  for (const method of ['collaboration/history', 'session/load', 'session/resume', 'session/prompt', 'session/cancel', 'session/close']) {
     await assert.rejects(b.request(method, { sessionId, prompt: [{ type: 'text', text: 'hi' }], _meta: { requestId: 'evil' } }), /not available/);
   }
   assert.equal(f.runtime.prompts.length, 0);

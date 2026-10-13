@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { harness, countRows } from './harness.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import { ROLE_IDS } from '../domain/roles.js'
 
 describe('project_create', () => {
@@ -70,7 +70,7 @@ describe('project_create', () => {
     assert.throws(
       () => h.projects.create({ key: 'ALPHA', name: 'Second' }),
       (error: unknown) => {
-        assert.ok(error instanceof WorkbenchError)
+        assert.ok(error instanceof CollaborationError)
         assert.equal(error.code, 'PROJECT_EXISTS')
         assert.equal(error.details?.key, 'ALPHA')
         return true
@@ -95,7 +95,7 @@ describe('project_create', () => {
     for (const bad of ['../escape', 'a/b', 'a b', '', '  ', 'a\\b', 'a.b']) {
       assert.throws(
         () => h.projects.create({ key: bad, name: 'X' }),
-        (error: unknown) => error instanceof WorkbenchError && error.code === 'INVALID_ARGUMENT',
+        (error: unknown) => error instanceof CollaborationError && error.code === 'INVALID_ARGUMENT',
         `expected "${bad}" to be rejected`,
       )
     }
@@ -135,7 +135,7 @@ describe('project_get / project_list', () => {
     const h = harness()
     assert.throws(
       () => h.projects.get('deadbeef'),
-      (error: unknown) => error instanceof WorkbenchError && error.code === 'PROJECT_NOT_FOUND',
+      (error: unknown) => error instanceof CollaborationError && error.code === 'PROJECT_NOT_FOUND',
     )
     h.close()
   })
@@ -219,7 +219,7 @@ describe('roles and members', () => {
     const project = h.projects.create({ key: 'ALPHA', name: 'Alpha' })
     assert.throws(
       () => h.projects.setMember(project.id, 'manager', 'Zhang'),
-      (error: unknown) => error instanceof WorkbenchError && error.code === 'ROLE_UNKNOWN',
+      (error: unknown) => error instanceof CollaborationError && error.code === 'ROLE_UNKNOWN',
     )
     assert.equal(countRows(h.db, 'project_roles'), 0)
     h.close()
@@ -232,7 +232,7 @@ describe('roles and members', () => {
 
     assert.throws(
       () => h.projects.setMember(project.id, 'product', 'Zhang'),
-      (error: unknown) => error instanceof WorkbenchError && error.code === 'PROJECT_ARCHIVED',
+      (error: unknown) => error instanceof CollaborationError && error.code === 'PROJECT_ARCHIVED',
     )
     assert.equal(countRows(h.db, 'project_roles'), 0)
     // ...but reading still works (MVP-005).

@@ -19,15 +19,15 @@ import { PlanService } from '../service/plan-service.js'
 import { TaskService } from '../service/task-service.js'
 import { ResultService } from '../service/result-service.js'
 import { TraceService } from '../service/trace-service.js'
-import { WorkbenchError } from '../domain/error.js'
+import { CollaborationError } from '../domain/error.js'
 import type { PlannedTask } from '../domain/plan.js'
 import type { RoleId } from '../domain/roles.js'
 
-function throwsWorkbench(fn: () => unknown): WorkbenchError {
+function throwsCollaboration(fn: () => unknown): CollaborationError {
   try {
     fn()
   } catch (err) {
-    assert.ok(err instanceof WorkbenchError, `expected a WorkbenchError, got ${String(err)}`)
+    assert.ok(err instanceof CollaborationError, `expected a CollaborationError, got ${String(err)}`)
     return err
   }
   throw new assert.AssertionError({ message: 'expected the call to throw, but it returned' })
@@ -408,19 +408,19 @@ describe('current and history are never blended', () => {
 describe('trace is read-only and honest about what it cannot find', () => {
   test('an unknown task is refused', () => {
     const e = env()
-    assert.equal(throwsWorkbench(() => e.traces.traceTask('nope')).code, 'TASK_NOT_FOUND')
+    assert.equal(throwsCollaboration(() => e.traces.traceTask('nope')).code, 'TASK_NOT_FOUND')
     e.cleanup()
   })
 
   test('an unknown plan is refused', () => {
     const e = env()
-    assert.equal(throwsWorkbench(() => e.traces.tracePlan('nope')).code, 'PLAN_NOT_FOUND')
+    assert.equal(throwsCollaboration(() => e.traces.tracePlan('nope')).code, 'PLAN_NOT_FOUND')
     e.cleanup()
   })
 
   test('an unknown result is refused', () => {
     const e = env()
-    assert.equal(throwsWorkbench(() => e.traces.traceResult('nope', 1)).code, 'RESULT_NOT_FOUND')
+    assert.equal(throwsCollaboration(() => e.traces.traceResult('nope', 1)).code, 'RESULT_NOT_FOUND')
     assert.equal(e.traces.latestResultVersion('nope'), null)
     e.cleanup()
   })

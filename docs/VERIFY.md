@@ -1,6 +1,16 @@
 # 服务端验证
 
-## 0.2.0宿主插件改造
+## 0.3.0命名与协作协议v2（本地验证）
+
+当前服务统一collaboration命名、业务库collaboration.sqlite、connector配置/etc/collaboration-access/connectors；业务装配和可信绑定源码文件已改名，中文当前说明与目录统一协作服务。真实历史来源及旧版证据保留列明例外。
+
+协作版本v2以_meta.collaborationProtocolVersion双向检查，与基础ACP-shaped版本1分开。connector认证、initialize错误/缺失/旧版本拒绝，版本失败不能创建session或发业务请求；client重新绑定身份仍拒绝。
+
+Node24.21.0/pnpm11.7.0：98构建文件与源码一致，282业务+29单元+12正式宿主接口集成PASS；3显式客户端联合用例PASS，4项安全mutation均检出。新版tarball171文件，相对imports/entry/disabled bundle/精确peers/MIT与抽取挂载PASS，冻结依赖与命名/链接审计PASS。
+
+正式GitHub发布和新Docker空状态交付尚由后续专门记录核验；不把以下历史结果当新版部署或GUI验收。测试无真实模型调用，不修改两台现用客户端。
+
+## 0.2.0宿主插件改造（历史）
 
 当前正式入口是[server plugin](../src/server-plugin.mjs)，复用宿主0.2.0-rc.2；旧独立CLI明确拒绝，不创建第二套DSH。check对照临时编译与已提交业务产物（98文件）、执行282业务回归，再检查接入/配置/真实宿主集成。
 

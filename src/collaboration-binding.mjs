@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 
 /** Transform before scoped registration: never register duplicate tools in the same Agent layer. */
-export function bindWorkbenchIdentity(_agentCtx, identities, { sessionId, account, workspace }) {
+export function bindCollaborationIdentity(_agentCtx, identities, { sessionId, account, workspace }) {
   identities.declare({ sessionId, member: account });
   const attributed = new Set(['plan_confirm', 'result_review', 'result_accept', 'material_upload', 'analysis_submit', 'result_submit', 'progress_add']);
   return original => {
