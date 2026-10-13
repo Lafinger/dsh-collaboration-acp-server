@@ -34,15 +34,15 @@ if (Test-Path -LiteralPath $oldDb) {
 
 不删除整个用户.dsh，不删除普通聊天/项目目录，不移动或轮换私钥。Bob以前专用目录collaboration-bob中的成员密钥/known_hosts也保留；只清其已核对的旧mapping库。
 
-## 2. 安装固定客户端v0.2.0
+## 2. 安装固定客户端v0.2.1
 
 DSH插件页安装来源：
 
 ```text
-github:Lafinger/dsh-collaboration-client#v0.2.0
+github:Lafinger/dsh-collaboration-client#v0.2.1
 ```
 
-[客户端公开Release](https://github.com/Lafinger/dsh-collaboration-client/releases/tag/v0.2.0)也提供tgz。确认加载的是0.2.0而不是旧缓存副本；不要使用宿主版本豁免。
+[客户端公开Release](https://github.com/Lafinger/dsh-collaboration-client/releases/tag/v0.2.1)也提供tgz。确认加载的是0.2.1而不是旧缓存副本；不要使用宿主版本豁免。
 
 ## 3. 每台建立各自新默认配置
 

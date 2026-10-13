@@ -37,6 +37,6 @@
 
 ## 用户后续
 
-两台客户端由用户自行卸载重装固定v0.2.0，旧专用映射SQLite不由服务器reset清除；保留普通DSH聊天、SSH私钥和known_hosts。新默认home/.dsh/dsh-collaboration-client/collaboration-client.json，无旧默认回退，必须新建会话。详见[重装清单](CLIENT-REINSTALL.md)。
+两台客户端由用户自行卸载重装最终固定v0.2.1（补齐显式环境配置读取，仍协作v2），旧专用映射SQLite不由服务器reset清除；保留普通DSH聊天、SSH私钥和known_hosts。新默认home/.dsh/dsh-collaboration-client/collaboration-client.json，无旧默认回退，必须新建会话。详见[重装清单](CLIENT-REINSTALL.md)。
 
 新版外部Bob GUI/真实模型业务未重新测试。旧版人工跨设备及超时证据只在[历史记录](VERIFY-LEGACY-v0.2.0.md)，不得冒充新版通过或超时根因修复。
