@@ -21,7 +21,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --store-dir /opt/pnpm-store 
     && chmod -R go-w /opt/collaboration
 COPY host-profile.json /opt/collaboration/host-profile.json
 COPY profile.patch.yml /opt/collaboration/profile.patch.yml
-COPY entrypoint.sh initialize.mjs health.mjs acceptance-policy.mjs mount-server.mjs host-codego.mjs inspect-state.mjs switch-mode.mjs permissions-check.mjs ssh-policy-check.mjs verify-state-budget.mjs snapshot-state.mjs verify-preserved-data.mjs verify-attachment-fixture.mjs reset-state.mjs verify-empty-state.mjs /opt/collaboration/
+COPY entrypoint.sh initialize.mjs health.mjs acceptance-policy.mjs mount-server.mjs host-codego.mjs inspect-state.mjs switch-mode.mjs permissions-check.mjs ssh-policy-check.mjs verify-state-budget.mjs snapshot-state.mjs verify-preserved-data.mjs verify-attachment-fixture.mjs verify-project-details-fixture.mjs reset-state.mjs verify-empty-state.mjs /opt/collaboration/
 COPY sshd_config /etc/ssh/sshd_config
 RUN for key in /etc/ssh/ssh_host_rsa_key /etc/ssh/ssh_host_rsa_key.pub /etc/ssh/ssh_host_ecdsa_key /etc/ssh/ssh_host_ecdsa_key.pub /etc/ssh/ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key.pub; do test "$(readlink -f "$key")" = "$key" && rm -f "$key" || exit 1; done \
     && chmod 0755 /opt/collaboration/entrypoint.sh \

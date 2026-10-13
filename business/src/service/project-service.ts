@@ -15,6 +15,7 @@ import type {
   ProjectId,
   ProjectView,
   ProjectWithRolesView,
+  UpdateProjectDetailsInput,
 } from '../domain/project.js'
 import { assertWritable, isArchived, pendingFields } from '../domain/project.js'
 import { isRoleId, type MemberLabel, type RoleId } from '../domain/roles.js'
@@ -99,6 +100,28 @@ export class ProjectService {
     }
     const label: MemberLabel | null = member === null ? null : requireText(member, 'member', 120)
     this.projects.setMember(projectId, role as RoleId, label, this.clock.now())
+  }
+
+  /** Plain explicit details update, not a plan decision or replacement project. */
+  updateDetails(input: UpdateProjectDetailsInput): ProjectView {
+    const allowed = new Set(['projectId', 'background', 'goal'])
+    if (Object.keys(input).some((key) => !allowed.has(key))) {
+      throw new CollaborationError('INVALID_ARGUMENT', 'Only projectId, background and goal may be supplied', {})
+    }
+    const hasBackground = input.background !== undefined
+    const hasGoal = input.goal !== undefined
+    if (!hasBackground && !hasGoal) {
+      throw new CollaborationError('INVALID_ARGUMENT', 'Provide at least one of background or goal; omitted fields remain unchanged', {})
+    }
+    const background = hasBackground ? requireText(input.background, 'background', MAX_NAME_LENGTH * 10) : undefined
+    const goal = hasGoal ? requireText(input.goal, 'goal', MAX_NAME_LENGTH * 10) : undefined
+    // Acquire the write lock before reading old values: an omitted field must retain the
+    // latest stored value, and the archive gate and update form one atomic operation.
+    return inTransaction(this.db, () => {
+      const project = this.requireWritable(input.projectId)
+      this.projects.updateDetails(project.id, background ?? project.background, goal ?? project.goal)
+      return this.get(project.id)
+    })
   }
 
   archive(projectId: ProjectId): ProjectView {

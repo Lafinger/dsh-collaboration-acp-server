@@ -51,6 +51,8 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
     const agent = host.ctx.agents.get(as.sessionId);
     assert.equal(agent.ctx.tools.get('unsafe_host_terminal', agent), undefined);
     assert.ok(agent.ctx.tools.get('project_create', agent));
+    assert.ok(agent.ctx.tools.get('project_update_details', agent));
+    assert.equal(host.ctx.tools.get('project_update_details', ordinary.agent), undefined);
     assert.equal(host.ctx.tools.get('project_create', ordinary.agent), undefined);
     const blockedFile = await agent.ctx.tools.get('material_upload', agent).execute({ source_path: configFile, submitted_by: 'forged' }, {});
     assert.equal(blockedFile.code, 'SERVER_WORKSPACE_ONLY');

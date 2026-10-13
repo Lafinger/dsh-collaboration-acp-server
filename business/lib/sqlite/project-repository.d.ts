@@ -19,5 +19,6 @@ export declare class ProjectRepository {
      */
     rolesOf(projectId: ProjectId): readonly RoleAssignment[];
     setMember(projectId: ProjectId, role: RoleId, member: string | null, at: string): void;
+    updateDetails(projectId: ProjectId, background: string | null, goal: string | null): void;
     archive(projectId: ProjectId, at: string): void;
 }

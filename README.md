@@ -2,7 +2,7 @@
 
 **服务器 DSH 的协作 ACP 服务端插件**：安装、配置并启用后，复用宿主运行时，为多个可信登录成员提供独立 Agent 会话与共享工作台业务库。插件不创建第二套 DSH，不改宿主模型注册，不在卸载时关闭宿主。
 
-0.4.1精确支持 **DSH0.2.0-rc.2 / Cordis4.0.4 / Schemastery3.18.4 / Node>=24**。不兼容旧0.1.5独立服务入口，旧CLI明确拒绝启动，不自动迁移旧数据。服务器管理员可信；成员会话逻辑隔离不等于OS多租户隔离。
+0.4.2精确支持 **DSH0.2.0-rc.2 / Cordis4.0.4 / Schemastery3.18.4 / Node>=24**。不兼容旧0.1.5独立服务入口，旧CLI明确拒绝启动，不自动迁移旧数据。服务器管理员可信；成员会话逻辑隔离不等于OS多租户隔离。
 
 > 来源：原工作台提交3e0b76c，历史独立服务提交dac24aa。当前代码无需原仓或客户端源码；保留有限ACP-shaped接口与collaboration扩展，不宣称完整ACP兼容。
 
@@ -14,7 +14,7 @@ DSH插件管理器安装来源：
 github:Lafinger/dsh-collaboration-acp-server
 ```
 
-当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.4.1`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[新版验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。Linux部署与重装见[运维目录](deploy/docker-linux/README.md)。只发布GitHub，不发布npm或DSH插件市场。
+当前固定入口：`github:Lafinger/dsh-collaboration-acp-server#v0.4.2`。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[新版验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。Linux部署与重装见[运维目录](deploy/docker-linux/README.md)。只发布GitHub，不发布npm或DSH插件市场。
 
 安装后默认disabled；空配置启用为安全待配置，不建库、不监听、不调用模型。复制[空模板](examples/server-config.example.json)到服务账号自己的私有配置文件，填写部署路径、账号独立凭据与宿主已有provider/model，按[部署说明](docs/DEPLOYMENT.md)检查后启用。没有GUI配置表单，也不自动修改sshd或创建系统账号。
 
@@ -37,7 +37,7 @@ pnpm pack --out .dsh/dsh-collaboration-acp-server.tgz
 node scripts/check-package.mjs .dsh/dsh-collaboration-acp-server.tgz
 ```
 
-check验证业务源码与已提交编译产物一致，再运行282项业务回归和接入/真实宿主接口测试，不静默重建后掩盖陈旧产物。业务源码变更后显式`pnpm run build`并提交生成内容。没有prepare/install/prepack构建，GitHub安装无需执行脚本。测试宿主只位于测试目录，不提供独立生产启动路径。
+check验证业务源码与已提交编译产物一致，再运行285项业务回归和接入/真实宿主接口测试，不静默重建后掩盖陈旧产物。业务源码变更后显式`pnpm run build`并提交生成内容。没有prepare/install/prepack构建，GitHub安装无需执行脚本。测试宿主只位于测试目录，不提供独立生产启动路径。
 
 联合检查显式选择另一仓库：
 
@@ -46,6 +46,10 @@ DSH_COLLABORATION_CLIENT_ROOT=/absolute/client-checkout pnpm run check:joint
 ```
 
 测试使用本地固定模型替身，官方DSH Agent loop、工具执行、会话持久化与SQLite是真实实现。不调用付费模型；真实Linux SSH/权限与GUI端到端仍需部署验收。新增受限客户端附件工具传输与DOCX/MD/TXT解析，PNG/JPEG/WebP/GIF传输校验归档，不含视觉分析/OCR工具或多客户端共编，不扩大项目/管理员权限规则；见[附件用法与边界](<docs/ATTACHMENTS.md>)。
+
+## 项目背景与目标编辑
+
+v0.4.2新增`project_update_details`，只编辑已存在项目中明确提供的background／goal；未提供字段不变，空白／null拒绝，归档项目与附件turn拒写，不改角色或任何资料／分析／计划／任务。无需重建项目或客户端升版。用法和用户授权模板见[项目详情编辑](<docs/PROJECT-DETAILS.md>)；正式发布与生产保留核验尚待完成。
 
 ## 许可证
 

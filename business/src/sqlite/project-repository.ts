@@ -105,6 +105,10 @@ export class ProjectRepository {
       .run(projectId, role, member, at)
   }
 
+  updateDetails(projectId: ProjectId, background: string | null, goal: string | null): void {
+    this.db.prepare('UPDATE projects SET background = ?, goal = ? WHERE id = ?').run(background, goal, projectId)
+  }
+
   archive(projectId: ProjectId, at: string): void {
     this.db.prepare('UPDATE projects SET archived_at = ? WHERE id = ?').run(at, projectId)
   }

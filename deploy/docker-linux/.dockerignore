@@ -18,6 +18,7 @@
 !snapshot-state.mjs
 !verify-preserved-data.mjs
 !verify-attachment-fixture.mjs
+!verify-project-details-fixture.mjs
 !reset-state.mjs
 !verify-empty-state.mjs
 !sshd_config

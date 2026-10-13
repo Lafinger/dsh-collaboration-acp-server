@@ -33,6 +33,12 @@ export interface CreateProjectInput {
     readonly background?: string | undefined;
     readonly goal?: string | undefined;
 }
+/** Explicit non-clearing patch: undefined retains the field; supplied text must be nonblank. */
+export interface UpdateProjectDetailsInput {
+    readonly projectId: ProjectId;
+    readonly background?: string | undefined;
+    readonly goal?: string | undefined;
+}
 export declare function isArchived(project: Project): boolean;
 /**
  * The single archive gate (MVP-005).

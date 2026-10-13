@@ -35,7 +35,7 @@ async function fixture(t, runtime = new Runtime()) {
     await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: ticket(account) });
     const initialized = await peer.request('initialize', initializeParams());
     assert.equal(initialized.agentInfo.name, 'dsh-collaboration-acp-server');
-    assert.equal(initialized.agentInfo.version, '0.4.1'); return peer;
+    assert.equal(initialized.agentInfo.version, '0.4.2'); return peer;
   };
   t.after(async () => { peers.forEach(p => p.close()); await listener.close(); store.close(); });
   return { root, store, runtime, authority, service, listener, connect };

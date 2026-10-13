@@ -11,6 +11,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonObject, JsonValue } from './json.js'
 import { runTool } from './result.js'
+import { CollaborationError } from '../domain/error.js'
 import type { ProjectService } from '../service/project-service.js'
 import type { PlanService } from '../service/plan-service.js'
 import type { ProjectView } from '../domain/project.js'
@@ -144,6 +145,29 @@ export function projectToolDefinitions(
           return Promise.resolve({ projects: projects.map(projectToJson) })
         }),
       presentCall: () => present('List projects'),
+    }),
+
+    defineTool({
+      name: 'project_update_details',
+      description:
+        'Update only an existing project background and/or goal after an explicit current user request. ' +
+        'Provide at least one nonblank field (max 2000 characters each); omitted fields remain unchanged. ' +
+        'Does not clear fields, rename/recreate the project, assign members, confirm plans or create tasks. ' +
+        'Archived projects reject updates. Never turn an unapproved draft into project facts.',
+      parameters: {
+        project_id: { type: 'string', required: true },
+        background: { type: 'string', description: 'Confirmed text, nonblank, max 2000 characters. Omit to retain.' },
+        goal: { type: 'string', description: 'Confirmed text, nonblank, max 2000 characters. Omit to retain.' },
+      },
+      output: JSON_OUTPUT,
+      execute: (args) => runTool(() => {
+        if (Object.keys(args).some((key) => !['project_id', 'background', 'goal'].includes(key))) {
+          throw new CollaborationError('INVALID_ARGUMENT', 'Only project_id, background and goal may be supplied', {})
+        }
+        const project = service.updateDetails({ projectId: args.project_id, background: args.background, goal: args.goal })
+        return Promise.resolve({ project: projectToJson(project) })
+      }),
+      presentCall: (args) => present('Update project background / goal', args.project_id),
     }),
 
     defineTool({

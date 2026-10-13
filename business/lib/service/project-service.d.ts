@@ -7,7 +7,7 @@
  * MVP-005: archiving is a one-way stop on writes.
  */
 import type { DatabaseSync } from 'node:sqlite';
-import type { CreateProjectInput, Project, ProjectId, ProjectView, ProjectWithRolesView } from '../domain/project.js';
+import type { CreateProjectInput, Project, ProjectId, ProjectView, ProjectWithRolesView, UpdateProjectDetailsInput } from '../domain/project.js';
 export interface Clock {
     now(): string;
 }
@@ -27,6 +27,8 @@ export declare class ProjectService {
      * `null` vacates the slot, which later blocks plan confirmation.
      */
     setMember(projectId: ProjectId, role: string, member: string | null): void;
+    /** Plain explicit details update, not a plan decision or replacement project. */
+    updateDetails(input: UpdateProjectDetailsInput): ProjectView;
     archive(projectId: ProjectId): ProjectView;
     private requireProject;
     private requireWritable;

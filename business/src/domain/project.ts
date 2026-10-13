@@ -48,6 +48,13 @@ export interface CreateProjectInput {
   readonly goal?: string | undefined
 }
 
+/** Explicit non-clearing patch: undefined retains the field; supplied text must be nonblank. */
+export interface UpdateProjectDetailsInput {
+  readonly projectId: ProjectId
+  readonly background?: string | undefined
+  readonly goal?: string | undefined
+}
+
 export function isArchived(project: Project): boolean {
   return project.archivedAt !== null
 }

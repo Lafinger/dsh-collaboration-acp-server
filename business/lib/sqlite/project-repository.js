@@ -60,6 +60,9 @@ export class ProjectRepository {
          DO UPDATE SET member_label = excluded.member_label, updated_at = excluded.updated_at`)
             .run(projectId, role, member, at);
     }
+    updateDetails(projectId, background, goal) {
+        this.db.prepare('UPDATE projects SET background = ?, goal = ? WHERE id = ?').run(background, goal, projectId);
+    }
     archive(projectId, at) {
         this.db.prepare('UPDATE projects SET archived_at = ? WHERE id = ?').run(at, projectId);
     }
