@@ -16,6 +16,6 @@
     "@deepseek-ai/dsh-credentials-local": "0.2.0-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
-    "dsh-collaboration-acp-server": "github:Lafinger/dsh-collaboration-acp-server#v0.4.1"
+    "dsh-collaboration-acp-server": "github:Lafinger/dsh-collaboration-acp-server#v0.4.2"
   }
 }

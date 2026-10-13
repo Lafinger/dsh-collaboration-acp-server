@@ -4,8 +4,8 @@ function run(args){const r=spawnSync(process.execPath,args,{cwd:root,stdio:'inhe
 for(const e of readdirSync(root))if(/\.(?:mjs|cjs)$/.test(e))run(['--check',e]);
 run(['--test','acceptance-policy.test.mjs','reset-state.test.mjs']);
 const read=name=>readFileSync(join(root,name),'utf8');const compose=read('compose.yaml'),docker=read('Dockerfile'),ignore=read('.dockerignore'),sshd=read('sshd_config'),profile=read('profile.patch.yml');
-assert.match(read('package.json'),/github:Lafinger\/dsh-collaboration-acp-server#v0\.4\.1/,'Deploy fixed release only');
-assert.match(compose,/image: dsh-collaboration-linux-sim:0\.4\.1/);assert.match(compose,/cpus: 2\.0/);assert.match(compose,/mem_limit: 2g/);assert.match(compose,/restart: unless-stopped/);assert.match(compose,/no-new-privileges:true/);assert.match(compose,/\/tmp:rw,exec,nosuid,nodev/);
+assert.match(read('package.json'),/github:Lafinger\/dsh-collaboration-acp-server#v0\.4\.2/,'Deploy fixed release only');
+assert.match(compose,/image: dsh-collaboration-linux-sim:0\.4\.2/);assert.match(compose,/cpus: 2\.0/);assert.match(compose,/mem_limit: 2g/);assert.match(compose,/restart: unless-stopped/);assert.match(compose,/no-new-privileges:true/);assert.match(compose,/\/tmp:rw,exec,nosuid,nodev/);
 for(const line of ['127.0.0.1:22222:22','192.168.2.27:22222:23','10.242.14.211:22222:24'])assert.ok(compose.includes(line));assert.ok(!compose.includes('0.0.0.0:22222'));assert.ok(!compose.includes('docker.sock'));
 assert.match(docker,/^FROM node:24\.21\.0-bookworm-slim@sha256:[0-9a-f]{64}/);assert.match(docker,/--frozen-lockfile --ignore-scripts/);assert.match(docker,/collaboration-members/);assert.ok(!/privileged/.test(compose));
 assert.equal(ignore.split(/\r?\n/)[0],'*');assert.ok(!ignore.includes('!provision'));assert.ok(!ignore.includes('!.dsh'));assert.match(ignore,/!reset-state\.mjs/);

@@ -11,7 +11,7 @@ const load = (account, route = 'local') => JSON.parse(readFileSync(join(director
 const peers = [];
 const connect = async (account, route = 'local', override = {}) => {
   const config = load(account, route); const peer = await openSsh({ ...config.ssh, ...override }); peers.push(peer);
-  const initialized = await peer.request('initialize', initializeParams()); requireInitializeResult(initialized); assert.equal(initialized.agentInfo.version, '0.4.1');
+  const initialized = await peer.request('initialize', initializeParams()); requireInitializeResult(initialized); assert.equal(initialized.agentInfo.version, '0.4.2');
   const who = await peer.request('collaboration/whoami', {}); assert.equal(who.account, account); assert.equal(who.serviceId, config.serviceId); return { peer, who };
 };
 const saved = join(directory, 'acceptance-sessions.local.json');

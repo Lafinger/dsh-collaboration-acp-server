@@ -1,18 +1,22 @@
 # 本机 Linux 模拟协作服务器
 
-此目录是本次确认的本地部署，不是第二套独立生产运行时。使用正式DSH CLI加载显式最小profile以及GitHub固定v0.4.1插件（协作扩展协议v2＋附件扩展1）；一套非root DSH宿主与一个sshd。Docker Desktop容器验证Linux/SSH，不等于公网独立主机或完整VM。
+此目录是本次确认的本地部署，不是第二套独立生产运行时。使用正式DSH CLI加载显式最小profile以及GitHub固定v0.4.2插件（协作扩展协议v2＋附件扩展1）；一套非root DSH宿主与一个sshd。Docker Desktop容器验证Linux/SSH，不等于公网独立主机或完整VM。
 
 **本次附件升级必须保留已有项目、会话、业务库、资料、映射与凭据；禁止按下文历史清空步骤操作。** 附件用法见[附件指南](<../../docs/ATTACHMENTS.md>)；此前改名清空是历史单次授权，不能复用到本次升级。
 
 ## 已确认配置
 
-- Debian bookworm slim，Node24.21.0/pnpm11.7.0/DSH0.2.0-rc.2；官方Node镜像固定digest，插件锁到v0.4.1提交。
+- Debian bookworm slim，Node24.21.0/pnpm11.7.0/DSH0.2.0-rc.2；官方Node镜像固定digest，插件锁到v0.4.2提交。
 - 容器 `dsh-collaboration-linux-sim`，专用持久卷 `dsh-collaboration-linux-sim-data`，2CPU/2GiB/256PID，unless-stopped。
 - SSH只发布127.0.0.1、192.168.2.27、10.242.14.211的22222。为避免本机Docker Desktop同target多地址映射冲突，一个sshd在容器内分别监听22/23/24；外部统一22222，成员无需知道内部端口。换IP前显式修改[Compose](compose.yaml)和[防火墙脚本](firewall.ps1)，不自动暴露全部网卡。
 - 模型固定codego/deepseek-v4.1-flash，openai-responses接口https://codegoai.com/v1；只有CODEGO_API_KEY单项复制到私有文件，无镜像/命令行/environment secret，不复制整个Windows凭据库。
 - 不设置来源IP/网段限制；任何可达设备仍须匹配成员SSH私钥。成员alice/bob均publickey+forced connector，无shell/SFTP/SCP/转发/root登录；Docker管理员仍为可信管理者。
 - 正式日常使用按用户选择不设额外每日/单轮请求/时长/输出限制。成员共用现用Codego额度，没有自动费用隔离。
 - 旧轮次真实模型验收模式6轮/24请求/2048token/次/4分钟/轮；此前改名更新清空旧数据后交付空状态是历史事实；之后用户已有新项目/真实GUI会话，本次附件升级不清空且不自动调用真实模型，保持daily。真实模型失败不自动重发业务请求。无自动模型回退、未加载llm-retry或后台标题模型。
+
+## 项目详情编辑升级
+
+v0.4.2补充`project_update_details`，不自动填南航background／goal，不重建项目、资料或分析。客户端保持v0.3.0；保留部署步骤见[本次升级](<PROJECT-DETAILS-UPDATE.md>)，字段语义与授权模板见[项目详情编辑](<../../docs/PROJECT-DETAILS.md>)。正式部署状态以该指南的最终核验记录为准。
 
 ## 命令
 

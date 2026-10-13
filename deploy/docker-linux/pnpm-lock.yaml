@@ -48,8 +48,8 @@ importers:
         specifier: 0.2.0-rc.2
         version: 0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755)
       dsh-collaboration-acp-server:
-        specifier: github:Lafinger/dsh-collaboration-acp-server#v0.4.1
-        version: https://codeload.github.com/Lafinger/dsh-collaboration-acp-server/tar.gz/c90bba68b2987f6af80f5ccece809d6a5743f055(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent-loop@0.2.0-rc.2(0c5ce3d184ce320f0d23631770cc12ac))(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))(@deepseek-ai/schemastery@3.18.4)
+        specifier: github:Lafinger/dsh-collaboration-acp-server#v0.4.2
+        version: git+https://github.com/Lafinger/dsh-collaboration-acp-server.git#32422af722ed296b9fec9bb3a181d787e068cc18(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent-loop@0.2.0-rc.2(0c5ce3d184ce320f0d23631770cc12ac))(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))(@deepseek-ai/schemastery@3.18.4)
 
 packages:
 
@@ -3233,9 +3233,9 @@ packages:
     resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
 
-  dsh-collaboration-acp-server@https://codeload.github.com/Lafinger/dsh-collaboration-acp-server/tar.gz/c90bba68b2987f6af80f5ccece809d6a5743f055:
-    resolution: {gitHosted: true, integrity: sha512-aVJuQx0/fLa7ZQu/Cbqw5PFdsGvw+GlQneoiqb3t9JqXm2kmbiCD1MP+/plMHK51eD3gqRtWRdZIFRUWWhnZkg==, tarball: https://codeload.github.com/Lafinger/dsh-collaboration-acp-server/tar.gz/c90bba68b2987f6af80f5ccece809d6a5743f055}
-    version: 0.4.1
+  dsh-collaboration-acp-server@git+https://github.com/Lafinger/dsh-collaboration-acp-server.git#32422af722ed296b9fec9bb3a181d787e068cc18:
+    resolution: {commit: 32422af722ed296b9fec9bb3a181d787e068cc18, repo: https://github.com/Lafinger/dsh-collaboration-acp-server.git, type: git}
+    version: 0.4.2
     engines: {dsh: 0.2.0-rc.2, node: '>=24.0.0'}
     hasBin: true
     peerDependencies:
@@ -7725,7 +7725,7 @@ snapshots:
 
   diff@9.0.0: {}
 
-  dsh-collaboration-acp-server@https://codeload.github.com/Lafinger/dsh-collaboration-acp-server/tar.gz/c90bba68b2987f6af80f5ccece809d6a5743f055(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent-loop@0.2.0-rc.2(0c5ce3d184ce320f0d23631770cc12ac))(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))(@deepseek-ai/schemastery@3.18.4):
+  dsh-collaboration-acp-server@git+https://github.com/Lafinger/dsh-collaboration-acp-server.git#32422af722ed296b9fec9bb3a181d787e068cc18(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-agent-loop@0.2.0-rc.2(0c5ce3d184ce320f0d23631770cc12ac))(@deepseek-ai/dsh-agent@0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50))(@deepseek-ai/dsh-llm@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))(@deepseek-ai/dsh-session@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-scope@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)(@deepseek-ai/dsh-invariants@0.2.0-rc.2(@deepseek-ai/cordis@4.0.4))))(@deepseek-ai/dsh-tools@0.2.0-rc.2(52b5a8ab481be2b3d891c22a71641755))(@deepseek-ai/schemastery@3.18.4):
     dependencies:
       '@deepseek-ai/cordis': 4.0.4(@deepseek-ai/cordis-plugin-include@1.0.9)(@deepseek-ai/cordis-plugin-loader@1.0.5)
       '@deepseek-ai/dsh-agent': 0.2.0-rc.2(fee0e653b72a3883e0f0da2d9a46bb50)
