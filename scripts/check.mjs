@@ -10,4 +10,5 @@ const tsc='node_modules/typescript/bin/tsc';
 run([tsc,'-p','business/tsconfig.json','--noEmit']);run(['scripts/check-build.mjs']);
 run([tsc,'-p','business/tsconfig.test.json','--noEmitOnError']);run(['--test','business/lib-test/**/*.test.js']);
 run(['--test','--test-timeout=15000','test/*.test.mjs']);run(['--test','--test-timeout=15000','test/*.integration.mjs']);run(['scripts/audit.mjs']);run(['scripts/check-naming.mjs']);
+if(readdirSync(root).includes('deploy'))run(['deploy/docker-linux/check-deploy.mjs']);
 mkdirSync(join(root,'.dsh/evidence'),{recursive:true});writeFileSync(join(root,'.dsh/evidence/check.json'),JSON.stringify({result:'PASS',node:process.version,independentDependencies:true,realSshTested:false,guiTested:false,timestamp:new Date().toISOString()},null,2));

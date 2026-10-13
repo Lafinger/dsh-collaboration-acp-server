@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+const result=spawnSync('/usr/sbin/sshd',['-T','-C','user=alice,host=localhost,addr=192.168.2.100'],{encoding:'utf8'});
+assert.equal(result.status,0,result.stderr);
+const facts=Object.fromEntries(result.stdout.trim().split('\n').map(line=>{const i=line.indexOf(' ');return[line.slice(0,i),line.slice(i+1)];}));
+for(const name of ['passwordauthentication','kbdinteractiveauthentication','permitrootlogin','permittty','allowtcpforwarding','allowstreamlocalforwarding','allowagentforwarding','x11forwarding','permituserenvironment','permituserrc'])assert.equal(facts[name],'no',name);
+assert.equal(facts.authenticationmethods,'publickey');
+assert.equal(facts.forcecommand,'/usr/local/bin/node /opt/collaboration/node_modules/dsh-collaboration-acp-server/src/connector-cli.mjs');
+assert.deepEqual(result.stdout.split('\n').filter(line=>line.startsWith('allowusers ')).map(line=>line.slice('allowusers '.length)).sort(),['alice','bob']);
+assert.equal(facts.authorizedkeysfile,'/etc/ssh/authorized_keys/%u');
+console.log(JSON.stringify({sshPolicy:'PASS',publickeyOnly:true,forcedConnector:true,rootLogin:false,shellOrForwarding:false}));

@@ -1,0 +1,10 @@
+{
+  "name": "collaboration-linux-host-profile",
+  "private": true,
+  "type": "module",
+  "dsh": {
+    "profile": {
+      "bundles": []
+    }
+  }
+}

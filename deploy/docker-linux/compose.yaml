@@ -1,0 +1,33 @@
+name: dsh-collaboration-linux-sim
+services:
+  server:
+    build:
+      context: .
+    image: dsh-collaboration-linux-sim:0.3.0
+    container_name: dsh-collaboration-linux-sim
+    init: true
+    restart: unless-stopped
+    cpus: 2.0
+    mem_limit: 2g
+    pids_limit: 256
+    ports:
+      - '127.0.0.1:22222:22'
+      - '192.168.2.27:22222:23'
+      - '10.242.14.211:22222:24'
+    volumes:
+      - server-data:/srv/collaboration
+    tmpfs:
+      - /run:rw,nosuid,nodev,size=16m
+      - /tmp:rw,exec,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - NET_RAW
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+volumes:
+  server-data:
+    name: dsh-collaboration-linux-sim-data

@@ -1,0 +1,58 @@
+# Explicit minimal host, booted by the official dsh CLI; no test-only Context launcher.
+- insert:
+    - id: timer
+      name: '@deepseek-ai/cordis-plugin-timer'
+    - id: llm
+      name: '@deepseek-ai/dsh-llm'
+    - id: session
+      name: '@deepseek-ai/dsh-session'
+    - id: agent
+      name: '@deepseek-ai/dsh-agent'
+    - id: session-projection
+      name: '@deepseek-ai/dsh-session-projection'
+    - id: tools
+      name: '@deepseek-ai/dsh-tools'
+      config:
+        mode: native
+    - id: system-prompt
+      name: '@deepseek-ai/dsh-system-prompt'
+      config:
+        includeHarnessIdentity: false
+        includeRuntimeContext: false
+        personaPrefix: >-
+          You are the remote collaboration assistant. Use the supplied
+          business tools for project facts and authenticated member identity.
+          Never claim a write or read succeeded without the tool result.
+          Only execute an explicit current user request. Do not replay old requests.
+        personaSuffix: ''
+    - id: credentials
+      name: '@deepseek-ai/dsh-credentials-local'
+      config:
+        path: /srv/collaboration/dsh-home/.credentials.yaml
+        watch: false
+    - id: llm-pi-ai
+      name: /opt/collaboration/host-codego.mjs
+      config:
+        providers:
+          codego:
+            displayName: Codego
+            apiKeyEnv: CODEGO_API_KEY
+            api: openai-responses
+            baseURL: https://codegoai.com/v1
+            models:
+              - id: deepseek-v4.1-flash
+                name: deepseek-v4.1-flash
+    - id: session-persistence
+      name: '@deepseek-ai/dsh-session-persistence-jsonl'
+      config:
+        root: /srv/collaboration/dsh-home/sessions
+        compression: none
+    - id: agent-loop
+      name: '@deepseek-ai/dsh-agent-loop'
+      config:
+        agents: []
+        maxParallelToolCalls: 1
+    - id: acceptance-policy
+      name: /opt/collaboration/acceptance-policy.mjs
+    - id: collaboration-server-mount
+      name: /opt/collaboration/mount-server.mjs
