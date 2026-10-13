@@ -6,7 +6,7 @@
 
 ```text
 github:Lafinger/dsh-collaboration-acp-server
-github:Lafinger/dsh-collaboration-acp-server#v0.3.0
+github:Lafinger/dsh-collaboration-acp-server#v0.4.0
 ```
 
 默认入口读取main，不自动下载latest Release。首个宿主插件发行版v0.2.0，精确DSH0.2.0-rc.2、Node>=24；安装默认禁用，无prepare/install/prepack编译脚本。业务源码和核验后的JS/声明文件均提交，CI拒绝源码与产物不符，而不是重建后掩盖问题。

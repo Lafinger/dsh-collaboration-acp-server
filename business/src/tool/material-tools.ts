@@ -172,6 +172,7 @@ export function materialToolDefinitions(service: MaterialService): ToolDefinitio
             size: read.version.size,
             content: read.content,
             unreadable_reason: read.issue,
+            parser_warnings: [...(read.warnings ?? [])],
           })
         }),
       presentCall: (args) => present('Read material', `${args.material_id} v${args.version}`),

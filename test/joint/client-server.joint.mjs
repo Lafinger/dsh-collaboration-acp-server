@@ -18,6 +18,7 @@ const {MemberAdapter}=await import(pathToFileURL(resolve(clientRoot,'src/member-
 test('versioned contract and wire helpers are byte-identical across independently owned repositories',()=>{
  assert.equal(readFileSync(new URL('../../docs/PROTOCOL-v2.json',import.meta.url),'utf8'),readFileSync(join(clientRoot,'docs/PROTOCOL-v2.json'),'utf8'));
  assert.equal(readFileSync(new URL('../../src/protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/protocol.mjs'),'utf8'));
+ assert.equal(readFileSync(new URL('../../src/attachment-protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/attachment-protocol.mjs'),'utf8'));
 });
 test('independent client adapter converses with real server runtime; no history replay on followup',async()=>{
  const root=mkdtempSync(join(tmpdir(),'collaboration-joint-'));const {runtime,workspace}=await createCollaborationRuntime({workspace:join(root,'workspace'),stateRoot:join(root,'state'),fixture:true});

@@ -33,6 +33,8 @@ const MAX_PURPOSE_LENGTH = 200;
 export class MaterialService {
     db;
     clock;
+    /** Trusted runtime-owned extraction reader; never accepted from a tool argument. */
+    contentProvider;
     materials;
     projects;
     files;
@@ -52,7 +54,7 @@ export class MaterialService {
      * MVP-010: the same filename uploaded again appends a version by default — it never
      * silently overwrites. A different `purpose` is a different material.
      */
-    upload(input) {
+    upload(input, commitMetadata) {
         const project = this.requireWritableProject(input.projectId);
         const originalName = requireText(input.originalName ?? basename(input.sourcePath), 'original name', MAX_NAME_LENGTH);
         const purpose = requireText(input.purpose, 'purpose', MAX_PURPOSE_LENGTH);
@@ -68,6 +70,9 @@ export class MaterialService {
         // leave a half-written version behind.
         const source = this.readSource(input.sourcePath);
         const existing = this.materials.findByIdentity(project.id, originalName, purpose);
+        // A material's filing category is fixed; later uploads must not move only a new version.
+        if (existing !== null)
+            role = existing.role;
         const materialId = existing?.id ?? newId();
         const now = this.clock.now();
         const material = existing ?? {
@@ -104,6 +109,7 @@ export class MaterialService {
                     createdAt: now,
                 };
                 this.materials.insertVersion(row);
+                commitMetadata?.({ material, version: row, created: existing === null, absolutePath: target });
                 return row;
             });
             return {
@@ -171,8 +177,15 @@ export class MaterialService {
             };
         }
         try {
+            const parsed = this.contentProvider?.(material, version);
+            if (parsed !== undefined)
+                return { material, version, absolutePath, ...parsed };
             const buf = readFileSync(absolutePath);
-            return { material, version, absolutePath, content: buf.toString('utf8'), issue: null };
+            if (/\.(docx|png|jpe?g|webp|gif)$/i.test(material.originalName)) {
+                return { material, version, absolutePath, content: null, issue: 'No trusted parsed text for this binary material; do not decode as UTF-8' };
+            }
+            const content = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+            return { material, version, absolutePath, content, issue: null };
         }
         catch (error) {
             return {

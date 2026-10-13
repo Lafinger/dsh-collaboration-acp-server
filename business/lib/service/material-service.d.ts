@@ -11,9 +11,16 @@ export interface UploadResult {
     /** Absolute path of the stored file, for the uploader's own confirmation. */
     readonly absolutePath: string;
 }
+export interface ParsedMaterialContent {
+    readonly content: string | null;
+    readonly issue: string | null;
+    readonly warnings: readonly string[];
+}
 export declare class MaterialService {
     private readonly db;
     private readonly clock;
+    /** Trusted runtime-owned extraction reader; never accepted from a tool argument. */
+    contentProvider?: (material: Material, version: MaterialVersion) => ParsedMaterialContent | undefined;
     private readonly materials;
     private readonly projects;
     private readonly files;
@@ -25,7 +32,7 @@ export declare class MaterialService {
      * MVP-010: the same filename uploaded again appends a version by default — it never
      * silently overwrites. A different `purpose` is a different material.
      */
-    upload(input: UploadMaterialInput): UploadResult;
+    upload(input: UploadMaterialInput, commitMetadata?: (result: UploadResult) => void): UploadResult;
     getWithVersions(materialId: MaterialId): MaterialWithVersions;
     listByProject(projectId: ProjectId): readonly MaterialWithVersions[];
     /**
@@ -50,6 +57,7 @@ export declare class MaterialService {
         absolutePath: string;
         content: string | null;
         issue: string | null;
+        warnings?: readonly string[];
     };
     absolutePathOf(relPath: string): string;
     /**

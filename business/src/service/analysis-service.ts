@@ -13,7 +13,7 @@
  *
  * An analysis is written once, whole. An abandoned attempt leaves no trace.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   DEFAULT_CONTENT_LIMIT_BYTES,
@@ -92,6 +92,7 @@ export class AnalysisService {
 
     for (const entry of scope) {
       const outcome = this.readOne(entry, limit)
+      for (const warning of outcome.warnings ?? []) uncovered.push({ text: warning, entry, reason: 'not_understood' })
 
       if (outcome.content === null) {
         // `readOne` returns null content only together with a reason; the invariant is
@@ -233,6 +234,7 @@ export class AnalysisService {
     size: number
     reason: UncoveredReason | null
     explanation: string
+    warnings?: readonly string[]
   } {
     const empty = { content: null, originalName: '', sha256: '', size: 0 }
 
@@ -260,6 +262,14 @@ export class AnalysisService {
     const { material, version } = resolved
     const base = { originalName: material.originalName, sha256: version.sha256, size: version.size }
 
+    // Trusted extraction may be smaller than its binary original; cap the actual model text.
+    const extracted = this.materials.contentProvider?.(material, version)
+    if (extracted !== undefined) {
+      if (extracted.content === null) return { ...base, content: null, reason: 'unreadable', explanation: extracted.issue ?? 'No parsed content', warnings: extracted.warnings }
+      if (Buffer.byteLength(extracted.content) > limitBytes) return { ...base, content: null, reason: 'too_large', explanation: 'Parsed text exceeds analysis content limit', warnings: extracted.warnings }
+      if (!existsSync(this.materials.absolutePathOf(version.relPath))) return { ...base, content: null, reason: 'unreadable', explanation: 'Original material is missing from storage' }
+      return { ...base, content: extracted.content, reason: null, explanation: '', warnings: extracted.warnings }
+    }
     // Over the cap: record it as uncovered rather than truncating. A half-read file that
     // looks whole is worse than an admitted gap.
     if (version.size > limitBytes) {
@@ -290,8 +300,9 @@ export class AnalysisService {
           explanation: `${material.originalName} v${version.version} is not a regular file`,
         }
       }
-      const content = readFileSync(absolute, 'utf8')
-      return { ...base, content, reason: null, explanation: '' }
+      const read = this.materials.read(entry)
+      if (read.content === null) return { ...base, content: null, reason: 'unreadable', explanation: read.issue ?? 'Material text unavailable' }
+      return { ...base, content: read.content, reason: null, explanation: '' }
     } catch (error) {
       return {
         ...base,

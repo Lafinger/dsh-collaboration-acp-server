@@ -52,9 +52,11 @@ export class DshRuntime {
       await this.ctx.sessions.flush(handle.agent.session); return handle;
     } catch (error) { await handle.dispose(); this.handles.delete(handle); throw error; }
   }
-  async prompt(handle, text, signal, emit) {
+  async prompt(handle, text, signal, emit, attachmentRequest) {
     if (this.closing || !this.handles.has(handle)) throw new Error('Inactive collaboration Agent');
     const agent = handle.agent;
+    const releaseAttachments = attachmentRequest ? this.attachments.bind(attachmentRequest, signal) : () => {};
+    const attachmentNotice = attachmentRequest ? this.attachments.notice(attachmentRequest) : '';
     let reason = 'end_turn', failure;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
       if (subject !== agent || frame.type !== 'chunk') return;
@@ -74,11 +76,11 @@ export class DshRuntime {
     signal.addEventListener('abort', abort, { once: true });
     try {
       if (signal.aborted) return { stopReason: 'cancelled' };
-      agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }));
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: text + attachmentNotice }], source: { kind: 'user' } }));
       await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
       return { stopReason: signal.aborted ? 'cancelled' : reason };
-    } finally { signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
+    } finally { releaseAttachments(); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
   }
   async close(handle) {
     if (!this.handles.has(handle)) return;

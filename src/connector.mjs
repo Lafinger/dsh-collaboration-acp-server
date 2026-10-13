@@ -27,8 +27,11 @@ export async function bridgeConnector(config, input, output) {
   catch (error) { remote.close(); throw error; }
   const client = new JsonPeer(input, output);
   remote.on('message', m => {
-    if (m.id !== undefined) remote.error(m.id, new AccessError(-32601, 'Client filesystem, terminal and reverse methods are unsupported'));
-    else client.notify(m.method, m.params);
+    if (m.id !== undefined) {
+      if (m.method !== 'collaboration/attachment/read') { remote.error(m.id, new AccessError(-32601, 'Client filesystem, terminal and reverse methods are unsupported')); return; }
+      void client.request(m.method, m.params, { timeoutMs: 30000 })
+        .then(result => remote.result(m.id, result), error => remote.error(m.id, error)).catch(() => remote.close());
+    } else client.notify(m.method, m.params);
   });
   client.on('message', m => {
     if (m.method === 'collaboration/connect') { client.error(m.id, new AccessError(-32003, 'Client cannot choose its identity')); return; }

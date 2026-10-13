@@ -29,7 +29,7 @@ export async function createTestRuntime(options) {
   return runtime;
 }
 export async function createTestCollaboration(config) {
-  const host = await createHost({ root: join(config.stateRoot, 'host') });
+  const host = await createHost({ root: join(config.stateRoot, 'host'), adapter: config.adapter });
   const collaboration = await createCollaborationRuntime({ ...config, provider: host.provider, model: host.model }, host.ctx);
   const close = collaboration.runtime.closeAll.bind(collaboration.runtime);
   collaboration.runtime.closeAll = async () => { try { await close(); } finally { await host.close(); } };

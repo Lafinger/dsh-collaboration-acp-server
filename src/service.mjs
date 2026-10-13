@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 import { AccessError, requireText, textPrompt, ACP_PROTOCOL_VERSION, collaborationMeta, requireCollaborationVersion } from './protocol.mjs';
+import { attachmentCapability, requireAttachmentCapability, validateAttachmentManifest } from './attachment-protocol.mjs';
 
 export class AccessService {
   constructor({ authority, store, runtime, cwd }) {
@@ -45,9 +46,11 @@ export class AccessService {
       c.initialized = false;
       requireCollaborationVersion(p);
       if (p.protocolVersion !== ACP_PROTOCOL_VERSION) throw new AccessError(-32011, 'Unsupported ACP-shaped base protocol version');
+      c.attachmentTransfer = null;
+      if (p.clientCapabilities?.attachmentTransfer !== undefined) { requireAttachmentCapability(p.clientCapabilities.attachmentTransfer); c.attachmentTransfer = attachmentCapability(); }
       c.initialized = true;
       return { protocolVersion: ACP_PROTOCOL_VERSION, _meta: collaborationMeta(), agentInfo: { name: 'dsh-collaboration-acp-server', version },
-        agentCapabilities: { loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false } }, authMethods: [] };
+        agentCapabilities: { loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false }, ...(c.attachmentTransfer && this.runtime.attachments ? { attachmentTransfer: attachmentCapability() } : {}) }, authMethods: [] };
     }
     if (!c.initialized) throw new AccessError(-32600, 'Initialize first');
     if (method === 'collaboration/whoami') return { ...identity, runtimePid: process.pid };
@@ -102,12 +105,22 @@ export class AccessService {
     const e = this.requireSession(c, p.sessionId);
     if (e.running) throw new AccessError(-32007, 'A prompt is already running');
     const text = textPrompt(p.prompt); const requestId = requireText(p._meta?.requestId, 'requestId', 200);
+    const manifests = p._meta?.attachments;
+    if (manifests !== undefined) {
+      requireAttachmentCapability(c.attachmentTransfer);
+      if (!this.runtime.attachments) throw new AccessError(-32012, 'Attachment transfer unavailable');
+      validateAttachmentManifest(manifests);
+      this.runtime.attachments.validateHumanRequest(text, manifests);
+    }
     this.store.begin(e.id, requestId); e.controller = new AbortController();
     // Mark running before publication, which can itself discover a disconnected/stalled consumer.
     e.running = Promise.resolve().then(() => {
       this.publish(e, { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } });
       if (e.controller.signal.aborted) return { stopReason: 'cancelled' };
-      return this.runtime.prompt(e.handle, text, e.controller.signal, update => this.publish(e, update));
+      return this.runtime.prompt(e.handle, text, e.controller.signal, update => this.publish(e, update), manifests?.length ? {
+        sessionId: e.id, requestId, account: c.identity.account, manifests,
+        read: params => c.peer.request('collaboration/attachment/read', params, { timeoutMs: 30000 }),
+      } : undefined);
     });
     try {
       const result = await e.running;

@@ -13,6 +13,8 @@ import { NoticeService } from '../business/lib/service/notice-service.js';
 import { TraceService } from '../business/lib/service/trace-service.js';
 import { ResultService } from '../business/lib/service/result-service.js';
 import { registerTools } from '../business/lib/tool/register.js';
+import { AttachmentService } from './attachment-service.mjs';
+import { registerAttachmentTools } from './attachment-tools.mjs';
 
 /** One business database, borrowed host services, tools registered only into authenticated Agent scopes. */
 export async function createCollaborationRuntime(config, ctx) {
@@ -26,16 +28,22 @@ export async function createCollaborationRuntime(config, ctx) {
     identities, tasks, materials, projects: new ProjectService(db), plans: new PlanService(db, undefined, tasks),
     analyses: new AnalysisService(db, materials), notices: new NoticeService(db), traces: new TraceService(db), results: new ResultService(db),
   };
+  const attachments = new AttachmentService({ db, root: join(root, 'attachments'), materials, projects: services.projects });
+  materials.contentProvider = attachments.materialContent.bind(attachments);
   const runtime = new DshRuntime({ ctx, provider: config.provider, model: config.model,
     setup: (agentCtx, agent, account) => {
       const transform = bindCollaborationIdentity(agentCtx, identities, { sessionId: agent.session.id, account, workspace });
       registerTools(agentCtx, services, transform);
+      registerAttachmentTools(agentCtx, attachments, { sessionId: agent.session.id, account });
+      const attachmentTurnTools = new Set(['session_whoami','project_list','project_get','material_list','material_read','material_versions','analysis_begin','analysis_submit','analysis_get','analysis_list','task_list','task_get','task_versions','task_origin','plan_get','plan_history','plan_list','trace','attachment_transfer','attachment_inspect','attachment_archive','attachment_receipts']);
+      agentCtx.tools.guard(exec => !attachments.active.has(String(agent.session.id)) || attachmentTurnTools.has(exec.name) ? undefined : 'Attachment turns may only transfer, inspect, archive and analyze; no member assignment, plan approval or other business writes');
     },
   });
+  runtime.attachments = attachments;
   try { await runtime.start(); }
   catch (error) { await runtime.closeAll(); db.close(); throw error; }
   const close = runtime.closeAll.bind(runtime);
   let closing;
   runtime.closeAll = () => closing ??= (async () => { try { await close(); } finally { db.close(); } })();
-  return { runtime, workspace, root, services };
+  return { runtime, workspace, root, services, attachments };
 }

@@ -90,9 +90,22 @@
     "requestIdentity": "sha256(serviceId NUL account NUL localId NUL messageId)",
     "recovery": "attach/history only; never session/prompt"
   },
+  "attachmentExtension": {
+    "version": 1,
+    "negotiation": "clientCapabilities.attachmentTransfer and agentCapabilities.attachmentTransfer exact version 1; missing is text-only, upload never downgrades",
+    "humanAuthorization": "one standalone 附件操作: 上传并归档 or 仅传输 line plus one project_id; current human native refs or explicit workspace files only",
+    "promptMetadata": "_meta.attachments immutable display metadata/opaque handles; no local paths",
+    "reverseMethod": "collaboration/attachment/read(sessionId,requestId,handle,offset,maxBytes)",
+    "scope": "exact current account/session/request capability; all other reverse methods unsupported",
+    "tools": ["attachment_transfer", "attachment_inspect", "attachment_archive", "attachment_receipts"],
+    "maxMessageFiles": 5,
+    "maxMessageBytes": 20971520,
+    "chunkBytes": 49152,
+    "maxExtractedTextBytes": 262144,
+    "imageUnderstanding": "not enabled; image transport and first-frame validation only"
+  },
   "unsupported": [
-    "images",
-    "files",
+    "native ACP image prompt content (attachments use negotiated handles instead)",
     "client filesystem",
     "terminal callbacks",
     "client MCP",
@@ -115,7 +128,9 @@
     "-32008": "activation/restore failed",
     "-32009": "prompt failed/outcome may be unknown",
     "-32010": "cancelled before submit",
-    "-32011": "incompatible collaboration/base protocol"
+    "-32011": "incompatible collaboration/base protocol",
+    "-32012": "incompatible or missing attachment extension; no upload downgrade",
+    "-32013": "attachment outside current account/session/request authorization"
   },
   "baseProtocolVersion": 1,
   "negotiation": {

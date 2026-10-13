@@ -1,20 +1,54 @@
 {
   "name": "dsh-collaboration-acp-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@11.7.0",
-  "repository": { "type": "git", "url": "git+https://github.com/Lafinger/dsh-collaboration-acp-server.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lafinger/dsh-collaboration-acp-server.git"
+  },
   "homepage": "https://github.com/Lafinger/dsh-collaboration-acp-server#readme",
-  "bugs": { "url": "https://github.com/Lafinger/dsh-collaboration-acp-server/issues" },
+  "bugs": {
+    "url": "https://github.com/Lafinger/dsh-collaboration-acp-server/issues"
+  },
   "description": "DSH-hosted collaboration ACP plugin: account-owned conversations and scoped project-collaboration business tools.",
-  "engines": { "node": ">=24.0.0", "dsh": "0.2.0-rc.2" },
+  "engines": {
+    "node": ">=24.0.0",
+    "dsh": "0.2.0-rc.2"
+  },
   "main": "src/server-plugin.mjs",
-  "exports": { ".": "./src/server-plugin.mjs", "./runtime": "./src/dsh-runtime.mjs", "./service": "./src/service.mjs", "./connector": "./src/connector.mjs", "./protocol": "./src/protocol.mjs", "./package.json": "./package.json" },
-  "bin": { "dsh-collaboration-connect": "./src/connector-cli.mjs" },
-  "files": ["src", "cordis.patch.yml", "business/lib", "business/docs", "scripts/check-config.mjs", "examples", "docs", "GLOSSARY.md", "GLOSSARY-MAP.md", "README.md", "LICENSE", "PROVENANCE.json"],
-  "dsh": { "bundle": { "patch": "cordis.patch.yml" } },
+  "exports": {
+    ".": "./src/server-plugin.mjs",
+    "./runtime": "./src/dsh-runtime.mjs",
+    "./service": "./src/service.mjs",
+    "./connector": "./src/connector.mjs",
+    "./protocol": "./src/protocol.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dsh-collaboration-connect": "./src/connector-cli.mjs"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "business/lib",
+    "business/docs",
+    "scripts/check-config.mjs",
+    "examples",
+    "docs",
+    "GLOSSARY.md",
+    "GLOSSARY-MAP.md",
+    "README.md",
+    "LICENSE",
+    "PROVENANCE.json"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    }
+  },
   "scripts": {
     "typecheck": "tsc -p business/tsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
@@ -43,12 +77,17 @@
     "@deepseek-ai/dsh-agent-loop": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.4",
+    "@types/node": "24.19.2",
     "typescript": "5.9.3",
-    "@types/node": "24.19.2"
+    "fflate": "0.8.3"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.11.1",
+    "sharp": "0.35.5"
   }
 }
