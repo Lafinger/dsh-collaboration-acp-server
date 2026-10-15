@@ -22,6 +22,8 @@ import { ProjectAccess } from './project-access.mjs';
 import { CommunicationBridge } from './communication-bridge.mjs';
 import {acquireMaintenanceLock} from './maintenance-lock.mjs';
 import {VisionAccess} from './vision.mjs';
+import {MvpIdentityStore} from './mvp-identities.mjs';
+import {MvpLoginService} from './mvp-login.mjs';
 
 /** One business database, borrowed host services, tools registered only into authenticated Agent scopes. */
 export async function createCollaborationRuntime(config, ctx) {
@@ -38,8 +40,9 @@ export async function createCollaborationRuntime(config, ctx) {
     identities, tasks, materials, projects: new ProjectService(db), plans: new PlanService(db, undefined, tasks),
     analyses: new AnalysisService(db, materials), notices: new NoticeService(db), traces: new TraceService(db), results: new ResultService(db),
   };
-  const security=config.dingtalk?new IdentityStore({db,serviceId:config.serviceId,...config.dingtalk}):null;
-  const login=security?new LoginService({identities:security,provider:new DingTalkIdentityProvider(config.dingtalk),publicOrigin:config.dingtalk.publicOrigin}):null;
+  const mvp=config.mode==='mvp-https',Store=mvp?MvpIdentityStore:IdentityStore,Login=mvp?MvpLoginService:LoginService;
+  const security=config.dingtalk?new Store({db,serviceId:config.serviceId,...config.dingtalk}):null;
+  const login=security?new Login({identities:security,provider:new DingTalkIdentityProvider(config.dingtalk),publicOrigin:config.dingtalk.publicOrigin,agentId:config.dingtalk.agentId}):null;
   login?.expireInterrupted();
   const access=security?new ProjectAccess({identities:security,services}):null;
   const attachments = new AttachmentService({ db, root: join(root, 'attachments'), materials, projects: services.projects });
@@ -69,7 +72,7 @@ export async function createCollaborationRuntime(config, ctx) {
   runtime.attachments = attachments;
   runtime.vision = vision;
   await runtime.start();
-  communication=security?new CommunicationBridge({identities:security,login,access,services,runtime,workspace,retentionDays:config.dingtalk.communicationRetentionDays}):null;
+  communication=security&&!mvp?new CommunicationBridge({identities:security,login,access,services,runtime,workspace,retentionDays:config.dingtalk.communicationRetentionDays}):null;
   await communication?.registerExistingLogs();
   const close = runtime.closeAll.bind(runtime);
   let closing;

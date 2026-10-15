@@ -6,7 +6,15 @@
 
 > 来源：原工作台提交3e0b76c，历史独立服务提交dac24aa。当前代码无需原仓或客户端源码；保留有限ACP-shaped接口与collaboration扩展，不宣称完整ACP兼容。
 
-## 0.5.0：Ubuntu CPA与授权图片输入
+## 0.6.0 MVP（实现中，未上线）
+
+本轮已获用户“确认，开始实施”：统一HTTPS/WSS、电脑钉钉官方身份自动登记、全员项目可见、固定陈锦鸿管理员仅创建项目／分配职责。不建设成员管理／项目ACL／机器人；不再要求个人SSH、密钥或hosts。保留7天Windows系统加密设备登录、5分钟组织复核、职责本人决定、私人／项目会话隔离和不自动重发。
+
+使用[新MVP说明](<docs/MVP-HTTPS.md>)与[新私有配置空模板](<examples/mvp-https.example.json>)，产品范围见[最终确认](<docs/MVP-账号与电脑钉钉登录方案.md>)。代码已覆盖离线HTTP/WSS、真实DSH宿主与双插件TLS测试，**不代表真实电脑钉钉、现用GUI或A/B业务验收**；尚未清理或切换现网。只按固定成功Windows/Ubuntu CI版本部署，真实PC登录可行与精确清单核验前不执行用户授权的无备份重建。
+
+以下0.5.x及个人SSH配置／扫码／逐项目资格内容保留历史，不是新版部署入口，也不是MVP的兼容回退。CPA及业务／附件能力继续复用，现有外部模型路线不变。
+
+## 历史0.5.0：Ubuntu CPA与授权图片输入
 
 保留现用Ubuntu已部署的钉钉扫码、项目权限及[日志保留维护](<docs/DINGTALK-RETENTION.md>)基线；本轮只新增CPA配置、PNG／JPEG／WebP原生工具图片、历史预算和GIF双端禁传。现用基线与本轮增量分开提交；服务端不另发tag／Release，必须按双平台CI成功的固定SHA部署。[Ubuntu步骤与隐藏key录入](<deploy/ubuntu/README.md>)、[设计确认](<docs/设计确认-CPA切换与本地模拟退役.md>)。
 

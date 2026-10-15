@@ -6,6 +6,16 @@ export const defaultConfigPath = () => join(homedir(), '.dsh', 'collaboration-ac
 const required = ['serviceId', 'workspace', 'stateRoot', 'socketPath', 'provider', 'model', 'accounts', 'dingtalk'];
 const text = v => typeof v === 'string' && v.trim().length > 0 && v.length <= 200;
 const nested = (a, b) => { const r = relative(resolve(a), resolve(b)); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
+function resolveMvp(config,configPath,pending){
+  const keys=['mode','serviceId','workspace','stateRoot','provider','model','dingtalk'];
+  if(Object.keys(config).some(k=>!keys.includes(k))||['serviceId','provider','model'].some(k=>!text(config[k])))return pending('MVP配置仅支持统一HTTPS、宿主模型和钉钉组织字段');
+  if(![config.workspace,config.stateRoot].every(v=>typeof v==='string'&&isAbsolute(v))||nested(config.workspace,config.stateRoot)||nested(config.stateRoot,config.workspace))return pending('MVP工作区与私有状态须为分离绝对目录');
+  const d=config.dingtalk,allowed=['corpId','clientId','clientSecret','publicOrigin','loginPort','administratorUserId','agentId'];
+  if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!allowed.includes(k))||['corpId','clientId','administratorUserId'].some(k=>!text(d[k]))||typeof d.clientSecret!=='string'||!d.clientSecret.trim()||d.clientSecret.length>4096||typeof d.agentId!=='string'||!/^\d{1,30}$/.test(d.agentId))return pending('MVP需组织／应用秘密／AgentId和指定管理员身份，不使用个人SSH账号');
+  try{const u=new URL(d.publicOrigin);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw new Error();}catch{return pending('MVP服务地址须为明确可信HTTPS origin');}
+  if(!Number.isSafeInteger(d.loginPort)||d.loginPort<1||d.loginPort>65535)return pending('MVP需本机后端端口');
+  return {state:'configured',configPath,config:{...config,dingtalk:{...d,organizationTtlMs:300000,loginTtlMs:604800000}},message:'MVP配置完整；只监听本机后端，需统一HTTPS代理和真实电脑钉钉验收。'};
+}
 /** File-only configuration: credentials stay outside profile YAML and status output. */
 export function resolveServerConfiguration(input = {}, { fallbackPath = defaultConfigPath() } = {}) {
   const configPath = input.configFile ?? fallbackPath;
@@ -21,6 +31,7 @@ export function resolveServerConfiguration(input = {}, { fallbackPath = defaultC
     config = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
   } catch { return pending('配置无法读取或JSON格式不正确'); }
   if (!config || typeof config !== 'object' || Array.isArray(config)) return pending('配置须为JSON对象');
+  if(config.mode==='mvp-https')return resolveMvp(config,configPath,pending);
   if (Object.keys(config).some(k => !required.includes(k))) return pending('配置含不支持字段，旧fixture/adapterModule部署配置不可直接使用');
   if (['serviceId', 'provider', 'model'].some(k => !text(config[k])) || ['workspace', 'stateRoot', 'socketPath'].some(k => typeof config[k] !== 'string' || !config[k].trim())) return pending('缺少serviceId/workspace/stateRoot/socketPath/provider/model');
   if (![config.workspace, config.stateRoot].every(isAbsolute)) return pending('workspace/stateRoot须为绝对路径');

@@ -31,7 +31,7 @@ export class DingTalkIdentityProvider {
     })().finally(()=>{this.pending=null;});
     return this.pending;
   }
-  async resolveUnion(unionId) {
+  async resolveUnion(unionId,{displayName=false}={}) {
     requireText(unionId,'unionId',200); const token=await this.applicationToken();
     const value=await this.json(`https://oapi.dingtalk.com/topapi/user/getbyunionid?access_token=${encodeURIComponent(token)}`,{body:{unionid:unionId}});
     if(String(value.result?.contact_type)==='1')throw revoked();
@@ -40,7 +40,8 @@ export class DingTalkIdentityProvider {
     const detail=await this.json(`https://oapi.dingtalk.com/topapi/v2/user/get?access_token=${encodeURIComponent(token)}`,{body:{userid:userId}});
     if([false,'false'].includes(detail.result?.active)||detail.result?.userid!==userId||detail.result?.unionid!==unionId)throw revoked();
     if(![true,'true'].includes(detail.result?.active))throw unavailable();
-    return {corpId:this.corpId,userId,unionId,internal:true};
+    const name=typeof detail.result?.name==='string'&&detail.result.name.trim()&&detail.result.name.length<=200?detail.result.name.trim():userId;
+    return {corpId:this.corpId,userId,unionId,internal:true,...displayName?{name}:{}};
   }
   async exchange(code) {
     requireText(code,'authorization code',4096);
@@ -51,6 +52,15 @@ export class DingTalkIdentityProvider {
     const me=await this.json('https://api.dingtalk.com/v1.0/contact/users/me',{headers:{'x-acs-dingtalk-access-token':accessToken}});
     // Neither refresh token nor personal contact fields are retained.
     return this.resolveUnion(requireText(me.unionId,'unionId',200));
+  }
+  async exchangePc(code) {
+    requireText(code,'PC免登授权码',4096);
+    const token=await this.applicationToken();
+    const result=await this.json(`https://oapi.dingtalk.com/topapi/v2/user/getuserinfo?access_token=${encodeURIComponent(token)}`,{body:{code}});
+    const userId=requireText(result.result?.userid,'组织员工身份',200),unionId=requireText(result.result?.unionid,'组织用户身份',200);
+    const identity=await this.resolveUnion(unionId,{displayName:true});
+    if(identity.userId!==userId)throw unavailable();
+    return identity;
   }
   async verifyMember(member) {
     if(member.corp_id!==this.corpId||member.client_id!==this.clientId)throw unavailable();

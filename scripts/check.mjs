@@ -10,7 +10,7 @@ function run(args){const r=spawnSync(process.execPath,args,{cwd:root,stdio:'inhe
 function scan(dir){for(const e of readdirSync(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())scan(p);else if(e.name.endsWith('.mjs'))run(['--check',p]);}}
 for(const dir of ['bin','src','scripts','test','deploy/ubuntu'])scan(join(root,dir));
 const tsc='node_modules/typescript/bin/tsc';
-run([tsc,'-p','business/tsconfig.json','--noEmit']);run(['scripts/check-build.mjs']);
+run([tsc,'-p','business/tsconfig.json','--noEmit']);run(['scripts/check-build.mjs']);run(['scripts/build-pc-sdk.mjs','--check']);
 run([tsc,'-p','business/tsconfig.test.json','--noEmitOnError']);run(['--test','--test-concurrency=1','--test-timeout=20000','business/lib-test/**/*.test.js']);
 run(['--test','--test-timeout=15000','test/*.test.mjs']);run(['--test','--test-timeout=15000','test/*.integration.mjs']);run(['scripts/audit.mjs']);run(['scripts/check-naming.mjs']);
 if(readdirSync(root).includes('deploy'))run(['deploy/docker-linux/check-deploy.mjs']);

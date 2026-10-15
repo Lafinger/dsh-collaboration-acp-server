@@ -5,6 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveServerConfiguration } from '../src/configuration.mjs';
 const fixture = () => { const root = mkdtempSync(join(tmpdir(), 'server-config-')); return { root, file: join(root, 'config.json'), config: { serviceId: 'test', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\config-test' : join(root, 'socket'), provider: 'fixture', model: 'fixture', accounts: { alice: 'a'.repeat(64) },dingtalk:{corpId:'corp',clientId:'app',clientSecret:'private-test-secret',publicOrigin:'https://login.example.test',loginPort:19481} } }; };
+test('MVP file uses only unified HTTPS and fixed official administrator, no legacy accounts or socket',()=>{
+ const f=fixture(),{accounts,socketPath,...plain}=f.config,value={...plain,mode:'mvp-https',dingtalk:{...plain.dingtalk,administratorUserId:'boss',agentId:'123'}};
+ writeFileSync(f.file,JSON.stringify(value),{mode:0o600});const result=resolveServerConfiguration({configFile:f.file});assert.equal(result.state,'configured');assert.equal(result.config.dingtalk.loginTtlMs,604800000);assert.equal(result.config.accounts,undefined);
+ for(const bad of [{...value,accounts},{...value,socketPath},{...value,dingtalk:{...value.dingtalk,agentId:''}},{...value,dingtalk:{...value.dingtalk,administratorUserId:''}}]){writeFileSync(f.file,JSON.stringify(bad),{mode:0o600});assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required');}
+});
 test('missing configuration stays pending and does not expose guessed deployment values', () => {
   const f = fixture(), r = resolveServerConfiguration({ configFile: f.file });
   assert.equal(r.state, 'configuration-required'); assert.equal(r.config, undefined);

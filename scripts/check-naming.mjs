@@ -17,6 +17,8 @@ function walk(dir){for(const entry of readdirSync(dir,{withFileTypes:true})){
  if(entry.isDirectory()){walk(path);continue;}
  if(!/\.(?:mjs|cjs|js|ts|md|json|yml|yaml|ps1|sh)$/.test(entry.name)&&!['Dockerfile','.dockerignore','.gitignore'].includes(entry.name))continue;
  const text=readFileSync(path,'utf8');
+ // Exact locked third-party SDK; build-pc-sdk --check verifies bytes. Preserve native bridge identifiers.
+ if(rel==='assets/dingtalk-pc.js'){exceptions.push({path:rel,reason:'pinned official SDK native API identifiers, not collaboration product naming'});continue;}
  if(historic.has(rel)||rel.startsWith('docs/history/')||rel==='deploy/docker-linux/VERIFY-LEGACY-v0.2.0.md'){
   if(obsolete.test(text))exceptions.push({path:rel,reason:'immutable historical source/release evidence'});continue;
  }

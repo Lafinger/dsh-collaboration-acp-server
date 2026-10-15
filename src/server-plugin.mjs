@@ -10,6 +10,8 @@ import { listenAccess } from './transport.mjs';
 import { createCollaborationRuntime } from './collaboration-runtime.mjs';
 import { join } from 'node:path';
 import { listenLoginHttp } from './login-http.mjs';
+import {MvpAccessService} from './mvp-service.mjs';
+import {listenMvpHttp} from './mvp-transport.mjs';
 
 export const name = 'collaboration-acp-server';
 export const inject = []; // Empty configuration can mount without host services; configured activation injects them below.
@@ -52,16 +54,16 @@ async function activate(ctx, resolved, setState, pending) {
   catch { pending('协作服务端待配置：宿主Agent loop尚未提供factory；未启动服务。'); return; }
   const owner = canonical(ctx.agents);
   if (instances.has(owner)) throw new Error('Only one collaboration service may run in this DSH profile');
-  validateSocket(resolved.config);
+  if(resolved.config.mode!=='mvp-https')validateSocket(resolved.config);
   const lease = {}; instances.set(owner, lease);
   let runtime, store, listener, service, loginListener,stopTask;
   const stop = () => stopTask ??= (async () => {
     state = { ...state, state: 'stopping' }; setState(state);
-    try { await loginListener?.close();if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll(); }
+    try { if(resolved.config.mode==='mvp-https'){try{if(service)await service.close();else await runtime?.closeAll();}finally{await loginListener?.close();}}else{await loginListener?.close();if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll();} }
     finally { store?.close(); if (instances.get(owner) === lease) instances.delete(owner); state = { ...state, state: 'stopped' }; setState(state); }
   })();
   try {
-    const config = resolved.config, authority = new AccountAuthority(config);
+    const config = resolved.config,mvp=config.mode==='mvp-https',authority=mvp?null:new AccountAuthority(config);
     mkdirSync(config.stateRoot, { recursive: true, mode: 0o700 });
     if (process.platform !== 'win32') {
       const stat = lstatSync(config.stateRoot);
@@ -69,13 +71,17 @@ async function activate(ctx, resolved, setState, pending) {
     }
     const collaboration = await createCollaborationRuntime(config, ctx); runtime = collaboration.runtime;
     store = new AccessStore(join(collaboration.root, 'access.sqlite'));
-    service = new AccessService({ authority, store, runtime, cwd: collaboration.workspace,login:collaboration.login,identities:collaboration.security,projects:collaboration.services.projects,communication:collaboration.communication });
-    loginListener=await listenLoginHttp(collaboration.login,{port:config.dingtalk.loginPort});
-    listener = await listenAccess(service, { socketPath: config.socketPath });
-    if (process.platform !== 'win32') chmodSync(config.socketPath, 0o660);
-    ctx.provide('collaborationCommunication',collaboration.communication.contract);
-    ctx.provide('collaborationServer', Object.freeze({ service, address: listener.address, serviceId: config.serviceId, stop }));
-    state = { state: 'running', configPath: resolved.configPath, message: '协作服务端已启用；业务访问需钉钉登录与项目资格。OAuth后端仅本机，仍须HTTPS代理与真实平台验收。' }; setState(state);
+    const Service=mvp?MvpAccessService:AccessService;
+    service = new Service({ authority, store, runtime, cwd: collaboration.workspace,login:collaboration.login,identities:collaboration.security,projects:collaboration.services.projects,communication:collaboration.communication });
+    if(mvp)loginListener=await listenMvpHttp(service,collaboration.login,{port:config.dingtalk.loginPort});
+    else{
+      loginListener=await listenLoginHttp(collaboration.login,{port:config.dingtalk.loginPort});
+      listener = await listenAccess(service, { socketPath: config.socketPath });
+      if (process.platform !== 'win32') chmodSync(config.socketPath, 0o660);
+      ctx.provide('collaborationCommunication',collaboration.communication.contract);
+    }
+    ctx.provide('collaborationServer', Object.freeze({ service, address: (listener??loginListener).address, serviceId: config.serviceId, stop }));
+    state = { state: 'running', configPath: resolved.configPath, message: mvp?'MVP后端已启用：电脑钉钉身份、全员项目可见、固定管理员创建项目与分配角色；仍需HTTPS代理及真实电脑验收。':'协作服务端已启用；业务访问需钉钉登录与项目资格。OAuth后端仅本机，仍须HTTPS代理与真实平台验收。' }; setState(state);
     ctx.logger?.info?.(state.message);
     return stop;
   } catch (error) { await stop(); throw error; }

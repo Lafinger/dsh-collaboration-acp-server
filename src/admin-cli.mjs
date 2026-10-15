@@ -14,6 +14,7 @@ export function runAdmin({configFile,commandFile}){
   const stat=lstatSync(commandFile);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>65536)throw new Error('Administrator command must be a bounded regular file');
   if(process.platform!=='win32'&&(stat.uid!==process.getuid()||(stat.mode&0o077)))throw new Error('Administrator command requires service ownership and mode0600');
   const resolved=resolveServerConfiguration({configFile});if(resolved.state!=='configured')throw new Error(resolved.message);
+  if(resolved.config.mode==='mvp-https')throw new Error('MVP has no local member provisioning; use authenticated DSH project/role actions');
   const command=JSON.parse(readFileSync(commandFile,'utf8').replace(/^\uFEFF/,'')),config=resolved.config;
   const database=join(config.stateRoot,'collaboration.sqlite');
   if(!lstatSync(database).isFile())throw new Error('Initialize the configured isolated service before administrative provisioning');

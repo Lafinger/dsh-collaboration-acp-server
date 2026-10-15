@@ -2,7 +2,8 @@ import { initializeParams, collaborationMeta, requireInitializeResult } from '..
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync,readFileSync } from 'node:fs';
+const packageVersion=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountAuthority, issueTicket } from '../src/authority.mjs';
@@ -35,7 +36,7 @@ async function fixture(t, runtime = new Runtime()) {
     await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: ticket(account) });
     const initialized = await peer.request('initialize', initializeParams());
     assert.equal(initialized.agentInfo.name, 'dsh-collaboration-acp-server');
-    assert.equal(initialized.agentInfo.version, '0.5.0'); return peer;
+    assert.equal(initialized.agentInfo.version, packageVersion); return peer;
   };
   t.after(async () => { peers.forEach(p => p.close()); await listener.close(); store.close(); });
   return { root, store, runtime, authority, service, listener, connect };

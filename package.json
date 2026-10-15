@@ -1,6 +1,6 @@
 {
   "name": "dsh-collaboration-acp-server",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/Lafinger/dsh-collaboration-acp-server/issues"
   },
-  "description": "DSH-hosted collaboration ACP plugin: account-owned conversations and scoped project-collaboration business tools.",
+  "description": "DSH-hosted collaboration MVP: HTTPS/WSS, official desktop DingTalk auto-enrollment, fixed project/role administrator and isolated no-replay conversations.",
   "engines": {
     "node": ">=24.0.0",
     "dsh": "0.2.0-rc.2"
@@ -37,6 +37,8 @@
     "cordis.patch.yml",
     "business/lib",
     "business/docs",
+    "assets/dingtalk-pc.js",
+    "assets/THIRD-PARTY-NOTICES.txt",
     "scripts/check-config.mjs",
     "examples",
     "deploy/ubuntu",
@@ -79,8 +81,8 @@
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
     "@deepseek-ai/dsh-agent-loop": "0.2.0-rc.2",
     "@deepseek-ai/dsh-attachment-local": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
@@ -88,14 +90,17 @@
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "3.18.4",
     "@types/node": "24.19.2",
-    "typescript": "5.9.3",
-    "fflate": "0.8.3"
+    "esbuild": "0.25.12",
+    "fflate": "0.8.3",
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "@deepseek-ai/dsh-compaction-image-offload": "0.2.0-rc.2",
     "@deepseek-ai/node-addon-system": "0.1.2",
-    "koffi": "3.1.1",
+    "dingtalk-jsapi": "3.2.9",
     "fast-xml-parser": "5.11.1",
-    "sharp": "0.35.5"
+    "koffi": "3.1.1",
+    "sharp": "0.35.5",
+    "ws": "8.22.0"
   }
 }

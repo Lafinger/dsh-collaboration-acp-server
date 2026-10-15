@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import {once} from 'node:events';
+import {PassThrough} from 'node:stream';
+import {WebSocket} from 'ws';
+import {openDatabase} from '../business/lib/sqlite/connection.js';
+import {ProjectService} from '../business/lib/service/project-service.js';
+import {MvpIdentityStore} from '../src/mvp-identities.mjs';
+import {MvpLoginService} from '../src/mvp-login.mjs';
+import {MvpAccessService} from '../src/mvp-service.mjs';
+import {listenMvpHttp} from '../src/mvp-transport.mjs';
+import {JsonPeer,initializeParams} from '../src/protocol.mjs';
+import {opaqueSecret} from '../src/identity-store.mjs';
+
+test('real HTTP/WebSocket MVP boundary rejects unknown host/origin, keeps bearer out of URL, waits for explicit PC confirmation and blocks old connectors',async t=>{
+ const db=openDatabase({path:':memory:'});
+ const identities=new MvpIdentityStore({db,serviceId:'mvp-wire',corpId:'corp',clientId:'app',administratorUserId:'boss'});
+ const provider={async exchangePc(){return {corpId:'corp',userId:'boss',unionId:'union',internal:true,name:'Boss'};},async verifyMember(){return {corpId:'corp',userId:'boss',unionId:'union',internal:true};}};
+ const login=new MvpLoginService({identities,provider,publicOrigin:'https://mvp.example',agentId:'123'});
+ const service=new MvpAccessService({identities,login,projects:new ProjectService(db),runtime:{async closeAll(){}},cwd:process.cwd(),store:{}});
+ const listener=await listenMvpHttp(service,login,{port:0});
+ t.after(async()=>{await service.close();await listener.close();db.close();});
+ const request=(path,{method='GET',body,origin,host='mvp.example',cookie}={})=>new Promise((resolve,reject)=>{
+  const req=http.request({host:'127.0.0.1',port:listener.address.port,path,method,headers:{host,...origin?{origin}:{},...body?{'content-type':'application/json','x-collaboration-pc':'1'}:{},...cookie?{cookie}:{}}},res=>{let text='';res.setEncoding('utf8');res.on('data',part=>text+=part);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text}));});req.on('error',reject);req.end(body?JSON.stringify(body):undefined);
+ });
+ assert.equal((await request('/collaboration/info')).status,200);assert.equal((await request('/collaboration/info',{host:'evil.example'})).status,403);
+ const page=await request('/collaboration/pc-login');assert.equal(page.status,200);assert.ok(page.headers['content-security-policy'].includes('frame-ancestors'));assert.ok(page.text.includes('requestAuthCode'));assert.ok(!page.text.includes('oauth2/auth'));
+ const ws=new WebSocket(`ws://127.0.0.1:${listener.address.port}/collaboration/socket`,{headers:{host:'mvp.example'}});await once(ws,'open');
+ const input=new PassThrough(),output=new PassThrough();ws.on('message',data=>input.write(data));ws.on('close',()=>input.destroy());output.on('data',data=>ws.send(data.toString()));input.on('close',()=>ws.close());const peer=new JsonPeer(input,output);t.after(()=>peer.close());
+ const initialized=await peer.request('initialize',initializeParams());assert.equal(initialized.serviceId,'mvp-wire');
+ await assert.rejects(peer.request('collaboration/projects',{}));await assert.rejects(peer.request('collaboration/connect',{ticket:'old'}));
+ const proof=opaqueSecret(),started=await peer.request('collaboration/login/start',{deviceId:'pc',proof});
+ const token=new URL(started.loginUrl).hash.slice(1);
+ assert.equal((await request('/collaboration/pc/bind',{method:'POST',origin:'https://evil.example',body:{token}})).status,403);
+ const bound=await request('/collaboration/pc/bind',{method:'POST',origin:login.origin,body:{token}});assert.equal(bound.status,200);
+ const cookie=bound.headers['set-cookie'][0].split(';')[0],binding=JSON.parse(bound.text).value;
+ assert.ok(bound.headers['set-cookie'][0].includes('HttpOnly; Secure; SameSite=None'));
+ const identified=await request('/collaboration/pc/authorize',{method:'POST',origin:login.origin,cookie,body:{requestId:binding.requestId,code:'synthetic-one-use'}});assert.equal(identified.status,200);assert.equal(JSON.parse(identified.text).value.name,'Boss');
+ assert.equal((await peer.request('collaboration/login/claim',{requestId:started.requestId,deviceId:'pc',proof})).status,'pending');
+ assert.equal((await request('/collaboration/pc/confirm',{method:'POST',origin:login.origin,cookie,body:{requestId:started.requestId}})).status,200);
+ const result=await peer.request('collaboration/login/claim',{requestId:started.requestId,deviceId:'pc',proof});assert.equal(result.administrator,true);
+ await peer.request('collaboration/login/authenticate',{token:result.token,deviceId:'pc'});assert.deepEqual((await peer.request('collaboration/projects',{})).projects,[]);
+ const created=await peer.request('collaboration/admin',{action:'create',commandId:'first',key:'MVP',name:'Fresh project'});assert.ok(created.project.id);
+ assert.equal((await peer.request('collaboration/projects',{})).projects.length,1);
+ await assert.rejects(peer.request('collaboration/admin',{action:'enable',account:result.account,enabled:false}));
+ peer.close();ws.terminate();
+});

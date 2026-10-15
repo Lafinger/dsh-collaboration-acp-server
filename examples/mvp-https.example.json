@@ -1,0 +1,17 @@
+{
+  "mode": "mvp-https",
+  "serviceId": "",
+  "workspace": "",
+  "stateRoot": "",
+  "provider": "",
+  "model": "",
+  "dingtalk": {
+    "corpId": "",
+    "clientId": "",
+    "clientSecret": "",
+    "agentId": "",
+    "administratorUserId": "",
+    "publicOrigin": "",
+    "loginPort": 19483
+  }
+}
