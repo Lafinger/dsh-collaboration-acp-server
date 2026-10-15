@@ -16,4 +16,13 @@
 
 本次先提交GitHub、通过Windows／Ubuntu及打包CI，再核验固定完整SHA构件并同步Ubuntu。窄范围更新活动profile／服务模型／门禁模型及必要固定代码路径，保留gate=false、credentials原字节、业务库／资料／原件／会话、钉钉、HTTPS及成员SSH；后端仅为加载新配置受控重启，系统Node不变，不移动宝塔或NVM。
 
-当前条目是实施前范围说明，CI与Ubuntu切换结果尚待后续补记。之前唯一真实文本请求验证的是**旧gpt-6.1-sol**，见[历史外部API实测](<EXTERNAL-CPA-CUSTOM-API.md>)，不能当作此新模型已经实测。此轮不发送真实模型请求；用户自行测试前仍需另行决定是否开放协作业务门禁。
+## 已完成同步与验收
+
+- 实际部署固定提交 **`f1223dcecf17399cc5c6dc0b92d7494ca8e5a275`**；先push，等待[双平台／打包CI 38712431084](https://github.com/Lafinger/dsh-collaboration-acp-server/actions/runs/38712431084)全部success，再下载并核验该次公开构件。包382666字节，SHA256 `3717442610cee7aa63ae2fbc85ef3652ed750c9824a43c828bf44a1061236ded`；依赖种子来自原部署锁，生成新锁后冻结安装且禁生命周期脚本，新锁SHA256 `d097b9710e7a26650c84c30aa7efa88de2feaebbc3af977756631652801b6226`。
+- 本地完整285业务＋78单元／安全（1项POSIX在Windows显式跳过）＋19宿主集成、599导入／260链接审计通过；Ubuntu另执行6项Python策略和新模型注册／旧模型门禁拒绝／开放门禁拒绝离线预检通过，没有外部模型HTTP。
+- 活动标准模型插件首模型、服务JSON默认模型和门禁模型均为 **deepseek-v4.1-flash**；provider／地址／OpenAI Responses／凭据引用和其他profile内容未变，必要公开模块路径同步到上述固定提交。129份业务／运行源码与原部署逐字节一致，同时匹配新CI包；不是服务逻辑升级。
+- 后端PID526605，active／running，NRestarts0；仅为加载新配置受控重启。HTTPS PID131607、成员SSH PID181471未变，Ubuntu回环及公网HTTPS登录完成页200／no-store；Windows真实既有成员SSH19482握手取得0.5.0／协议v3，钉钉设备认证要求与扫码前项目拒绝保持，未新扫码。
+- 切换前后53张业务库表（含sqlite_sequence）及3张接入表schema／行摘要相同；资料、原件、全部会话及SSH／入口配置未变，停服配置替换期间数据字节不变。credentials原字节未变，服务JSON及门禁JSON**仅model字段变更**，modelRequestsAllowed仍false；私有文件继续0600。
+- 实际部署标准模型条目及门禁重新做隔离Context验收：新模型注册存在，agent/request与llm/stream均拒绝，0委派／0网络。系统运行Node仍`/usr/bin/node` v24.15.0；系统Node、宝塔Node、NVM及Claude目录／配置身份对比未变，Node统一／清理计划没有继续执行。
+
+之前唯一真实文本请求验证的是**旧gpt-6.1-sol**，见[历史外部API实测](<EXTERNAL-CPA-CUSTOM-API.md>)，不能当作此新模型已经实测。**此轮真实模型请求0，业务门禁仍关闭，发送业务对话会被拦截**；用户自行测试前仍需另行明确是否开放门禁。文档补记不再重启服务、不移动上述运行SHA、不发新模型请求。

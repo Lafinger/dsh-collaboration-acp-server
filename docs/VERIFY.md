@@ -1,8 +1,8 @@
 # 服务端验证
 
-## CPA默认模型调整（当前配置，切换结果另补记）
+## CPA默认模型调整（已同步Ubuntu，门禁仍关闭）
 
-用户停止Node统一／清理计划，仅要求Ubuntu DSH的CPA默认模型改为deepseek-v4.1-flash。保持cpa／OpenAI Responses／原地址与密钥、关闭业务模型门禁，Node不变。新配置定向回归先检测旧默认值失败，再修改；本次不发送真实模型请求，详见[模型调整范围与验收](<CPA-DEFAULT-MODEL.md>)。
+用户停止Node统一／清理计划，仅要求Ubuntu DSH的CPA默认模型改为deepseek-v4.1-flash。配置定向回归先红后绿，完整本地及双平台打包CI38712431084成功后，按固定提交f1223dcecf17399cc5c6dc0b92d7494ca8e5a275同步Ubuntu；实际默认模型／注册／门禁一致。后端PID526605、HTTPS200及真实成员SSH通过，原密钥、53张业务表／3张接入表、资料原件会话保留。CPA／OpenAI Responses／原地址不变，业务模型门禁仍false，Node仍/usr/bin/node v24.15.0，未清理NVM／Claude。本次真实模型请求0；门禁未开放前业务对话仍会被拦截，详见[模型调整来源与验收](<CPA-DEFAULT-MODEL.md>)。
 
 ## 外部CPA标准自定义API修正与一次授权实测（上一阶段历史）
 
