@@ -1,0 +1,2 @@
+# Deterministic esbuild output is checked byte-for-byte on Windows and Ubuntu.
+/assets/dingtalk-pc.js text eol=lf
