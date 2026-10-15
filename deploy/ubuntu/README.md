@@ -20,7 +20,7 @@ CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179
 
 将核验包和本目录公开脚本放进`/opt/dsh-collaboration-test/releases/<SHA>`；此目录root所有、代码只读，数据仍在`/srv/dsh-collaboration-test`。沿用已部署DSH精确依赖和未启用的受控IM原件；[运行清单](<runtime-package.json>)新增官方持久附件服务，以原部署锁文件为种子，只按新运行清单和该次CI精确tarball生成本次私有部署锁，记录锁哈希，再执行冻结安装且禁用生命周期脚本；tarball的完整性由CI清单和SHA256双重核对，不以浮动Git来源解析替代。准备阶段不改活动配置、不停原服务、不读取旧模型key、不请求CPA。
 
-[模型配置](<model-config.mjs>)固定`cpa / gpt-6.1-sol`、`http://10.242.66.179:8317/v1`、OpenAI Responses，声明text／image。协议兼容和key有效性尚未实测。上下两层重试均为0，不挂载请求错误重试插件、不回退Codego、不强制High；固定官方适配器内部已将pi-ai传输maxRetries设为0，部署配置使用受支持的retryPolicy而非已移除的旧字段。
+[模型配置](<model-config.mjs>)固定`cpa / gpt-6.1-sol`、`http://10.242.66.179:8317/v1`、OpenAI Responses，声明text／image。用户随后单独授权的最小文本Responses请求已返回200／CPA_OK，证据与限制见[标准API修正验收](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)；这不证明真实图片效果或上游模型来源，也不自动开放业务门禁。上下两层重试均为0，不挂载请求错误重试插件、不回退Codego、不强制High；固定官方适配器内部已将pi-ai传输maxRetries设为0，部署配置使用受支持的retryPolicy而非已移除的旧字段。
 
 ## 用户隐藏录入（不会切换服务）
 

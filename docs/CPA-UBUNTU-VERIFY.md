@@ -1,6 +1,6 @@
 # 0.5.0 CPA／图片与Ubuntu上线验收
 
-本记录是首次上线的历史验收；后续用户纠正为DSH标准自定义API配置，见[外部CPA标准API修正](<EXTERNAL-CPA-CUSTOM-API.md>)，不要将本记录的旧包装模块装配当当前目标。
+本记录是首次上线的历史验收；后续用户纠正为DSH标准自定义API配置，并另行授权一次真实文本模型请求，已返回200／CPA_OK，见[外部CPA标准API修正](<EXTERNAL-CPA-CUSTOM-API.md>)，不要将本记录的旧包装模块装配当当前目标。
 
 本记录针对现有Ubuntu `192.168.2.20`，不是本机Docker、替换服务器或新DSH实例。用户已确认整体执行范围，亲自完成GitHub浏览器授权和CPA隐藏录入，并确认继续切换。全过程独立执行，无subagent／workflow。
 

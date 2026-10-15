@@ -1,6 +1,10 @@
 # 服务端验证
 
-## 0.5.0 CPA与授权图片（已上线，真实模型门禁关闭）
+## 外部CPA标准自定义API修正与一次授权实测（当前）
+
+Ubuntu已更新到固定成功CI提交03ad8841ed3a66d83faa93bc816e27b7dd36364e，DSH标准模型插件直接配置外部CPA／OpenAI Responses／gpt-6.1-sol，不部署CPA或修改DSH源码。ZeroTier恢复默认allowManaged后地址／路由生效，ping／TCP连通；用户另行授权的唯一实际HTTP模型请求返回200／CPA_OK，网关报告gpt-6.1-sol，4197ms。协作业务门禁仍false，密钥与全部数据保留，详见[配置修正、CI／上线与真实测试](<EXTERNAL-CPA-CUSTOM-API.md>)。真实图片／业务模型链路未测试，本机未改。
+
+## 0.5.0 CPA与授权图片（首次上线历史，真实模型门禁关闭）
 
 现用Ubuntu钉钉／权限基线单独提交9ad7b158809f5be910235ce1d02c680457d6e6a7；基线285业务＋70单元／安全＋18宿主集成通过，部署9通过／2Windows POSIX跳过。该提交不包含本轮CPA增量，不改变已经上线的基线规则。
 
