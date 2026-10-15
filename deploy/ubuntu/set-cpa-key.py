@@ -37,7 +37,7 @@ def stage_key(key):
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             os.fchmod(stream.fileno(), 0o600)
-            json.dump({'version': 1, 'provider': 'cpa', 'model': 'gpt-6.1-sol', 'ref': 'CPA_API_KEY', 'value': key}, stream)
+            json.dump({'version': 1, 'provider': 'cpa', 'model': 'deepseek-v4.1-flash', 'ref': 'CPA_API_KEY', 'value': key}, stream)
             stream.write('\n')
             stream.flush()
             os.fsync(stream.fileno())

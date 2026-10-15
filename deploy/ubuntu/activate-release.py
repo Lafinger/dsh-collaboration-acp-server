@@ -63,14 +63,14 @@ def route_config(config):
     if config.get('serviceId') != 'dingtalk-lan-test' or config.get('provider') != 'codego' or config.get('model') != 'deepseek-v4.1-flash':
         raise RuntimeError('Active baseline route differs')
     result = dict(config)
-    result.update(provider='cpa', model='gpt-6.1-sol')
+    result.update(provider='cpa', model='deepseek-v4.1-flash')
     return result
 
 
 def credential_config(config, staged):
     if config.get('version') != 1 or not isinstance(config.get('refs'), dict):
         raise RuntimeError('Unsupported credential store')
-    if (staged.get('version'), staged.get('provider'), staged.get('model'), staged.get('ref')) != (1, 'cpa', 'gpt-6.1-sol', 'CPA_API_KEY'):
+    if (staged.get('version'), staged.get('provider'), staged.get('model'), staged.get('ref')) != (1, 'cpa', 'deepseek-v4.1-flash', 'CPA_API_KEY'):
         raise RuntimeError('Unexpected staged route')
     value = staged.get('value')
     if not isinstance(value, str) or not 8 <= len(value) <= 4096 or any(ord(c) < 33 or ord(c) > 126 for c in value):
@@ -146,7 +146,7 @@ def main():
     try:
         before = data_inventory()
         atomic_write(config_path, encode(new_config), svc.pw_uid, svc.pw_gid, 0o600)
-        atomic_write(gate_path, encode({'provider': 'cpa', 'model': 'gpt-6.1-sol', 'modelRequestsAllowed': False}), svc.pw_uid, svc.pw_gid, 0o600)
+        atomic_write(gate_path, encode({'provider': 'cpa', 'model': 'deepseek-v4.1-flash', 'modelRequestsAllowed': False}), svc.pw_uid, svc.pw_gid, 0o600)
         atomic_write(credentials_path, encode(credentials), svc.pw_uid, svc.pw_gid, 0o600)
         atomic_write(PROFILE / 'cordis.patch.yml', new_profile, svc.pw_uid, svc.pw_gid, 0o600)
         # Validate old target immediately before replacing just this profile-owned symlink.
@@ -179,7 +179,7 @@ def main():
         if staged_path != Path('/srv/dsh-collaboration-test/dsh-home/.cpa-key-staged.json'):
             raise RuntimeError('Unexpected staged deletion target')
         staged_path.unlink()
-        print(json.dumps({'commit': sha, 'provider': 'cpa', 'model': 'gpt-6.1-sol', 'modelRequestsAllowed': False, 'dataUnchangedDuringStop': True, 'oldModelReferenceRemoved': True, 'backend': 'active', 'ingressPreserved': True, 'realModelCalls': 0}))
+        print(json.dumps({'commit': sha, 'provider': 'cpa', 'model': 'deepseek-v4.1-flash', 'modelRequestsAllowed': False, 'dataUnchangedDuringStop': True, 'oldModelReferenceRemoved': True, 'backend': 'active', 'ingressPreserved': True, 'realModelCalls': 0}))
     except BaseException:
         # Fail closed; no provider rollback and no loop of automatic service restarts.
         subprocess.run(['systemctl', 'stop', UNIT], capture_output=True, timeout=45)

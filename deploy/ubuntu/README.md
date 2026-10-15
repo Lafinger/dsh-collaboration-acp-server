@@ -6,10 +6,10 @@
 
 ## 外部 CPA 是自定义 API，不是本机服务
 
-CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179:8317/v1`；本仓不部署CPA，不启动8317端口，不修改DSH源码。DSH标准模型插件`@deepseek-ai/dsh-llm-pi-ai`直接配置`providers.cpa`，对应Web“新增自定义模型API”；用户明确协议为OpenAI Responses（不是截图中的Chat Completions）。`cpa`只是自定义provider标识，`gpt-6.1-sol`只是配置模型名，不保证上游来源。此前额外的host-cpa包装已移除；门禁、附件和协作装配是独立安全功能，不是CPA实现。更正范围与核验见[标准API修正](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)。
+CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179:8317/v1`；本仓不部署CPA，不启动8317端口，不修改DSH源码。DSH标准模型插件`@deepseek-ai/dsh-llm-pi-ai`直接配置`providers.cpa`，对应Web“新增自定义模型API”；用户明确协议为OpenAI Responses（不是截图中的Chat Completions）。`cpa`只是自定义provider标识，`deepseek-v4.1-flash`只是当前配置模型名，不保证上游来源。此前额外的host-cpa包装已移除；门禁、附件和协作装配是独立安全功能，不是CPA实现。更正范围与核验见[标准API修正](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)。
 
 ```json
-{"id":"llm-pi-ai","name":"@deepseek-ai/dsh-llm-pi-ai","config":{"providers":{"cpa":{"displayName":"CPA","apiKeyEnv":"CPA_API_KEY","api":"openai-responses","baseURL":"http://10.242.66.179:8317/v1","models":[{"id":"gpt-6.1-sol","name":"gpt-6.1-sol","input":["text","image"]}]}}}}
+{"id":"llm-pi-ai","name":"@deepseek-ai/dsh-llm-pi-ai","config":{"providers":{"cpa":{"displayName":"CPA","apiKeyEnv":"CPA_API_KEY","api":"openai-responses","baseURL":"http://10.242.66.179:8317/v1","models":[{"id":"deepseek-v4.1-flash","name":"deepseek-v4.1-flash","input":["text","image"]}]}}}}
 ```
 
 以上为核心配置摘录；完整渲染还保留原有不重试与图片字节限额。密钥沿用服务器原私有凭据引用，不重新录入或复制。网络可达与模型协议兼容需分别验证，不用仅配置完成冒充ZeroTier可达或真实模型验收。
@@ -20,7 +20,7 @@ CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179
 
 将核验包和本目录公开脚本放进`/opt/dsh-collaboration-test/releases/<SHA>`；此目录root所有、代码只读，数据仍在`/srv/dsh-collaboration-test`。沿用已部署DSH精确依赖和未启用的受控IM原件；[运行清单](<runtime-package.json>)新增官方持久附件服务，以原部署锁文件为种子，只按新运行清单和该次CI精确tarball生成本次私有部署锁，记录锁哈希，再执行冻结安装且禁用生命周期脚本；tarball的完整性由CI清单和SHA256双重核对，不以浮动Git来源解析替代。准备阶段不改活动配置、不停原服务、不读取旧模型key、不请求CPA。
 
-[模型配置](<model-config.mjs>)固定`cpa / gpt-6.1-sol`、`http://10.242.66.179:8317/v1`、OpenAI Responses，声明text／image。用户随后单独授权的最小文本Responses请求已返回200／CPA_OK，证据与限制见[标准API修正验收](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)；这不证明真实图片效果或上游模型来源，也不自动开放业务门禁。上下两层重试均为0，不挂载请求错误重试插件、不回退Codego、不强制High；固定官方适配器内部已将pi-ai传输maxRetries设为0，部署配置使用受支持的retryPolicy而非已移除的旧字段。
+[模型配置](<model-config.mjs>)当前固定`cpa / deepseek-v4.1-flash`、`http://10.242.66.179:8317/v1`、OpenAI Responses，保留text／image声明。用户停止Node统一计划后仅要求[调整默认模型](<../../docs/CPA-DEFAULT-MODEL.md>)，不改Node或开放门禁；旧模型gpt-6.1-sol此前单独授权的最小文本Responses请求曾返回200／CPA_OK，证据与限制见[历史标准API修正验收](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)，这不能当作新默认模型已实测；这不证明真实图片效果或上游模型来源，也不自动开放业务门禁。上下两层重试均为0，不挂载请求错误重试插件、不回退Codego、不强制High；固定官方适配器内部已将pi-ai传输maxRetries设为0，部署配置使用受支持的retryPolicy而非已移除的旧字段。
 
 ## 用户隐藏录入（不会切换服务）
 

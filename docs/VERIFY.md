@@ -1,6 +1,10 @@
 # 服务端验证
 
-## 外部CPA标准自定义API修正与一次授权实测（当前）
+## CPA默认模型调整（当前配置，切换结果另补记）
+
+用户停止Node统一／清理计划，仅要求Ubuntu DSH的CPA默认模型改为deepseek-v4.1-flash。保持cpa／OpenAI Responses／原地址与密钥、关闭业务模型门禁，Node不变。新配置定向回归先检测旧默认值失败，再修改；本次不发送真实模型请求，详见[模型调整范围与验收](<CPA-DEFAULT-MODEL.md>)。
+
+## 外部CPA标准自定义API修正与一次授权实测（上一阶段历史）
 
 Ubuntu已更新到固定成功CI提交03ad8841ed3a66d83faa93bc816e27b7dd36364e，DSH标准模型插件直接配置外部CPA／OpenAI Responses／gpt-6.1-sol，不部署CPA或修改DSH源码。ZeroTier恢复默认allowManaged后地址／路由生效，ping／TCP连通；用户另行授权的唯一实际HTTP模型请求返回200／CPA_OK，网关报告gpt-6.1-sol，4197ms。协作业务门禁仍false，密钥与全部数据保留，详见[配置修正、CI／上线与真实测试](<EXTERNAL-CPA-CUSTOM-API.md>)。真实图片／业务模型链路未测试，本机未改。
 

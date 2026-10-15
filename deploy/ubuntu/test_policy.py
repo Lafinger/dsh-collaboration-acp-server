@@ -74,9 +74,9 @@ class DeploymentPolicy(unittest.TestCase):
     def test_route_changes_only_provider_model_and_credential_preserves_other_refs(self):
         original = {'serviceId': 'dingtalk-lan-test', 'provider': 'codego', 'model': 'deepseek-v4.1-flash', 'accounts': {'alice': 'synthetic'}, 'dingtalk': {'clientSecret': 'synthetic'}}
         result = activate.route_config(original)
-        self.assertEqual(result, {**original, 'provider': 'cpa', 'model': 'gpt-6.1-sol'})
+        self.assertEqual(result, {**original, 'provider': 'cpa', 'model': 'deepseek-v4.1-flash'})
         self.assertEqual(original['provider'], 'codego')
-        staged = {'version': 1, 'provider': 'cpa', 'model': 'gpt-6.1-sol', 'ref': 'CPA_API_KEY', 'value': 'synthetic-new-key'}
+        staged = {'version': 1, 'provider': 'cpa', 'model': 'deepseek-v4.1-flash', 'ref': 'CPA_API_KEY', 'value': 'synthetic-new-key'}
         store = {'version': 1, 'refs': {'CODEGO_API_KEY': 'synthetic-old-key', 'OTHER_REF': 'unchanged'}}
         result = activate.credential_config(store, staged)
         self.assertEqual(result['refs'], {'CPA_API_KEY': 'synthetic-new-key', 'OTHER_REF': 'unchanged'})

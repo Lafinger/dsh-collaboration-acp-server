@@ -10,7 +10,7 @@
 
 保留现用Ubuntu已部署的钉钉扫码、项目权限及[日志保留维护](<docs/DINGTALK-RETENTION.md>)基线；本轮只新增CPA配置、PNG／JPEG／WebP原生工具图片、历史预算和GIF双端禁传。现用基线与本轮增量分开提交；服务端不另发tag／Release，必须按双平台CI成功的固定SHA部署。[Ubuntu步骤与隐藏key录入](<deploy/ubuntu/README.md>)、[设计确认](<docs/设计确认-CPA切换与本地模拟退役.md>)。
 
-CPA是用户通过ZeroTier访问的**外部服务**，DSH只用标准模型插件的`providers.cpa`自定义API配置连接，不在Ubuntu部署CPA或修改DSH源码；[标准API修正](<docs/EXTERNAL-CPA-CUSTOM-API.md>)。模型配置gpt-6.1-sol／OpenAI Responses，声明图片输入；不强制High、不重试、不回退Codego。**协作业务模型门禁保持关闭**。用户另行授权的一次最小文本Responses请求已通过ZeroTier返回200／CPA_OK，见上述修正验收；原生图片及权限链路仍仅离线验证，不冒充真实视觉效果或上游身份验收。升级不代装现用GUI、不启用机器人、不清库或重放。当前协作协议v3拒绝旧v2和SSH-only业务回退；既有0.4.2标签早于现用钉钉基线，不能作为本轮升级源。
+CPA是用户通过ZeroTier访问的**外部服务**，DSH只用标准模型插件的`providers.cpa`自定义API配置连接，不在Ubuntu部署CPA或修改DSH源码；[标准API修正](<docs/EXTERNAL-CPA-CUSTOM-API.md>)。当前配置默认模型deepseek-v4.1-flash／OpenAI Responses，保留原图片输入声明（非新模型视觉能力的真实验收）；[默认模型调整](<docs/CPA-DEFAULT-MODEL.md>)。不强制High、不重试、不回退Codego。**协作业务模型门禁保持关闭**。此前用户另行授权的一次最小文本Responses请求以旧模型gpt-6.1-sol通过ZeroTier返回200／CPA_OK，见上述历史修正验收；不能当作deepseek-v4.1-flash已实测。原生图片及权限链路仍仅离线验证，不冒充真实视觉效果或上游身份验收。升级不代装现用GUI、不启用机器人、不清库或重放。当前协作协议v3拒绝旧v2和SSH-only业务回退；既有0.4.2标签早于现用钉钉基线，不能作为本轮升级源。
 
 ## 安装与启用
 
