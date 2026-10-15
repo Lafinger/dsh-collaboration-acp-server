@@ -2,6 +2,10 @@
 
 仅GitHub发布，不发布npm或DSH插件市场；private:true保留，许可证[MIT](../LICENSE)。下载官方依赖可能访问npm，与发布本包无关。
 
+## 本轮0.5.0例外：仅固定提交部署，不创建tag／Release
+
+先独立保存现用Ubuntu已部署基线，再提交CPA／图片增量；main双平台CI与包检查全部成功后按完整SHA及该次核验包同步Ubuntu。旧公开v0.4.2早于现用钉钉基线，不能用它替代升级源。操作见[Ubuntu部署](<../deploy/ubuntu/README.md>)。以下tag流程是通用历史，不在本轮执行；客户端0.5.3在其独立仓库正式发行。
+
 ## 来源安装
 
 ```text

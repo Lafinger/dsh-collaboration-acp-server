@@ -1,5 +1,11 @@
 # 服务端验证
 
+## 0.5.0 CPA与授权图片（实施中，无真实模型）
+
+现用Ubuntu钉钉／权限基线单独提交9ad7b158809f5be910235ce1d02c680457d6e6a7；基线285业务＋70单元／安全＋18宿主集成通过，部署9通过／2Windows POSIX跳过。该提交不包含本轮CPA增量，不改变已经上线的基线规则。
+
+本轮新增GIF双端拒绝、PNG／JPEG／WebP实际像素限额副本、原生tool/result image引用、成员／会话／项目与当前人类回执授权、持久历史offload。定向11项与实际Agent工具循环通过；固定官方Responses适配器在完全替换fetch、没有socket的离线503传输下核对image请求且仅请求一次，不强制推理等级。部署隐藏录入／门禁／切换预检另有合成文件回归；Windows完整check通过285业务＋76单元／安全（1项Ubuntu执行跳过）＋19宿主集成、594内部导入／238链接及命名审计；历史部署回归9通过／2Windows POSIX跳过。源码包抽取挂载与新部署脚本字节检查通过。CI及Ubuntu状态待完成后记录。真实模型请求门禁保持false，未用真实key测试、未启用机器人、不清库重放；[Ubuntu操作](<../deploy/ubuntu/README.md>)。
+
 ## 0.3.0命名与协作协议v2（本地验证）
 
 当前服务统一collaboration命名、业务库collaboration.sqlite、connector配置/etc/collaboration-access/connectors；业务装配和可信绑定源码文件已改名，中文当前说明与目录统一协作服务。真实历史来源及旧版证据保留列明例外。

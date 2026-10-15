@@ -5,7 +5,7 @@ import {dirname,join,resolve} from 'node:path';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 function run(args){const r=spawnSync(process.execPath,args,{cwd:root,stdio:'inherit',env:{...process.env,COLLABORATION_OFFICIAL_NODE_MODULES:''}});if(r.error)throw r.error;if(r.status!==0)throw new Error(`Check exited ${r.status}: ${args.join(' ')}`);}
 function scan(dir){for(const e of readdirSync(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())scan(p);else if(e.name.endsWith('.mjs'))run(['--check',p]);}}
-for(const dir of ['bin','src','scripts','test'])scan(join(root,dir));
+for(const dir of ['bin','src','scripts','test','deploy/ubuntu'])scan(join(root,dir));
 const tsc='node_modules/typescript/bin/tsc';
 run([tsc,'-p','business/tsconfig.json','--noEmit']);run(['scripts/check-build.mjs']);
 run([tsc,'-p','business/tsconfig.test.json','--noEmitOnError']);run(['--test','--test-concurrency=1','--test-timeout=20000','business/lib-test/**/*.test.js']);

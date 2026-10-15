@@ -3,7 +3,7 @@ import { mkdirSync, openSync, closeSync, writeSync, renameSync, readFileSync, ex
 import { join, resolve, relative } from 'node:path';
 import { AccessError, requireText } from './protocol.mjs';
 import { ATTACHMENT_CHUNK_BYTES, validateAttachmentManifest } from './attachment-protocol.mjs';
-import { parseAttachment, PARSER_VERSION } from './attachment-parser.mjs';
+import { parseAttachment, PARSER_VERSION, rejectGifUpload } from './attachment-parser.mjs';
 import {inTransaction} from '../business/lib/sqlite/schema.js';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 export class AttachmentService {
@@ -59,7 +59,7 @@ export class AttachmentService {
         let written=0;while(written<bytes.length)written+=writeSync(fd,bytes,written,bytes.length-written);digest.update(bytes);offset+=bytes.length;
       }
       fsyncSync(fd);closeSync(fd);fd=undefined;if(digest.digest('hex')!==manifest.sha256)throw new AccessError(-32602,'Attachment sha256 mismatch');
-      const bytes=readFileSync(temp);let parsed;
+      const bytes=readFileSync(temp);rejectGifUpload(bytes,manifest.name);let parsed;
       try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed={kind:'unparsed',content:null,warnings:[error.message],originalSha256:manifest.sha256,textSha256:null,parserVersion:PARSER_VERSION,visualAnalysis:'not-performed',parseError:true};}
       if(request.signal.aborted)throw new AccessError(-32010,'Attachment transfer cancelled');
       inTransaction(this.db,()=>{

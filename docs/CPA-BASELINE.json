@@ -1,0 +1,43 @@
+{
+  "purpose": "Read-only pre-migration baseline; not deployment or model acceptance",
+  "target": "192.168.2.20",
+  "serviceUnit": "dsh-collaboration-backend.service",
+  "serviceState": "active/running",
+  "observedMainPid": 181425,
+  "restartCount": 0,
+  "codeRoot": "/opt/dsh-collaboration-test",
+  "stateRoot": "/srv/dsh-collaboration-test",
+  "profile": "collaboration-dingtalk",
+  "providerBefore": "codego",
+  "modelBefore": "deepseek-v4.1-flash",
+  "realModelRequestsAllowed": false,
+  "installedManifestVersion": "0.4.2",
+  "installedArtifactIsPublicV042Release": false,
+  "installedArtifact": {
+    "bytes": 348837,
+    "sha256": "56697852e98de4e4779a04324239e2536e61efc4083547ba699f620f41a284ec"
+  },
+  "sourceComparison": {
+    "areas": ["src", "business/lib"],
+    "comparedFiles": 128,
+    "matchingFiles": 128,
+    "mismatchingFiles": 0,
+    "missingFiles": 0
+  },
+  "serviceUid": 996,
+  "privateDirectoryMode": "0700",
+  "privateConfigurationMode": "0600",
+  "credentialStoreMode": "0600",
+  "credentialStoreContentRead": false,
+  "businessDatabaseOpened": false,
+  "serverMutated": false,
+  "modelEndpointContacted": false,
+  "realModelRequests": 0,
+  "trustedExistingSshHostKey": true,
+  "knownHostsModified": false,
+  "limits": [
+    "PID and unit state are observations at inspection time, not future availability guarantees",
+    "Only the named member SSH unit was inspected; not-found does not establish absence of all member SSH services",
+    "Source matches do not establish release, dependency, real model or GUI acceptance"
+  ]
+}

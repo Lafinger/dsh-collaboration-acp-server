@@ -10,6 +10,7 @@ export function requireAttachmentCapability(value) {
 }
 export function safeAttachmentName(value) {
   if (typeof value !== 'string' || !value.trim() || value.length > 240 || /[\\/\x00-\x1f\x7f]/.test(value) || value === '.' || value === '..') throw new AccessError(-32602, 'Invalid attachment display name');
+  if (/\.gif$/i.test(value)) throw new AccessError(-32602, 'GIF uploads are not allowed; select a PNG, JPEG or WebP original instead');
   return value;
 }
 export function validateAttachmentManifest(value) {

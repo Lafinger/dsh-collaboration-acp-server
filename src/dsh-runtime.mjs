@@ -47,6 +47,7 @@ export class DshRuntime {
       ? await this.ctx.agents.resume({ ...options, resumeSessionId: SessionId(id) })
       : await this.ctx.agents.create({ ...options, sessionId: SessionId(id), meta: { cwd } });
     this.handles.add(handle);
+    handle.collaborationOwner=owner;handle.collaborationPrincipal=principal;
     try {
       if (this.closing) throw new Error('Collaboration runtime closed during activation');
       await this.ctx.sessions.flush(handle.agent.session); return handle;
@@ -56,6 +57,8 @@ export class DshRuntime {
     if (this.closing || !this.handles.has(handle)) throw new Error('Inactive collaboration Agent');
     const agent = handle.agent;
     const releaseAttachments = attachmentRequest ? this.attachments.bind(attachmentRequest, signal) : () => {};
+    let releaseVision=()=>{};
+    try{releaseVision=this.vision?.begin(agent.session.id,handle.collaborationOwner,handle.collaborationPrincipal,text)??releaseVision;}catch(error){releaseAttachments();throw error;}
     const attachmentNotice = attachmentRequest ? this.attachments.notice(attachmentRequest) : '';
     let reason = 'end_turn', failure,finalText=null;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
@@ -85,7 +88,7 @@ export class DshRuntime {
       await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
       return { stopReason: signal.aborted ? 'cancelled' : reason,finalText:!signal.aborted&&reason==='end_turn'?finalText:null };
-    } finally { releaseAttachments(); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
+    } finally { releaseVision();releaseAttachments(); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
   }
   async persistedImLog(handle){
     const artifact=await this.persistedImLogById(handle.agent.session.id,handle.agent.session.header.cwd);if(!artifact)throw new Error('Materialized IM session header unavailable');return artifact;

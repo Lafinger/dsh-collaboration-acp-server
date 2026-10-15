@@ -34,6 +34,6 @@ function walk(path) {
     walk(join(path, entry.name));
   }
 }
-for (const name of ['bin', 'src', 'business', 'test', 'scripts', 'docs', 'README.md', 'GLOSSARY.md']) walk(join(root, name));
+for (const name of ['bin', 'src', 'business', 'test', 'scripts', 'deploy/ubuntu', 'docs', 'README.md', 'GLOSSARY.md']) walk(join(root, name));
 console.log(JSON.stringify({ imports, links, failures }));
 if (failures.length) process.exitCode = 1;

@@ -21,6 +21,7 @@ import { DingTalkIdentityProvider } from './dingtalk-identity.mjs';
 import { ProjectAccess } from './project-access.mjs';
 import { CommunicationBridge } from './communication-bridge.mjs';
 import {acquireMaintenanceLock} from './maintenance-lock.mjs';
+import {VisionAccess} from './vision.mjs';
 
 /** One business database, borrowed host services, tools registered only into authenticated Agent scopes. */
 export async function createCollaborationRuntime(config, ctx) {
@@ -43,6 +44,7 @@ export async function createCollaborationRuntime(config, ctx) {
   const access=security?new ProjectAccess({identities:security,services}):null;
   const attachments = new AttachmentService({ db, root: join(root, 'attachments'), materials, projects: services.projects });
   materials.contentProvider = attachments.materialContent.bind(attachments);
+  const vision=new VisionAccess({ctx,attachments,access});
   runtime = new DshRuntime({ ctx, provider: config.provider, model: config.model,
     setup: (agentCtx, agent, account,principal) => {
       if(security&&!principal)throw new Error('Authenticated project principal required');
@@ -54,7 +56,8 @@ export async function createCollaborationRuntime(config, ctx) {
         if(principal.channel!=='dsh')throw new Error('IM attachments unavailable');
         if(args.receipt_id){const row=attachments.receipt(agent.session.id,account,args.receipt_id);if(JSON.parse(row.manifest).projectId!==principal.projectId)throw new Error('Attachment project mismatch');}
       }:undefined;
-      if(!principal||principal.channel==='dsh')registerAttachmentTools(agentCtx, attachments, { sessionId: agent.session.id, account,authorize });
+      if(!principal||principal.channel==='dsh')registerAttachmentTools(agentCtx, attachments, { sessionId: agent.session.id, account,authorize,vision });
+      agentCtx.on('agent/request',async(payload,next)=>{if(payload.agent!==agent)return next();await vision.prepare(agent,account,principal,payload.signal);return next();});
       if(access){
         agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>access.allows(principal,t.name)||principal.channel==='dsh'&&t.name.startsWith('attachment_'))};});
         agentCtx.tools.guard(exec=>{try{access.scope(principal);if(!access.allows(principal,exec.name)&&!(principal.channel==='dsh'&&exec.name.startsWith('attachment_')))return 'Tool unavailable in this authenticated channel';return undefined;}catch{return 'Authenticated member, device or project qualification unavailable';}});
@@ -64,6 +67,7 @@ export async function createCollaborationRuntime(config, ctx) {
     },
   });
   runtime.attachments = attachments;
+  runtime.vision = vision;
   await runtime.start();
   communication=security?new CommunicationBridge({identities:security,login,access,services,runtime,workspace,retentionDays:config.dingtalk.communicationRetentionDays}):null;
   await communication?.registerExistingLogs();
