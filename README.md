@@ -53,6 +53,10 @@ DSH_COLLABORATION_CLIENT_ROOT=/absolute/client-checkout pnpm run check:joint
 
 测试使用本地固定模型替身，官方DSH Agent loop、工具执行、会话持久化与SQLite是真实实现。不调用付费模型；真实Linux SSH/权限与GUI端到端仍需部署验收。新增受限客户端附件工具传输与DOCX/MD/TXT解析，PNG/JPEG/WebP授权原生图片输入及限额，禁止GIF；不增加独立OCR工具或多客户端共编，不扩大项目/管理员权限规则；见[附件用法与边界](<docs/ATTACHMENTS.md>)。
 
+## 跨局域网成员接入
+
+两台成员电脑可分别经LAN与ZeroTier连接同一个协作服务。保持A入口、只增加B单源/32的专属成员SSH网络许可；B本人账号、公钥、钉钉及项目资格独立核验，不因TCP放通自动授权。实施边界与固定SHA维护流程见[ZeroTier成员入口](<docs/MEMBER-ZEROTIER.md>)。
+
 ## 项目背景与目标编辑
 
 v0.4.2新增`project_update_details`，只编辑已存在项目中明确提供的background／goal；未提供字段不变，空白／null拒绝，归档项目与附件turn拒写，不改角色或任何资料／分析／计划／任务。无需重建项目或客户端升版。用法和用户授权模板见[项目详情编辑](<docs/PROJECT-DETAILS.md>)；正式发布与生产保留核验PASS，见[本次发行证据](<docs/PROJECT-DETAILS-RELEASE-VERIFY.md>)。

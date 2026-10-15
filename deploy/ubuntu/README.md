@@ -4,6 +4,10 @@
 
 本轮已上线的固定成功SHA、来源摘要、数据保留及门禁验证见[0.5.0上线验收](<../../docs/CPA-UBUNTU-VERIFY.md>)。下述脚本是严格原路线预检的一次性切换流程；已经成功切换后不要重复执行录入／激活命令，也不要把文档补记后的main当新部署来源。
 
+## 跨局域网成员入口
+
+B在ZeroTier内的地址为10.242.66.179；保留A现有LAN入口，只追加B单源/32的成员19482网络许可，未核对本人账号／公钥前保持身份拒绝。先GitHub双平台CI再同步固定SHA的公开维护脚本，不重启业务后端或切换其运行版本。范围及分阶段验证见[B成员ZeroTier接入](<../../docs/MEMBER-ZEROTIER.md>)。这不是CPA配置变更，也不开放通用SSH／端口转发。
+
 ## 外部 CPA 是自定义 API，不是本机服务
 
 CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179:8317/v1`；本仓不部署CPA，不启动8317端口，不修改DSH源码。DSH标准模型插件`@deepseek-ai/dsh-llm-pi-ai`直接配置`providers.cpa`，对应Web“新增自定义模型API”；用户明确协议为OpenAI Responses（不是截图中的Chat Completions）。`cpa`只是自定义provider标识，`deepseek-v4.1-flash`只是当前配置模型名，不保证上游来源。此前额外的host-cpa包装已移除；门禁、附件和协作装配是独立安全功能，不是CPA实现。更正范围与核验见[标准API修正](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)。
