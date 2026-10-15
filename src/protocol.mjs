@@ -5,7 +5,7 @@ export class AccessError extends Error {
 }
 // ACP-shaped base version and our private collaboration extension version are independent.
 export const ACP_PROTOCOL_VERSION = 1;
-export const COLLABORATION_PROTOCOL_VERSION = 2;
+export const COLLABORATION_PROTOCOL_VERSION = 3;
 export const collaborationMeta = () => ({ collaborationProtocolVersion: COLLABORATION_PROTOCOL_VERSION });
 export const initializeParams = () => ({ protocolVersion: ACP_PROTOCOL_VERSION, clientCapabilities: {}, _meta: collaborationMeta() });
 export function requireCollaborationVersion(value) {

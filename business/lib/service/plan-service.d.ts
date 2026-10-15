@@ -93,6 +93,7 @@ export declare class PlanService {
     history(planId: PlanId): readonly PlanWithSlots[];
     listByProject(projectId: ProjectId): readonly PlanWithSlots[];
     private view;
+    private suspension;
     private memberOf;
     private requireProject;
 }

@@ -9,6 +9,7 @@ import { AccessService } from './service.mjs';
 import { listenAccess } from './transport.mjs';
 import { createCollaborationRuntime } from './collaboration-runtime.mjs';
 import { join } from 'node:path';
+import { listenLoginHttp } from './login-http.mjs';
 
 export const name = 'collaboration-acp-server';
 export const inject = []; // Empty configuration can mount without host services; configured activation injects them below.
@@ -53,10 +54,10 @@ async function activate(ctx, resolved, setState, pending) {
   if (instances.has(owner)) throw new Error('Only one collaboration service may run in this DSH profile');
   validateSocket(resolved.config);
   const lease = {}; instances.set(owner, lease);
-  let runtime, store, listener, service, stopTask;
+  let runtime, store, listener, service, loginListener,stopTask;
   const stop = () => stopTask ??= (async () => {
     state = { ...state, state: 'stopping' }; setState(state);
-    try { if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll(); }
+    try { await loginListener?.close();if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll(); }
     finally { store?.close(); if (instances.get(owner) === lease) instances.delete(owner); state = { ...state, state: 'stopped' }; setState(state); }
   })();
   try {
@@ -68,11 +69,13 @@ async function activate(ctx, resolved, setState, pending) {
     }
     const collaboration = await createCollaborationRuntime(config, ctx); runtime = collaboration.runtime;
     store = new AccessStore(join(collaboration.root, 'access.sqlite'));
-    service = new AccessService({ authority, store, runtime, cwd: collaboration.workspace });
+    service = new AccessService({ authority, store, runtime, cwd: collaboration.workspace,login:collaboration.login,identities:collaboration.security,projects:collaboration.services.projects,communication:collaboration.communication });
+    loginListener=await listenLoginHttp(collaboration.login,{port:config.dingtalk.loginPort});
     listener = await listenAccess(service, { socketPath: config.socketPath });
     if (process.platform !== 'win32') chmodSync(config.socketPath, 0o660);
+    ctx.provide('collaborationCommunication',collaboration.communication.contract);
     ctx.provide('collaborationServer', Object.freeze({ service, address: listener.address, serviceId: config.serviceId, stop }));
-    state = { state: 'running', configPath: resolved.configPath, message: '协作服务端已启用；模型与会话使用宿主DSH。' }; setState(state);
+    state = { state: 'running', configPath: resolved.configPath, message: '协作服务端已启用；业务访问需钉钉登录与项目资格。OAuth后端仅本机，仍须HTTPS代理与真实平台验收。' }; setState(state);
     ctx.logger?.info?.(state.message);
     return stop;
   } catch (error) { await stop(); throw error; }

@@ -4,6 +4,7 @@ import { join, resolve, relative } from 'node:path';
 import { AccessError, requireText } from './protocol.mjs';
 import { ATTACHMENT_CHUNK_BYTES, validateAttachmentManifest } from './attachment-protocol.mjs';
 import { parseAttachment, PARSER_VERSION } from './attachment-parser.mjs';
+import {inTransaction} from '../business/lib/sqlite/schema.js';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 export class AttachmentService {
   constructor({ db, root, materials, projects }) {
@@ -35,7 +36,7 @@ export class AttachmentService {
     const row=this.db.prepare('SELECT * FROM attachment_receipts WHERE receipt_id=? AND account=? AND session_id=?').get(receiptId,account,String(sessionId));
     if(!row)throw new AccessError(-32013,'Attachment receipt is not owned by this account/session');return row;
   }
-  async transfer(sessionId,account,handle,toolSignal){
+  async transfer(sessionId,account,handle,toolSignal,authorize){
     const request=this.context(sessionId,account),manifest=request.manifests.find(item=>item.handle===handle);
     if(!manifest)throw new AccessError(-32013,'Attachment handle not authorized for current request');
     const receiptId=hash(Buffer.from(`${account}\0${sessionId}\0${request.requestId}\0${handle}`));
@@ -43,7 +44,7 @@ export class AttachmentService {
     if(previous)return this.summary(previous);
     if(this.transfers.has(receiptId))return this.transfers.get(receiptId);
     const signal=toolSignal?AbortSignal.any([request.signal,toolSignal]):request.signal;
-    const task=this.receive({...request,signal},manifest,receiptId).finally(()=>this.transfers.delete(receiptId));this.transfers.set(receiptId,task);return task;
+    const task=this.receive({...request,signal,authorize},manifest,receiptId).finally(()=>this.transfers.delete(receiptId));this.transfers.set(receiptId,task);return task;
   }
   async receive(request,manifest,receiptId){
     const target=join(this.root,receiptId+'.bin'),temp=join(this.root,receiptId+'.partial');let fd,committed=false;
@@ -61,8 +62,10 @@ export class AttachmentService {
       const bytes=readFileSync(temp);let parsed;
       try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed={kind:'unparsed',content:null,warnings:[error.message],originalSha256:manifest.sha256,textSha256:null,parserVersion:PARSER_VERSION,visualAnalysis:'not-performed',parseError:true};}
       if(request.signal.aborted)throw new AccessError(-32010,'Attachment transfer cancelled');
-      renameSync(temp,target);
+      inTransaction(this.db,()=>{
+      request.authorize?.();renameSync(temp,target);
       this.db.prepare('INSERT INTO attachment_receipts(receipt_id,account,session_id,request_id,handle,manifest,filename,parsed,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(receiptId,request.account,request.sessionId,request.requestId,manifest.handle,JSON.stringify(manifest),receiptId+'.bin',JSON.stringify(parsed),new Date().toISOString());
+      });
       committed=true;return this.summary(this.receipt(request.sessionId,request.account,receiptId));
     }finally{
       if(fd!==undefined)closeSync(fd);
@@ -73,7 +76,7 @@ export class AttachmentService {
   summary(row){const manifest=JSON.parse(row.manifest),parsed=JSON.parse(row.parsed);return {ok:true,receipt_id:row.receipt_id,name:manifest.name,bytes:manifest.bytes,sha256:manifest.sha256,project_id:manifest.projectId,archive_authorized:manifest.archiveAuthorized,source_kind:manifest.sourceKind,parse_status:parsed.parseError?'unparsed':parsed.content===null?'no-text':'text-extracted',parser_version:parsed.parserVersion,warnings:parsed.warnings,material_id:row.material_id??null,version:row.version??null};}
   list(sessionId,account){return {ok:true,receipts:this.db.prepare('SELECT * FROM attachment_receipts WHERE account=? AND session_id=? ORDER BY created_at DESC LIMIT 100').all(account,String(sessionId)).map(row=>this.summary(row)),limit:100};}
   inspect(sessionId,account,receiptId){const row=this.receipt(sessionId,account,receiptId),manifest=JSON.parse(row.manifest),parsed=JSON.parse(row.parsed);const bytes=readFileSync(join(this.root,row.filename));if(hash(bytes)!==manifest.sha256||bytes.length!==manifest.bytes||parsed.originalSha256!==manifest.sha256||(parsed.content!==null&&hash(Buffer.from(parsed.content))!==parsed.textSha256))throw new AccessError(-32602,'Attachment original/parsed integrity mismatch');return {...this.summary(row),parsed};}
-  archive(sessionId,account,{receiptId,purpose,role,reason}){
+  archive(sessionId,account,{receiptId,purpose,role,reason},authorize){
     const row=this.receipt(sessionId,account,receiptId),manifest=JSON.parse(row.manifest),parsed=JSON.parse(row.parsed);
     // Durable authorized receipt may be explicitly consumed after reconnect, but never in another session/account/project.
     if(!manifest.archiveAuthorized)throw new AccessError(-32013,'Human authorized transfer only, not material archive');
@@ -84,7 +87,7 @@ export class AttachmentService {
     const path=join(this.root,row.filename),bytes=readFileSync(path);if(bytes.length!==manifest.bytes||hash(bytes)!==manifest.sha256)throw new AccessError(-32602,'Received original integrity mismatch');
     const classification={purpose,role:role??null,reason,source_kind:manifest.sourceKind,visual_analysis:parsed.visualAnalysis};
     const result=this.materials.upload({projectId:manifest.projectId,sourcePath:path,originalName:manifest.name,purpose,submittedBy:account,role},result=>{
-      classification.role=result.material.role;
+      authorize?.();classification.role=result.material.role;
       this.db.prepare('INSERT INTO material_extractions VALUES(?,?,?,?)').run(result.material.id,result.version.version,manifest.sha256,JSON.stringify(parsed));
       this.db.prepare('UPDATE attachment_receipts SET material_id=?,version=?,classification=? WHERE receipt_id=?').run(result.material.id,result.version.version,JSON.stringify(classification),row.receipt_id);
     });

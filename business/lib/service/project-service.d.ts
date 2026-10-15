@@ -23,8 +23,9 @@ export declare class ProjectService {
     getWithRoles(id: ProjectId): ProjectWithRolesView;
     list(includeArchived?: boolean): readonly ProjectView[];
     /**
-     * Set or clear a role's member. No approval, no history — by design (ADR-0004).
-     * `null` vacates the slot, which later blocks plan confirmation.
+     * Set or clear the current role assignment; retained decisions are never rewritten.
+     * Replacing an assigned member suspends pending affected plans until human revision.
+     * Access/administrator eligibility is enforced by the authenticated service boundary.
      */
     setMember(projectId: ProjectId, role: string, member: string | null): void;
     /** Plain explicit details update, not a plan decision or replacement project. */

@@ -32,6 +32,7 @@ export class NoticeRepository {
            AND c.outcome IS NULL
            AND c.voided_at IS NULL
            AND p.activated_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM plan_suspensions s WHERE s.plan_id=p.id AND s.plan_version=p.version)
 
         UNION ALL
 

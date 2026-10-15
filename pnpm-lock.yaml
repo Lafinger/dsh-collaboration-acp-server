@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@deepseek-ai/node-addon-system':
+        specifier: 0.1.2
+        version: 0.1.2
       fast-xml-parser:
         specifier: 5.11.1
         version: 5.11.1
+      koffi:
+        specifier: 3.1.1
+        version: 3.1.1
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@24.19.2)

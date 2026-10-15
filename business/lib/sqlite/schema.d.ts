@@ -6,6 +6,6 @@
  * data gets corrupted.
  */
 import { DatabaseSync } from 'node:sqlite';
-export declare const SCHEMA_VERSION = 9;
+export declare const SCHEMA_VERSION = 10;
 export declare function migrate(db: DatabaseSync): void;
 export declare function inTransaction<T>(db: DatabaseSync, fn: () => T): T;

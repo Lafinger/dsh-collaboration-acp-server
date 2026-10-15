@@ -62,6 +62,7 @@ assert.equal(metadata.dsh?.bundle?.patch, 'cordis.patch.yml');
 assert.match(entries.get('cordis.patch.yml').toString('utf8'), /disabled:\s*true/);
 assert.ok(entries.has('business/lib/tool/register.js'), 'Business tool module missing');
 assert.ok(entries.has('src/configuration.mjs')); assert.ok(entries.has('examples/server-config.example.json'));
+for(const name of ['src/identity-store.mjs','src/login-service.mjs','src/project-access.mjs','src/communication-store.mjs','src/communication-bridge.mjs','src/admin-cli.mjs','src/maintenance-cli.mjs','src/maintenance-lock.mjs','src/im-log-retention.mjs','docs/PROTOCOL-v3.json','docs/DINGTALK-VERIFY.md'])assert.deepEqual(entries.get(name),readFileSync(join(root,name)),`Stale or missing local DingTalk artifact: ${name}`);
 assert.ok(!entries.has('bin/server.mjs')); assert.equal(metadata.bin['dsh-collaboration-acp-server'], undefined);
 for (const key of ['prepare','install','prepack']) assert.equal(metadata.scripts[key], undefined);
 mkdirSync(join(root, '.dsh'), { recursive: true });

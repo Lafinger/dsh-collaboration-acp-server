@@ -1,0 +1,14 @@
+# TEMPLATE ONLY: merge into a separately reviewed isolated DSH profile.
+# Install locally verified fork/package first; never enable its default bundle.
+# The server still uses the same host Agent/LLM/session/tools/persistence services.
+- insert:
+    - id: collaboration-server
+      name: dsh-collaboration-acp-server
+      disabled: true
+      config:
+        configFile: /srv/collaboration/dsh-home/collaboration-acp-server.json
+    - id: collaboration-dingtalk
+      name: '@xmanrui/dsh-im/controlled-dingtalk'
+      disabled: true
+      config:
+        configFile: /srv/collaboration/dsh-home/dingtalk-controlled.json

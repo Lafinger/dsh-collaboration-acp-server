@@ -8,7 +8,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { CollaborationError } from '../domain/error.js'
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 const MIGRATION_1 = `
 CREATE TABLE projects (
@@ -549,6 +549,13 @@ function applyMigrations(db: DatabaseSync, from: number): void {  db.exec('BEGIN
     if (from < 9) {
       db.exec(MIGRATION_9)
       db.exec('PRAGMA user_version = 9')
+    }
+    if (from < 10) {
+      db.exec(`CREATE TABLE plan_suspensions (
+        plan_id TEXT NOT NULL, plan_version INTEGER NOT NULL, at TEXT NOT NULL, reason TEXT NOT NULL,
+        PRIMARY KEY(plan_id,plan_version),
+        FOREIGN KEY(plan_id,plan_version) REFERENCES plans(id,version));`)
+      db.exec('PRAGMA user_version = 10')
     }
     db.exec('COMMIT')
   } catch (error) {

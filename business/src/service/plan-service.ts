@@ -236,6 +236,8 @@ export class PlanService {
         : optionalText(input.reason ?? null, 'reason', MAX_REASON)
 
     return inTransaction(this.db, () => {
+      const suspended = this.suspension(latest.id, latest.version)
+      if (suspended) throw new CollaborationError('PLAN_SUSPENDED', 'Qualification or role assignment changed; explicitly revise the plan and collect all decisions again', suspended)
       this.plans.recordDecision(
         latest.id,
         latest.version,
@@ -322,8 +324,15 @@ export class PlanService {
       slots,
       gate: superseded
         ? { kind: 'superseded', voidedAt: slots[0]?.voidedAt ?? null, voidReason: slots[0]?.voidReason ?? null }
-        : gateStateOf(plan.relevantRoles, slots, (r) => this.memberOf(projectId, r)),
+        : this.suspension(plan.id, plan.version) !== null
+          ? { kind: 'suspended', ...this.suspension(plan.id, plan.version)! }
+          : gateStateOf(plan.relevantRoles, slots, (r) => this.memberOf(projectId, r)),
     }
+  }
+
+  private suspension(planId: string, version: number): { at: string; reason: string } | null {
+    return this.db.prepare('SELECT at,reason FROM plan_suspensions WHERE plan_id=? AND plan_version=?')
+      .get(planId,version) as { at: string; reason: string } | undefined ?? null
   }
 
   private memberOf(projectId: ProjectId, role: RoleId): string | null {

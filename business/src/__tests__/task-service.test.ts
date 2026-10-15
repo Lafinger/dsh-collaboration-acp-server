@@ -128,9 +128,9 @@ describe('tasks come into being only at activation', () => {
       projectId: e.projectId, title: 'p', relevantRoles: ['product', 'design'] as never,
       rolesReason: 'r', tasks: [e.add('a', 'product')], undecided: [],
     })
-    e.projects.setMember(e.projectId, 'product', 'Z')
+    e.projects.setMember(e.projectId, 'product', 'who-product')
     e.projects.setMember(e.projectId, 'design', 'L')
-    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z' })
+    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'who-product', declaredMember: 'who-product' })
     assert.equal(e.tasks.listByProject(e.projectId).length, 0)
     e.cleanup()
   })
@@ -478,11 +478,11 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
       projectId: e.projectId, title: 'p', relevantRoles: ['product', 'design'] as never,
       rolesReason: 'r', tasks: [e.modify('a2', taskId, 'product')], undecided: [],
     })
-    e.projects.setMember(e.projectId, 'product', 'Z')
+    e.projects.setMember(e.projectId, 'product', 'who-product')
     e.projects.setMember(e.projectId, 'design', 'L')
 
     // One agreement so far: the gate is still open.
-    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z' })
+    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'who-product', declaredMember: 'who-product' })
     assert.equal(e.tasks.get(taskId).task.currentVersion, 1, 'nothing changed yet')
 
     // The task completes WHILE the plan waits.
@@ -518,9 +518,9 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
       tasks: [e.add('b', 'design'), e.modify('m', taskId, 'product')],
       undecided: [],
     })
-    e.projects.setMember(e.projectId, 'product', 'Z')
+    e.projects.setMember(e.projectId, 'product', 'who-product')
     e.projects.setMember(e.projectId, 'design', 'L')
-    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z' })
+    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'who-product', declaredMember: 'who-product' })
 
     // Freeze the modify target while the gate is still open.
     e.db
@@ -553,9 +553,9 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
       projectId: e.projectId, title: 'p', relevantRoles: ['product', 'design'] as never,
       rolesReason: 'r', tasks: [e.modify('m', taskId, 'product')], undecided: [],
     })
-    e.projects.setMember(e.projectId, 'product', 'Z')
+    e.projects.setMember(e.projectId, 'product', 'who-product')
     e.projects.setMember(e.projectId, 'design', 'L')
-    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z' })
+    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'who-product', declaredMember: 'who-product' })
 
     // Freeze the target during the gate, so activation fails.
     e.db
@@ -575,7 +575,7 @@ describe('a plan can fail AFTER its confirmations are collected', () => {
     })
     assert.equal(revised.plan.version, 2)
 
-    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'Z', declaredMember: 'Z' })
+    e.plans.confirm({ planId: plan.id, role: 'product', outcome: 'agree', submittedBy: 'who-product', declaredMember: 'who-product' })
     e.plans.confirm({ planId: plan.id, role: 'design', outcome: 'agree', submittedBy: 'L', declaredMember: 'L' })
 
     assert.equal(e.tasks.get(taskId).task.currentVersion, 2, 'the revision activated cleanly')

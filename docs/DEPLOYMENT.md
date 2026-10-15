@@ -1,5 +1,9 @@
 # DSH宿主插件部署（真实Linux SSH验收仍待完成）
 
+## 当前本地v3实施说明
+
+新的扫码身份与受控通信按[钉钉部署指南](<DINGTALK-DEPLOYMENT.md>)装配，私有配置新增必需 `dingtalk` 字段，旧SSH-only业务访问被拒绝。已有发行标签与本页旧配置示例保留历史，不包含当前本地代码；不能用其安装或旧重置流程绕过新权限。新代码未发布，也未更改现用部署。当前状态见[实施记录](<DINGTALK-IMPLEMENTATION.md>)。
+
 ## 安装形态
 
 服务账号启动一个DSH0.2.0-rc.2，安装本插件的GitHub来源。插件注入宿主agents/llm/sessions/tools/sessionPersistence，使用已有Agent factory和模型路线，每profile只一个协作服务。不能通过旧server CLI生产启动，不在插件内new Context或另起DSH。

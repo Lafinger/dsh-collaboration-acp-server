@@ -1,0 +1,57 @@
+{
+  "version": 3,
+  "name": "dsh-collaboration-access",
+  "baseProtocolVersion": 1,
+  "transport": "Bounded JSON-RPC NDJSON over member-owned strict SSH and server-local socket",
+  "compatibility": "Exact collaborationProtocolVersion 3; no downgrade to SSH-only business access",
+  "transportIdentity": "collaboration/connect is connector-only; verified SSH account is not sufficient business authorization",
+  "login": {
+    "initialize": "authMethods includes dingtalk-device; client verifies trusted loginOrigin",
+    "collaboration/login/start": ["deviceId", "proof:256-bit base64url"],
+    "startResult": ["requestId", "loginUrl", "expiresAt"],
+    "browser": "Server-owned HTTPS OAuth page/callback; bound browser cookie, state and one-use authorization code; no service token in browser",
+    "collaboration/login/claim": ["requestId", "deviceId", "proof"],
+    "claimResult": "pending or one-use authenticated result including service login token; only original SSH account/device can claim",
+    "collaboration/login/authenticate": ["token", "deviceId"],
+    "collaboration/login/status": "Redacted current connection authentication status",
+    "collaboration/login/logout": "Revoke current connection login or explicit matching token/deviceId on same SSH account after disconnect; not global member qualification",
+    "limits": "Device maximum 12 hours, organization verification maximum 5 minutes; expired verification fails closed",
+    "tokenStorage": "Client local Host memory only; server stores token hash, no chat/browser storage"
+  },
+  "projectScopes": {
+    "collaboration/projects": "Authenticated member's authorized project directory",
+    "session/new": ["projectId"],
+    "scope": "Immutable account/project/channel context, recorded participation revision and test epoch",
+    "session/load": "Same owner and valid scope only; qualification changes cannot revive old model context",
+    "session/resume": "Same validation as load; never replays prompts",
+    "session/list": "Account-owned entries with projectId; legacy unscoped entries remain history-only",
+    "collaboration/history": "Owner and device authenticated; scoped history rechecks project qualification; legacy unscoped history is read-only",
+    "tools": "Project ID plus all related object ownership checked; source-specific allowlist enforced server-side"
+  },
+  "requests": {
+    "session/prompt": ["sessionId", "prompt:text[]", "_meta.requestId"],
+    "deduplication": "Stable request ID; attempted submissions never automatically replay",
+    "session/cancel": "Only current owned active session, committed facts remain",
+    "session/close": "Detach and persist, not erase",
+    "session/update": ["sessionId", "update", "_meta.sequence"]
+  },
+  "communications": {
+    "collaboration/communications": ["projectId", "requestId?: explicit request UUID"],
+    "collaboration/communication/request": ["projectId", "targetId", "visibility: private|public", "body", "requestId: stable caller ID"],
+    "collaboration/communication/reply": ["projectId", "requestId: existing explicit request UUID", "body", "replyId: stable caller ID"],
+    "visibility": "Enabled project participant only; private requests limited to sender/recipient; all group audience members verified before each send",
+    "replyDestination": "Original request records exact reply target and revision; changed/missing target means recorded-not-sent, never alternate delivery",
+    "reliability": "Durable inbox before ACK; durable intent and per-part state; unknown/partial never blindly replayed",
+    "receipts": "processQueryKey is provider correlation only, not message ID/delivery/read; explicit receipt is not formal agreement",
+    "bodyRetention": "Explicit administrator purge of expired database bodies; model transcript policy pending human confirmation"
+  },
+  "attachmentExtension": {
+    "version": 1,
+    "negotiation": "Exact clientCapabilities.attachmentTransfer and agentCapabilities.attachmentTransfer",
+    "scope": "Current human account/session/request handle, authenticated conversation project must match",
+    "reverseMethod": "collaboration/attachment/read; no filesystem, terminal or other reverse methods",
+    "limits": "5 files, 20MiB per message, 49152 byte chunks; existing integrity and human archive permission rules remain",
+    "availability": "DSH entry only; no IM file capability"
+  },
+  "unsupported": ["Shared DSH/IM conversation", "Project switching in existing conversation", "IM formal writes", "Default Host commands/approvals", "Cross-project material references", "Identity self-declaration"]
+}

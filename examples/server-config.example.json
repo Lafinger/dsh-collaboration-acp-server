@@ -5,5 +5,15 @@
   "socketPath": "",
   "provider": "",
   "model": "",
-  "accounts": {}
+  "accounts": {},
+  "dingtalk": {
+    "corpId": "",
+    "clientId": "",
+    "clientSecret": "",
+    "publicOrigin": "",
+    "loginPort": 19481,
+    "organizationTtlMs": 300000,
+    "loginTtlMs": 43200000,
+    "communicationRetentionDays": 90
+  }
 }

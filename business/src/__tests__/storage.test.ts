@@ -58,8 +58,8 @@ describe('migration', () => {
 
     assert.equal(
       (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
-      9,
-      'the schema version moved to 9',
+      SCHEMA_VERSION,
+      'the schema version moved to the current build',
     )
     const names = (
       db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as {

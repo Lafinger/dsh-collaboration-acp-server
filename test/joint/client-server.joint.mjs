@@ -16,7 +16,7 @@ if(!clientRoot)throw new Error('Joint check only: set DSH_COLLABORATION_CLIENT_R
 const {MemberClient}=await import(pathToFileURL(resolve(clientRoot,'src/member-client.mjs')).href);
 const {MemberAdapter}=await import(pathToFileURL(resolve(clientRoot,'src/member-plugin.mjs')).href);
 test('versioned contract and wire helpers are byte-identical across independently owned repositories',()=>{
- assert.equal(readFileSync(new URL('../../docs/PROTOCOL-v2.json',import.meta.url),'utf8'),readFileSync(join(clientRoot,'docs/PROTOCOL-v2.json'),'utf8'));
+ assert.equal(readFileSync(new URL('../../docs/PROTOCOL-v3.json',import.meta.url),'utf8'),readFileSync(join(clientRoot,'docs/PROTOCOL-v3.json'),'utf8'));
  assert.equal(readFileSync(new URL('../../src/protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/protocol.mjs'),'utf8'));
  assert.equal(readFileSync(new URL('../../src/attachment-protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/attachment-protocol.mjs'),'utf8'));
 });

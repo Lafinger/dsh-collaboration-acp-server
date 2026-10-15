@@ -23,7 +23,7 @@ export class DshRuntime {
     const task = this.activate(input); this.opening.add(task);
     try { return await task; } finally { this.opening.delete(task); }
   }
-  async activate({ id, owner, cwd, resume }) {
+  async activate({ id, owner, cwd, resume, principal }) {
     const selection = { provider: this.provider, model: this.model };
     const setup = async (agentCtx, agent) => {
       installModelSelection(agentCtx, { current: selection, assembled: undefined });
@@ -31,7 +31,7 @@ export class DshRuntime {
       // Never inherit host/ancestor filesystem, terminal, MCP, delegation or future global tools.
       agentCtx.tools.restrict({ allow: [] });
       agentCtx.tools.presentAs('native');
-      await this.setup?.(agentCtx, agent, owner);
+      await this.setup?.(agentCtx, agent, owner,principal);
       // Host publication presets can add scope-local tools later: guard stays monotonic.
       const allowed = new Map(agentCtx.tools.view(agent).visible);
       agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
@@ -57,7 +57,7 @@ export class DshRuntime {
     const agent = handle.agent;
     const releaseAttachments = attachmentRequest ? this.attachments.bind(attachmentRequest, signal) : () => {};
     const attachmentNotice = attachmentRequest ? this.attachments.notice(attachmentRequest) : '';
-    let reason = 'end_turn', failure;
+    let reason = 'end_turn', failure,finalText=null;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
       if (subject !== agent || frame.type !== 'chunk') return;
       const chunk = frame.chunk;
@@ -65,7 +65,12 @@ export class DshRuntime {
       if (chunk.type === 'reasoning-delta') emit({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: chunk.text } });
     });
     const offEnd = agent.ctx.on('session/event', (session, event) => {
-      if (session !== agent.session || event.type !== 'turn/end') return;
+      if (session !== agent.session) return;
+      if(event.type==='assistant/message'){
+        const content=event.data.message?.content??[];
+        finalText=event.data.interrupted||content.some(c=>c.type==='tool-call')?null:content.filter(c=>c.type==='text').map(c=>c.text).join('');
+      }
+      if(event.type!=='turn/end')return;
       if (event.data.reason?.kind === 'aborted') reason = 'cancelled';
       if (event.data.reason?.kind === 'max-tokens') reason = 'max_tokens';
       if (event.data.reason?.kind === 'blocked') failure = new Error('DSH turn blocked');
@@ -79,8 +84,19 @@ export class DshRuntime {
       agent.followup(createUserMessage({ content: [{ type: 'text', text: text + attachmentNotice }], source: { kind: 'user' } }));
       await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
-      return { stopReason: signal.aborted ? 'cancelled' : reason };
+      return { stopReason: signal.aborted ? 'cancelled' : reason,finalText:!signal.aborted&&reason==='end_turn'?finalText:null };
     } finally { releaseAttachments(); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
+  }
+  async persistedImLog(handle){
+    const artifact=await this.persistedImLogById(handle.agent.session.id,handle.agent.session.header.cwd);if(!artifact)throw new Error('Materialized IM session header unavailable');return artifact;
+  }
+  async persistedImLogById(id,cwd){
+    const p=this.ctx.sessionPersistence;
+    if(p.name!=='session-persistence-jsonl'||typeof p.resolveCurrentLog!=='function'||typeof p.config?.root!=='string')throw new Error('IM retention requires pinned rc.2 JSONL persistence');
+    const snapshot=await p.stat(id),path=await p.resolveCurrentLog(id);
+    if(!snapshot&&!path)return null;
+    if(!snapshot||snapshot.header.id!==id||snapshot.header.cwd!==cwd||!path)throw new Error('Materialized IM session header unavailable');
+    return {root:p.config.root,path,header:snapshot.header};
   }
   async close(handle) {
     if (!this.handles.has(handle)) return;

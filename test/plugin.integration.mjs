@@ -12,10 +12,11 @@ import * as plugin from '../src/server-plugin.mjs';
 import { createHost } from './helpers/host.mjs';
 import { connectAccess } from '../src/transport.mjs';
 import { issueTicket } from '../src/authority.mjs';
+import {syntheticDingTalkConfig,provisionSynthetic,authenticateSynthetic} from './helpers/security.mjs';
 const canonical = v => v[symbols.original] ?? v;
-function configuration(root) {
+async function configuration(root) {
   const socketDir = join(root, 'socket'); mkdirSync(socketDir, { mode: 0o700 });
-  const config = { serviceId: 'plugin', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? `\\\\.\\pipe\\plugin-${randomUUID()}` : join(socketDir, 'service.sock'), provider: 'fixture', model: 'fixture', accounts: { alice: 'a'.repeat(64), bob: 'b'.repeat(64) } };
+  const config = { serviceId: 'plugin', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? `\\\\.\\pipe\\plugin-${randomUUID()}` : join(socketDir, 'service.sock'), provider: 'fixture', model: 'fixture', accounts: { alice: 'a'.repeat(64), bob: 'b'.repeat(64) },dingtalk:await syntheticDingTalkConfig() };
   const configFile = join(root, 'config.json'); writeFileSync(configFile, JSON.stringify(config), { mode: 0o600 }); return { config, configFile };
 }
 async function connect(config, account) {
@@ -34,7 +35,7 @@ test('actual plugin empty enable stays pending without any host/model/database/l
   finally { await ctx.fiber.dispose(); }
 });
 test('plugin borrows one host, isolates members/tools, unload leaves ordinary Agent alive, same-id reenable restores without replay', { timeout: 15000 }, async () => {
-  const root = mkdtempSync(join(tmpdir(), 'plugin-host-')), { config, configFile } = configuration(root), host = await createHost({ root: join(root, 'host') });
+  const root = mkdtempSync(join(tmpdir(), 'plugin-host-')), { config, configFile } = await configuration(root), host = await createHost({ root: join(root, 'host') });
   const hostServices = Object.fromEntries(['agents', 'llm', 'tools', 'sessions', 'sessionPersistence'].map(k => [k, canonical(host.ctx.get(k))]));
   let unsafeCalls = 0; host.ctx.tools.register(defineTool({ name: 'unsafe_host_terminal', description: 'Fixture forbidden host capability', parameters: {}, output: { schema: { type: 'json' }, render: () => [] }, execute: () => { unsafeCalls++; return {}; } }));
   const ordinary = await host.ctx.agents.create({ sessionId: 'ordinary-' + randomUUID(), agentOptions: { provider: 'fixture', model: 'fixture' } });
@@ -43,8 +44,10 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
     entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'running');
     for (const [key, original] of Object.entries(hostServices)) assert.equal(canonical(entry.ctx.get(key)), original);
     const server = entry.ctx.get('collaborationServer');
+    const provisioned=provisionSynthetic(config);
     a = await connect(config, 'alice'); b = await connect(config, 'bob');
-    const as = await a.request('session/new', {}), bs = await b.request('session/new', {});
+    await authenticateSynthetic(a,provisioned.tokens.alice);await authenticateSynthetic(b,provisioned.tokens.bob);
+    const as = await a.request('session/new', {projectId:provisioned.projectId}), bs = await b.request('session/new', {projectId:provisioned.projectId});
     const [ar, br] = await Promise.all([send(a, as.sessionId, 'whoami'), send(b, bs.sessionId, 'whoami')]);
     assert.equal(JSON.parse(ar.text).account, 'alice'); assert.equal(JSON.parse(br.text).account, 'bob');
     await assert.rejects(b.request('session/load', { sessionId: as.sessionId }), /account/);
@@ -54,7 +57,7 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
     assert.ok(agent.ctx.tools.get('project_update_details', agent));
     assert.equal(host.ctx.tools.get('project_update_details', ordinary.agent), undefined);
     assert.equal(host.ctx.tools.get('project_create', ordinary.agent), undefined);
-    const blockedFile = await agent.ctx.tools.get('material_upload', agent).execute({ source_path: configFile, submitted_by: 'forged' }, {});
+    const blockedFile = await agent.ctx.tools.get('material_upload', agent).execute({ project_id:provisioned.projectId,source_path: configFile, submitted_by: 'forged' }, {});
     assert.equal(blockedFile.code, 'SERVER_WORKSPACE_ONLY');
     agent.ctx.tools.register(defineTool({ name: 'late_host_capability', description: 'Fixture later scoped preset', parameters: {}, output: { schema: { type: 'json' }, render: () => [] }, execute: () => { unsafeCalls++; return {}; } }));
     assert.ok(agent.ctx.tools.guardReason({ name: 'late_host_capability', agent }));
@@ -71,7 +74,7 @@ test('plugin borrows one host, isolates members/tools, unload leaves ordinary Ag
     ordinary.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'ordinary alive' }] })); await ordinary.agent.whenIdle();
     assert.ok(ordinary.agent.session.deriveMessages().some(m => m.content.some(b => b.type === 'text' && b.text === 'fixture:ordinary alive')));
     entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); assert.equal(entry.ctx.get('collaborationServerStatus').state, 'running');
-    a2 = await connect(config, 'alice'); await a2.request('session/load', { sessionId: as.sessionId });
+    a2 = await connect(config, 'alice');await authenticateSynthetic(a2,provisioned.tokens.alice); await a2.request('session/load', { sessionId: as.sessionId });
     assert.equal(entry.ctx.get('collaborationServer').service.store.events(as.sessionId).length, originalEvents);
     const next = await send(a2, as.sessionId, 'followup'); assert.equal(next.text, 'fixture:followup');
     await send(a2, as.sessionId, 'once', 'stable-request');

@@ -173,6 +173,9 @@ export class PlanService {
             ? requireText(input.reason ?? '', 'rejection reason', MAX_REASON)
             : optionalText(input.reason ?? null, 'reason', MAX_REASON);
         return inTransaction(this.db, () => {
+            const suspended = this.suspension(latest.id, latest.version);
+            if (suspended)
+                throw new CollaborationError('PLAN_SUSPENDED', 'Qualification or role assignment changed; explicitly revise the plan and collect all decisions again', suspended);
             this.plans.recordDecision(latest.id, latest.version, input.role, input.outcome, reason, submittedBy, this.clock.now());
             // Re-read inside the transaction so the gate is judged on committed state, then
             // activate in the same transaction if it just closed.
@@ -240,8 +243,14 @@ export class PlanService {
             slots,
             gate: superseded
                 ? { kind: 'superseded', voidedAt: slots[0]?.voidedAt ?? null, voidReason: slots[0]?.voidReason ?? null }
-                : gateStateOf(plan.relevantRoles, slots, (r) => this.memberOf(projectId, r)),
+                : this.suspension(plan.id, plan.version) !== null
+                    ? { kind: 'suspended', ...this.suspension(plan.id, plan.version) }
+                    : gateStateOf(plan.relevantRoles, slots, (r) => this.memberOf(projectId, r)),
         };
+    }
+    suspension(planId, version) {
+        return this.db.prepare('SELECT at,reason FROM plan_suspensions WHERE plan_id=? AND plan_version=?')
+            .get(planId, version) ?? null;
     }
     memberOf(projectId, role) {
         const roles = this.projects.rolesOf(projectId);

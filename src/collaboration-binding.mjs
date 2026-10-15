@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 
 /** Transform before scoped registration: never register duplicate tools in the same Agent layer. */
-export function bindCollaborationIdentity(_agentCtx, identities, { sessionId, account, workspace }) {
+export function bindCollaborationIdentity(_agentCtx, identities, { sessionId, account, workspace,identitySource='authenticated_connector' }) {
   identities.declare({ sessionId, member: account });
   const attributed = new Set(['plan_confirm', 'result_review', 'result_accept', 'material_upload', 'analysis_submit', 'result_submit', 'progress_add']);
   return original => {
@@ -12,7 +12,7 @@ export function bindCollaborationIdentity(_agentCtx, identities, { sessionId, ac
     };
     if (original.name === 'session_whoami') return {
       ...original, description: 'Read the server-verified login account bound to this conversation.',
-      execute: () => ({ ok: true, account, session_id: sessionId, identity_source: 'authenticated_connector' }),
+      execute: () => ({ ok: true, account, session_id: sessionId, identity_source: identitySource }),
     };
     if (original.name === 'material_upload') return { ...original, execute: (args, exec) => {
       // Existing business import is not an arbitrary host-file read endpoint.

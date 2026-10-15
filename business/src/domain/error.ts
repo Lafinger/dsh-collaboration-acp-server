@@ -22,6 +22,7 @@ export type CollaborationErrorCode =
   // plans
   | 'PLAN_NOT_FOUND'
   | 'PLAN_ALREADY_ACTIVE'
+  | 'PLAN_SUSPENDED'
   | 'ROLES_REQUIRED'
   | 'ROLE_NOT_RELEVANT'
   | 'DEPENDENCY_CYCLE'
@@ -89,6 +90,7 @@ export const REJECTION_CODES: readonly CollaborationErrorCode[] = [
   'SOURCE_OUT_OF_SCOPE',
   'PLAN_NOT_FOUND',
   'PLAN_ALREADY_ACTIVE',
+  'PLAN_SUSPENDED',
   'ROLES_REQUIRED',
   'ROLE_NOT_RELEVANT',
   'DEPENDENCY_CYCLE',

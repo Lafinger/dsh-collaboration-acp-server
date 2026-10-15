@@ -6,6 +6,10 @@
 
 > 来源：原工作台提交3e0b76c，历史独立服务提交dac24aa。当前代码无需原仓或客户端源码；保留有限ACP-shaped接口与collaboration扩展，不宣称完整ACP兼容。
 
+## 本地钉钉实现（尚未发布）
+
+当前工作区新增统一扫码认证、项目参与资格、受控钉钉通信与[停服日志保留维护](<docs/DINGTALK-RETENTION.md>)，协议提升至v3，拒绝SSH-only业务回退。**以下既有版本标签不包含本地新功能**，本次未推送／发布、未升级现用容器或GUI。配套升级与真实条件见[新部署指南](<docs/DINGTALK-DEPLOYMENT.md>)，[实施和验收状态](<docs/DINGTALK-IMPLEMENTATION.md>)。原v2文档及发行验收保留为历史，不得作为v3上线证明。
+
 ## 安装与启用
 
 DSH插件管理器安装来源：

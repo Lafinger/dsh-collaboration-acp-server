@@ -4,6 +4,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmSync,
 import { resolve, join, relative, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 const legacyDatabase = ['work','bench'].join('') + '.sqlite'; // Only explicit retired-file cleanup, not a runtime alias.
 const databases = [legacyDatabase, 'collaboration.sqlite', 'access.sqlite'];
 const allowedState = new Set(['mode.json', 'acceptance-counters.json', 'restore-snapshot.json', 'files', ...databases.flatMap(name=>[name,name+'-wal',name+'-shm',name+'-journal'])]);
@@ -16,6 +17,11 @@ export function planReset(root){
  root=resolve(root);assert.equal(realpathSync(root),root);assert.ok(lstatSync(root).isDirectory());
  for(const name of ['private-state','dsh-home','dsh-home/sessions','ssh','workspace']){const path=join(root,name);contained(root,path);noLinks(path,name!=='dsh-home');assert.ok(lstatSync(path).isDirectory());}
  const config=JSON.parse(readFileSync(join(root,'dsh-home/collaboration-acp-server.json'),'utf8'));
+ assert.equal(config.dingtalk,undefined,'Legacy reset is forbidden for new identity/communication state; preserve epoch/dedup and request a reviewed reset');
+ const database=join(root,'private-state/collaboration.sqlite');
+ if(existsSync(database)&&readFileSync(database).subarray(0,16).toString()==='SQLite format 3\0'){
+   const db=new DatabaseSync(database,{readOnly:true});try{assert.equal(db.prepare("SELECT count(*) n FROM sqlite_master WHERE type='table' AND name IN('collaboration_security_meta','collaboration_members','collaboration_inbox','collaboration_communication_epoch')").get().n,0,'Legacy reset is forbidden for retained security/communication metadata even under old config');}finally{db.close();}
+ }
  assert.equal(config.serviceId,'docker-linux-sim','Refuse unrelated service');assert.equal(config.provider,'codego');assert.equal(config.model,'deepseek-v4.1-flash');
  assert.equal(JSON.parse(readFileSync(join(root,'private-state/mode.json'),'utf8')).mode,'daily','Preserve daily mode only');
  assert.deepEqual(readdirSync(join(root,'workspace')),[],'Unknown workspace files require review, do not delete');

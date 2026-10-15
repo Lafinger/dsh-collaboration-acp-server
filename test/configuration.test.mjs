@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveServerConfiguration } from '../src/configuration.mjs';
-const fixture = () => { const root = mkdtempSync(join(tmpdir(), 'server-config-')); return { root, file: join(root, 'config.json'), config: { serviceId: 'test', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\config-test' : join(root, 'socket'), provider: 'fixture', model: 'fixture', accounts: { alice: 'a'.repeat(64) } } }; };
+const fixture = () => { const root = mkdtempSync(join(tmpdir(), 'server-config-')); return { root, file: join(root, 'config.json'), config: { serviceId: 'test', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\config-test' : join(root, 'socket'), provider: 'fixture', model: 'fixture', accounts: { alice: 'a'.repeat(64) },dingtalk:{corpId:'corp',clientId:'app',clientSecret:'private-test-secret',publicOrigin:'https://login.example.test',loginPort:19481} } }; };
 test('missing configuration stays pending and does not expose guessed deployment values', () => {
   const f = fixture(), r = resolveServerConfiguration({ configFile: f.file });
   assert.equal(r.state, 'configuration-required'); assert.equal(r.config, undefined);

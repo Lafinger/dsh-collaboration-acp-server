@@ -37,6 +37,15 @@ test('chunk transfer immutable receipt, exact authorized project, idempotent arc
  const current=f.materials.listByProject(f.project.id)[0];
  const second=f.materials.upload({projectId:f.project.id,sourcePath:archive.stored_at,originalName:current.originalName,purpose:current.purpose,submittedBy:'alice',role:'pm'});assert.equal(second.material.role,'product');assert.match(second.version.relPath,/product/);
 });
+test('qualification recheck at transfer/archive commit rolls back disk and SQLite before any receipt or formal material survives',async t=>{
+ const f=fixture(t),data=docx(xml),r=request(f,data);const release=f.service.bind(r.request,r.controller.signal);
+ await assert.rejects(f.service.transfer('alice-session','alice',r.manifest.handle,undefined,()=>{throw new Error('revoked-before-transfer-commit');}),/revoked-before-transfer-commit/);
+ assert.equal(f.db.prepare('SELECT count(*) n FROM attachment_receipts').get().n,0);assert.deepEqual(readdirSync(join(f.root,'attachments')),[]);
+ const receipt=await f.service.transfer('alice-session','alice',r.manifest.handle);release();
+ assert.throws(()=>f.service.archive('alice-session','alice',{receiptId:receipt.receipt_id,purpose:'must roll back',reason:'fixture'},()=>{throw new Error('revoked-before-archive-commit');}),/revoked-before-archive-commit/);
+ assert.equal(f.materials.listByProject(f.project.id).length,0);assert.equal(f.service.list('alice-session','alice').receipts[0].material_id,null);
+});
+
 test('corrupt chunk/digest and cancellation remove service-owned staging, transfer-only cannot archive',async t=>{
  const f=fixture(t),data=docx(xml),r=request(f,data);r.request.read=async()=>({offset:1,data:'eA==',bytes:1,eof:true});let release=f.service.bind(r.request,r.controller.signal);await assert.rejects(f.service.transfer('alice-session','alice',r.manifest.handle));release();assert.deepEqual(readdirSync(join(f.root,'attachments')),[]);
  const mismatch=request(f,data);mismatch.request.requestId='digest-mismatch';mismatch.manifest.sha256='0'.repeat(64);release=f.service.bind(mismatch.request,mismatch.controller.signal);await assert.rejects(f.service.transfer('alice-session','alice',mismatch.manifest.handle),/sha256/);release();assert.deepEqual(readdirSync(join(f.root,'attachments')),[]);

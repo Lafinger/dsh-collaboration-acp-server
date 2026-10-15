@@ -42,13 +42,13 @@ async function fixture(t, runtime = new Runtime()) {
 }
 const prompt = (peer, id, text, requestId) => peer.request('session/prompt', { sessionId: id, prompt: [{ type: 'text', text }], _meta: { requestId } });
 
-test('v2 rejects absent/old/future/string negotiation before creating sessions or prompts', async t => {
+test('v3 rejects absent/old/future/string negotiation before creating sessions or prompts', async t => {
   const f=await fixture(t), peer=await connectAccess(f.listener.address);t.after(()=>peer.close());
-  for(const meta of [undefined,{collaborationProtocolVersion:1},{collaborationProtocolVersion:3},{collaborationProtocolVersion:'2'}]){
+  for(const meta of [undefined,{collaborationProtocolVersion:1},{collaborationProtocolVersion:2},{collaborationProtocolVersion:4},{collaborationProtocolVersion:'3'}]){
     await assert.rejects(peer.request('collaboration/connect',{ticket:ticket('alice'),_meta:meta}),e=>e.code===-32011);
   }
   const authenticated=await peer.request('collaboration/connect',{ticket:ticket('alice'),_meta:collaborationMeta()});
-  assert.equal(authenticated._meta.collaborationProtocolVersion,2);
+  assert.equal(authenticated._meta.collaborationProtocolVersion,3);
   for(const params of [{},{protocolVersion:1},{protocolVersion:2,_meta:collaborationMeta()},{protocolVersion:1,_meta:{collaborationProtocolVersion:1}}]){
     await assert.rejects(peer.request('initialize',params),e=>e.code===-32011);
     await assert.rejects(peer.request('session/new',{}),/Initialize first/);

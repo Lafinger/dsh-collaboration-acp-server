@@ -28,7 +28,9 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "dsh-collaboration-connect": "./src/connector-cli.mjs"
+    "dsh-collaboration-connect": "./src/connector-cli.mjs",
+    "dsh-collaboration-admin": "./src/admin-cli.mjs",
+    "dsh-collaboration-maintenance": "./src/maintenance-cli.mjs"
   },
   "files": [
     "src",
@@ -87,6 +89,8 @@
     "fflate": "0.8.3"
   },
   "dependencies": {
+    "@deepseek-ai/node-addon-system": "0.1.2",
+    "koffi": "3.1.1",
     "fast-xml-parser": "5.11.1",
     "sharp": "0.35.5"
   }

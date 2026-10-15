@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join, isAbsolute, resolve, relative } from 'node:path';
 import { AccountAuthority } from './authority.mjs';
 export const defaultConfigPath = () => join(homedir(), '.dsh', 'collaboration-acp-server.json');
-const required = ['serviceId', 'workspace', 'stateRoot', 'socketPath', 'provider', 'model', 'accounts'];
+const required = ['serviceId', 'workspace', 'stateRoot', 'socketPath', 'provider', 'model', 'accounts', 'dingtalk'];
 const text = v => typeof v === 'string' && v.trim().length > 0 && v.length <= 200;
 const nested = (a, b) => { const r = relative(resolve(a), resolve(b)); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
 /** File-only configuration: credentials stay outside profile YAML and status output. */
@@ -29,5 +29,13 @@ export function resolveServerConfiguration(input = {}, { fallbackPath = defaultC
   if (!config.accounts || typeof config.accounts !== 'object' || Array.isArray(config.accounts)
     || Object.keys(config.accounts).some(k => !/^[A-Za-z0-9_.-]+$/.test(k))) return pending('accounts须为合法登录账号与独立凭据的映射');
   try { new AccountAuthority(config); } catch { return pending('accounts须包含至少一个账号和各自不同的64+字符凭据'); }
-  return { state: 'configured', configPath, config, message: '配置格式完整；仍需宿主服务、持久化和已注册模型路线。' };
+  const d=config.dingtalk;
+  if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!['corpId','clientId','clientSecret','publicOrigin','loginPort','organizationTtlMs','loginTtlMs','communicationRetentionDays'].includes(k)))return pending('需配置钉钉认证；不回退仅SSH业务身份');
+  if(!text(d.corpId)||!text(d.clientId)||typeof d.clientSecret!=='string'||!d.clientSecret.trim()||d.clientSecret.length>4096)return pending('缺少钉钉组织／应用／私有凭据');
+  try{const origin=new URL(d.publicOrigin);if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)throw new Error();}catch{return pending('钉钉登录需明确HTTPS origin，不开放普通DSH或投递接口');}
+  if(!Number.isSafeInteger(d.loginPort)||d.loginPort<1||d.loginPort>65535)return pending('需指定本机OAuth后端端口');
+  for(const [key,max,defaultValue]of [['organizationTtlMs',300000,300000],['loginTtlMs',43200000,43200000],['communicationRetentionDays',90,90]]){
+    const value=d[key]??defaultValue;if(!Number.isSafeInteger(value)||value<1||value>max)return pending('钉钉有限复核、登录或保留期限无效');
+  }
+  return { state: 'configured', configPath, config:{...config,dingtalk:{organizationTtlMs:300000,loginTtlMs:43200000,communicationRetentionDays:90,...d}}, message: '配置格式完整；仍需宿主服务、钉钉权限验证和已注册模型路线。' };
 }

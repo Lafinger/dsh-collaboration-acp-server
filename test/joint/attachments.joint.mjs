@@ -56,8 +56,9 @@ test('independent mounted client native/path attachment goes through actual reve
   const listener = await listenAccess(service, { socketPath }), bridges = [];
   const ctx = new Context(), llm = ctx.plugin(LlmRuntime); await llm.await();
   ctx.provide('attachments', { fileHostPath: () => undefined, async *readFileStream() { yield bytes; } });
-  const fiber = ctx.plugin(plugin, { databasePath: join(root, 'client.sqlite'), serviceId: 'joint-attachment', ssh: { host: 'example.test', account: 'alice', identityFile: join(root, 'fake-key'), knownHostsFile: join(root, 'fake-known-hosts') } });
+  const fiber = ctx.plugin(plugin, { loginOrigin:'https://login.example.test',databasePath: join(root, 'client.sqlite'), serviceId: 'joint-attachment', ssh: { host: 'example.test', account: 'alice', identityFile: join(root, 'fake-key'), knownHostsFile: join(root, 'fake-known-hosts') } });
   await fiber.await(); const client = fiber.ctx.get('collaborationMemberClient'); client.attachments.workspaceOf = () => root;
+  client.requireLogin=false; // Legacy attachment regression; production login is verified in dingtalk.joint.mjs.
   let reads = 0;
   client.connect = async () => {
     const input = new PassThrough(), output = new PassThrough();

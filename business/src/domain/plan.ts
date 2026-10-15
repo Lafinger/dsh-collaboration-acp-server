@@ -103,6 +103,8 @@ export interface PlanWithSlots {
  * can never drift from the evidence.
  */
 export type GateState =
+  /** Qualification changed: human revision, not another decision, must reopen the gate. */
+  | { readonly kind: 'suspended'; readonly at: string; readonly reason: string }
   /** At least one relevant role has no member — it waits, and says so. */
   | { readonly kind: 'waiting'; readonly pending: readonly RoleId[]; readonly vacancies: readonly RoleId[]; readonly rejected: readonly RoleId[] }
   /** Every relevant role agreed. */

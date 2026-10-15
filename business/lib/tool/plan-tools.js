@@ -49,6 +49,8 @@ function planToJson(plan) {
     };
 }
 function gateToJson(gate) {
+    if (gate.kind === 'suspended')
+        return { state: 'suspended', at: gate.at, reason: gate.reason, next: 'Explicitly revise this plan and collect all relevant role decisions again' };
     if (gate.kind === 'unanimous') {
         return { state: 'unanimous', agreed: [...gate.agreed] };
     }

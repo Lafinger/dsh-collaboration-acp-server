@@ -10,6 +10,7 @@ import { createHost } from './helpers/host.mjs';
 import * as plugin from '../src/server-plugin.mjs';
 import { connectAccess } from '../src/transport.mjs';
 import { issueTicket } from '../src/authority.mjs';
+import {syntheticDingTalkConfig,provisionSynthetic,authenticateSynthetic} from './helpers/security.mjs';
 class Waiting extends LlmAdapter {
   started = Promise.withResolvers();
   async *stream(options) {
@@ -23,13 +24,14 @@ class Waiting extends LlmAdapter {
 test('unloading during live turn cancels own Agent, preserves request status and host factory, no automatic replay', { timeout: 10000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), 'plugin-disable-')), adapter = new Waiting(), host = await createHost({ root: join(root, 'host'), adapter });
   const dir = join(root, 'socket'); mkdirSync(dir, { mode: 0o700 });
-  const config = { serviceId: 'disable', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? `\\\\.\\pipe\\disable-${randomUUID()}` : join(dir, 'service.sock'), accounts: { alice: 'a'.repeat(64) }, provider: 'fixture', model: 'fixture' };
+  const config = { serviceId: 'disable', workspace: join(root, 'workspace'), stateRoot: join(root, 'state'), socketPath: process.platform === 'win32' ? `\\\\.\\pipe\\disable-${randomUUID()}` : join(dir, 'service.sock'), accounts: { alice: 'a'.repeat(64) }, provider: 'fixture', model: 'fixture',dingtalk:await syntheticDingTalkConfig() };
   const configFile = join(root, 'config.json'); writeFileSync(configFile, JSON.stringify(config), { mode: 0o600 });
   let entry, peer;
   try {
     entry = host.ctx.plugin(plugin, { configFile }); await entry.await(); const server = entry.ctx.get('collaborationServer');
     peer = await connectAccess(config.socketPath); await peer.request('collaboration/connect', { _meta: collaborationMeta(),  ticket: issueTicket({ account: 'alice', serviceId: config.serviceId, secret: config.accounts.alice }) }); await peer.request('initialize', initializeParams());
-    const { sessionId } = await peer.request('session/new', {});
+    const provisioned=provisionSynthetic(config);await authenticateSynthetic(peer,provisioned.tokens.alice);
+    const { sessionId } = await peer.request('session/new', {projectId:provisioned.projectId});
     const task = peer.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: 'hold' }], _meta: { requestId: 'hold' } }).catch(e => e);
     await adapter.started.promise;
     await entry.dispose(); await task; assert.equal(server.service.runtime.handles.size, 0); assert.equal(host.ctx.agents.get(sessionId), undefined); host.ctx.agents.requireFactory();

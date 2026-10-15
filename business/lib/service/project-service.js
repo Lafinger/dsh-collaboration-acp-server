@@ -58,8 +58,9 @@ export class ProjectService {
         return this.projects.list(includeArchived).map(toView);
     }
     /**
-     * Set or clear a role's member. No approval, no history — by design (ADR-0004).
-     * `null` vacates the slot, which later blocks plan confirmation.
+     * Set or clear the current role assignment; retained decisions are never rewritten.
+     * Replacing an assigned member suspends pending affected plans until human revision.
+     * Access/administrator eligibility is enforced by the authenticated service boundary.
      */
     setMember(projectId, role, member) {
         this.requireWritable(projectId);
@@ -67,7 +68,17 @@ export class ProjectService {
             throw new CollaborationError('ROLE_UNKNOWN', `unknown role "${role}"`, { role });
         }
         const label = member === null ? null : requireText(member, 'member', 120);
-        this.projects.setMember(projectId, role, label, this.clock.now());
+        inTransaction(this.db, () => {
+            const previous = this.projects.rolesOf(projectId).find((r) => r.role === role)?.member ?? null;
+            if (previous !== null && previous !== label) {
+                this.db.prepare(`INSERT OR IGNORE INTO plan_suspensions(plan_id,plan_version,at,reason)
+          SELECT p.id,p.version,?,? FROM plans p JOIN plan_roles r ON r.plan_id=p.id AND r.version=p.version
+          WHERE p.project_id=? AND r.role=? AND p.activated_at IS NULL
+            AND p.version=(SELECT MAX(q.version) FROM plans q WHERE q.id=p.id)`)
+                    .run(this.clock.now(), `Role ${role} assignment changed; explicitly revise and collect all decisions again`, projectId, role);
+            }
+            this.projects.setMember(projectId, role, label, this.clock.now());
+        });
     }
     /** Plain explicit details update, not a plan decision or replacement project. */
     updateDetails(input) {
