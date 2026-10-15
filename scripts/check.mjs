@@ -1,9 +1,12 @@
 import {spawnSync} from 'node:child_process';
-import {readdirSync,mkdirSync,writeFileSync} from 'node:fs';
+import {readdirSync,mkdirSync,writeFileSync,mkdtempSync,realpathSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {dirname,join,resolve} from 'node:path';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-function run(args){const r=spawnSync(process.execPath,args,{cwd:root,stdio:'inherit',env:{...process.env,COLLABORATION_OFFICIAL_NODE_MODULES:''}});if(r.error)throw r.error;if(r.status!==0)throw new Error(`Check exited ${r.status}: ${args.join(' ')}`);}
+// GitHub Windows TEMP can be an 8.3 alias; fixtures must satisfy the production long-path check.
+const testTemp=realpathSync.native(mkdtempSync(join(tmpdir(),'collaboration-check-')));
+function run(args){const r=spawnSync(process.execPath,args,{cwd:root,stdio:'inherit',env:{...process.env,TMP:testTemp,TEMP:testTemp,TMPDIR:testTemp,COLLABORATION_OFFICIAL_NODE_MODULES:''}});if(r.error)throw r.error;if(r.status!==0)throw new Error(`Check exited ${r.status}: ${args.join(' ')}`);}
 function scan(dir){for(const e of readdirSync(dir,{withFileTypes:true})){const p=join(dir,e.name);if(e.isDirectory())scan(p);else if(e.name.endsWith('.mjs'))run(['--check',p]);}}
 for(const dir of ['bin','src','scripts','test','deploy/ubuntu'])scan(join(root,dir));
 const tsc='node_modules/typescript/bin/tsc';
