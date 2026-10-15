@@ -36,6 +36,6 @@ sudo -u dsh-collab-test python3 /opt/dsh-collaboration-test/releases/<SHA>/set-c
 
 用户确认录入完成后才执行[切换脚本](<activate-release.py>)，要求精确SHA目录、静态清单、原配置及门禁预检通过。先停后端，记录数据字节摘要，保留全部库／资料／会话及身份字段，替换仅provider/model、公开profile和后端代码路径。活动凭据保持现有非模型秘密，仅删除CODEGO_API_KEY引用并加入CPA_API_KEY；不输出旧凭据、不生成旧key备份。旧安装代码保留但不自动回退供应商。就绪失败保留关闭门禁并明确停止后端，不反复重启、不自动尝试Codego。
 
-[profile生成器](<render-profile.mjs>)使用官方插件和原生图片存储，不启用受控IM、GUI、terminal／fs、MCP或委派。[门禁](<model-gate.mjs>)在agent/request与llm/stream两处阻断，始终要求modelRequestsAllowed:false。升级不重放业务、不启动任何模型测试；另行用户授权前不得开启门禁。
+[profile生成器](<render-profile.mjs>)使用官方插件和原生图片存储，不启用受控IM、GUI、terminal／fs、MCP或委派。[门禁](<model-gate.mjs>)在agent/request与llm/stream两处检查严格boolean策略：false继续阻断，用户显式授权后true仅放行固定CPA路线；错误／缺失策略fail-closed。[本次授权](<../../docs/CPA-MODEL-AUTHORIZATION.md>)允许开启供用户手动发新消息，不能只改旧版本false为true（旧挂载会拒绝），须同步成功CI的门禁与挂载代码。首次迁移仍默认false。升级不重放业务、不启动任何真实模型测试；未单独授权的其他环境不得自行开启。
 
 确认就绪要核对代码固定SHA／包哈希、运行账号、配置0600、socket、HTTPS／成员SSH、模型路线与关闭门禁，并说明SQLite只增加图片引用表及原有启动维护可能写入接入状态。模型字节组装／权限／归一化与历史预算通过离线测试，不等于真实视觉分析或CPA网关已验收。

@@ -5,7 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {renderProfile} from '../deploy/ubuntu/render-profile.mjs';
 import {cpaProviderConfig} from '../deploy/ubuntu/model-config.mjs';
 
-test('Ubuntu profile is fixed-SHA, native image storage and closed gate only; old Docker remains historical',()=>{
+test('Ubuntu profile is fixed-SHA, native image storage and explicit authorization gate; first migration remains closed',()=>{
  const root='/opt/dsh-collaboration-test/releases/'+'a'.repeat(40),source=renderProfile(root),entries=JSON.parse(source)[0].insert;
  for(const id of ['model-request-gate','collaboration-server-mount'])assert.ok(entries.find(e=>e.id===id).name.startsWith(root+'/'));
  assert.equal(entries.find(e=>e.id==='llm-pi-ai').name,'@deepseek-ai/dsh-llm-pi-ai');assert.deepEqual(entries.find(e=>e.id==='llm-pi-ai').config,cpaProviderConfig);
