@@ -20,7 +20,7 @@ DSH插件管理器安装来源：
 github:Lafinger/dsh-collaboration-acp-server
 ```
 
-旧公开固定入口为`github:Lafinger/dsh-collaboration-acp-server#v0.4.2`；本轮0.5.0只按成功CI的完整commit SHA安装，不创建新tag／Release，也不从浮动main部署。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[项目详情v0.4.2验收](docs/PROJECT-DETAILS-RELEASE-VERIFY.md)，此前[改名验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。当前Ubuntu部署见[固定提交运维](<deploy/ubuntu/README.md>)；[旧Docker目录](<deploy/docker-linux/README.md>)仅保留历史，不作为后备服务。只发布GitHub，不发布npm或DSH插件市场。
+旧公开固定入口为`github:Lafinger/dsh-collaboration-acp-server#v0.4.2`；本轮0.5.0只按成功CI的完整commit SHA安装，不创建新tag／Release，也不从浮动main部署。无版本入口读取main，不自动选择最新Release。GitHub自动检查/打包与发布见[发布说明](docs/RELEASE.md)，当前发行证据见[项目详情v0.4.2验收](docs/PROJECT-DETAILS-RELEASE-VERIFY.md)，此前[改名验收](docs/RENAME-RELEASE-VERIFY.md)，旧版本首发证据保留[历史记录](docs/GITHUB-RELEASE-VERIFY.md)。当前Ubuntu部署及实测边界见[0.5.0 CPA上线验收](<docs/CPA-UBUNTU-VERIFY.md>)与[固定提交运维](<deploy/ubuntu/README.md>)；[旧Docker目录](<deploy/docker-linux/README.md>)仅保留历史，不作为后备服务。只发布GitHub，不发布npm或DSH插件市场。
 
 安装后默认disabled；空配置启用为安全待配置，不建库、不监听、不调用模型。复制[空模板](examples/server-config.example.json)到服务账号自己的私有配置文件，填写部署路径、账号独立凭据与宿主已有provider/model，按[部署说明](docs/DEPLOYMENT.md)检查后启用。没有GUI配置表单，也不自动修改sshd或创建系统账号。
 
