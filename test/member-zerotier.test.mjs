@@ -15,3 +15,10 @@ test('verified B public-key enrollment is exact-scoped, source32 restricted, A-s
  if(result.error)throw result.error;
  assert.equal(result.status,0);
 });
+
+test('HTTPS also needs ZeroTier listener and exact B source while TLS/OAuth/LAN remain unchanged',()=>{
+ const python=process.platform==='win32'?'python':'python3';
+ const result=spawnSync(python,['-B','-m','unittest','discover','-s','deploy/ubuntu','-p','test_login_zerotier.py'],{cwd:new URL('..',import.meta.url),stdio:'inherit'});
+ if(result.error)throw result.error;
+ assert.equal(result.status,0);
+});

@@ -53,6 +53,22 @@ python3 /absolute/verified-member-release/enroll-member-zerotier.py --manifest /
 
 仍按GitHub双平台CI成功固定SHA核验产物后同步。本脚本依赖同目录已核验的第一阶段模块；第一阶段脚本此后因AllowUsers已扩展会有意拒绝，不把它当可重新初始化全服务的入口。[8项合成登记测试](<../deploy/ubuntu/test_member_enrollment.py>)覆盖作用域及前导0、A身份／公钥拒绝、来源／key约束、成功幂等及失败回滚。最后由B在实际电脑验证TCP、公钥握手、本人钉钉扫码和项目访问，不用本机伪造B来源或复制B私钥代测。
 
+## 第三阶段：浏览器HTTPS与域名解析不可遗漏
+
+真实B报`ERR_TIMED_OUT`时，只开放成员SSH19482并不完整。现场只读复现：login域名解析192.168.2.20；LAN443证书验证通过，ZeroTier443拒绝连接；现用专属nginx仅LAN监听且geo／allow只含LAN，B无法打开登录页。登录请求属于B但在排查时已过期，过期会造成HTTP应用错误，不能解释TCP超时。**根因是跨网接入只改SSH，漏改浏览器HTTPS及B解析路径。**
+
+[HTTPS维护脚本](<../deploy/ubuntu/login-zerotier.py>)对[精确已审查LAN基线](<../deploy/ubuntu/login-lan.baseline.conf>)作增量：保留两个LAN443的default／域名server监听，为二者追加服务器ZeroTier443；geo及allow仅增加B/32；目的地址为ZeroTier时通过server_addr/remote_addr双变量map额外拒绝所有非B来源。未知SNI继续握手拒绝，域名／Host／证书及仅OAuth三路由、方法限制、no-store／no-referrer、不写访问日志与不重试全部保留。现有UFW443已允许入站，本次不改这条无关的既有策略，也不开放新的公网入口；应用层精确来源限制不可删除。
+
+先固定SHA的GitHub成功CI和服务器合成回归，再语法检查后只reload专属登录nginx；不重启业务、SSH、不改身份／登录请求／token或公网DNS。验证LAN静态完成页200、非B源访问ZeroTier443得到合法TLS+403、未知SNI仍失败。任何检查失败只回滚本次nginx配置，不重发登录。使用静态`/collaboration/login-complete`不会领取／完成设备登录，不能拿它的200冒充已认证。
+
+```sh
+python3 /absolute/verified-login-release/login-zerotier.py --confirmation ADD_VERIFIED_B_ZERO_TIER_HTTPS_ONLY
+```
+
+B电脑还需将**原域名**login.lafinger.us.ci仅在本机解析为10.242.169.184（受控hosts条目或已有管理员内网DNS），HTTPS网址不变以保留证书、SNI、cookie和OAuth callback origin。不给A改解析、不改公网DNS，不用裸IP/HTTP，不忽略证书或关闭防火墙。DNS-over-HTTPS／浏览器代理仍须实际浏览器验证，curl的`--resolve`只作诊断，不是最终浏览器修复。手机不在虚拟网络时不能据B修复宣称手机可访问此origin。
+
+[6项HTTPS合成测试](<../deploy/ubuntu/test_login_zerotier.py>)覆盖原始安全路由/TLS/来源不变、单B源、漂移拒绝、幂等和重载／就绪失败回滚。修复后B先验证DNS／TCP／HTTPS静态页，再手动从原客户端明确重新发起一次新登录，旧过期链接不点重试、不由助手访问其起始页或回调。
+
 ## 验证与限制
 
 离线回归[测试](<../deploy/ubuntu/test_member_zerotier.py>)覆盖仅一条监听增量、单源/32及网卡、漂移拒绝、运行中业务拒绝、成功幂等及重载失败回滚；[CI入口](<../test/member-zerotier.test.mjs>)在两平台执行。测试不触发真实模型或服务。
