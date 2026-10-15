@@ -8,9 +8,10 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import sharp from 'sharp';
 import {cpaProviderConfig,CPA_PROVIDER,CPA_MODEL,CPA_BASE_URL} from '../deploy/ubuntu/model-config.mjs';
-import * as hostCpa from '../deploy/ubuntu/host-cpa.mjs';
+import * as customApi from '@deepseek-ai/dsh-llm-pi-ai';
+import {renderProfile} from '../deploy/ubuntu/render-profile.mjs';
 
-test('fixed official CPA adapter assembles Responses tool-result image with no retries and no external HTTP',async()=>{
+test('DSH standard custom API for external CPA assembles Responses tool-result image with no retries and no external HTTP',async()=>{
  const ctx=new Context(),root=mkdtempSync(join(tmpdir(),'cpa-offline-'));const originalFetch=globalThis.fetch;let requests=0,body;
  // A transport stub consumes the complete actual protocol request. It never invokes a socket.
  globalThis.fetch=async(input,init)=>{
@@ -20,7 +21,8 @@ test('fixed official CPA adapter assembles Responses tool-result image with no r
  try{
   const llm=ctx.plugin(LlmRuntime),store=ctx.plugin(LocalAttachmentStore,{dshHome:root,normalizedImageMaxDimension:2048,normalizedImageMaxBytes:1048576});await llm.await();await store.await();
   ctx.provide('credentials',{resolve:async ref=>{assert.equal(ref,'CPA_API_KEY');return {value:'synthetic-offline-key-not-valid'};}});
-  const host=ctx.plugin(hostCpa);await host.await();assert.equal(host.ctx.get('collaborationCpaReady'),true);
+  const entry=JSON.parse(renderProfile('/opt/dsh-collaboration-test/releases/'+'a'.repeat(40)))[0].insert.find(e=>e.id==='llm-pi-ai');
+  assert.equal(entry.name,'@deepseek-ai/dsh-llm-pi-ai');const host=ctx.plugin(customApi,entry.config);await host.await();
   const info=await ctx.llm.resolveModelInfo(CPA_PROVIDER,CPA_MODEL);assert.ok(info.inputModalities.includes('image'));
   const ref=await ctx.attachments.saveImage({data:await sharp({create:{width:2,height:1,channels:3,background:'#f00'}}).png().toBuffer(),mediaType:'image/png',name:'synthetic.png'}),id=ToolCallId('call_synthetic');
   const messages=[createUserMessage({content:[{type:'text',text:'Read explicitly selected synthetic image'}],source:{kind:'user'}}),createAssistantMessage({content:[{type:'tool-call',id,name:'attachment_inspect',arguments:'{}'}],source:{provider:CPA_PROVIDER,model:CPA_MODEL}}),createToolResultMessage({callId:id,isError:false,content:[{type:'text',text:'Synthetic attachment'},{type:'image',attachment:ref}]})];

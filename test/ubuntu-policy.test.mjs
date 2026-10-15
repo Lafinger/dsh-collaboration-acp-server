@@ -7,7 +7,8 @@ import {cpaProviderConfig} from '../deploy/ubuntu/model-config.mjs';
 
 test('Ubuntu profile is fixed-SHA, native image storage and closed gate only; old Docker remains historical',()=>{
  const root='/opt/dsh-collaboration-test/releases/'+'a'.repeat(40),source=renderProfile(root),entries=JSON.parse(source)[0].insert;
- for(const id of ['model-request-gate','llm-pi-ai','collaboration-server-mount'])assert.ok(entries.find(e=>e.id===id).name.startsWith(root+'/'));
+ for(const id of ['model-request-gate','collaboration-server-mount'])assert.ok(entries.find(e=>e.id===id).name.startsWith(root+'/'));
+ assert.equal(entries.find(e=>e.id==='llm-pi-ai').name,'@deepseek-ai/dsh-llm-pi-ai');assert.deepEqual(entries.find(e=>e.id==='llm-pi-ai').config,cpaProviderConfig);
  assert.equal(entries.find(e=>e.id==='attachments').config.maxImagesPerMessage,5);assert.equal(entries.find(e=>e.id==='attachments').config.normalizedImageMaxBytes,1048576);
  assert.ok(!/codego|dsh-web-app|dsh-terminal|dsh-tool-fs|subagent|llm-retry|controlled-dingtalk/.test(source));
  assert.equal(cpaProviderConfig.providers.cpa.retryPolicy.maxRetries,0);assert.deepEqual(cpaProviderConfig.providers.cpa.models[0].input,['text','image']);assert.equal(cpaProviderConfig.providers.cpa.reasoningEffort,undefined);

@@ -139,7 +139,7 @@ def main():
     # Read the active credential store only to retain non-model secrets; never print or back it up.
     credentials = credential_config(json.loads(check_file(credentials_path, svc.pw_uid, True)), staged)
     new_profile = check_file(release / 'profile.patch.yml', 0)
-    if b'host-cpa.mjs' not in new_profile or b'codego' in new_profile.lower() or b'model-request-gate' not in new_profile:
+    if b'@deepseek-ai/dsh-llm-pi-ai' not in new_profile or b'host-cpa.mjs' in new_profile or b'openai-responses' not in new_profile or b'codego' in new_profile.lower() or b'model-request-gate' not in new_profile:
         raise RuntimeError('Unexpected new profile')
     # No service stop happens until all configuration/key/release preflight succeeds.
     run('systemctl', 'stop', UNIT)

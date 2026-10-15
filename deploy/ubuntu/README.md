@@ -1,8 +1,18 @@
-# Ubuntu CPA 升级（0.5.0，仅固定提交）
+# Ubuntu DSH 自定义模型 API（外部 CPA，0.5.0，仅固定提交）
 
 目标仅现有Ubuntu `192.168.2.20`，沿用DSH0.2.0-rc.2、原数据、profile、钉钉登录、成员SSH与HTTPS。不是Docker或替换服务器，不另建DSH服务。设计与用户授权见[确认记录](<../../docs/设计确认-CPA切换与本地模拟退役.md>)。
 
 本轮已上线的固定成功SHA、来源摘要、数据保留及门禁验证见[0.5.0上线验收](<../../docs/CPA-UBUNTU-VERIFY.md>)。下述脚本是严格原路线预检的一次性切换流程；已经成功切换后不要重复执行录入／激活命令，也不要把文档补记后的main当新部署来源。
+
+## 外部 CPA 是自定义 API，不是本机服务
+
+CPA由用户在外部维护，Ubuntu仅通过ZeroTier访问`http://10.242.66.179:8317/v1`；本仓不部署CPA，不启动8317端口，不修改DSH源码。DSH标准模型插件`@deepseek-ai/dsh-llm-pi-ai`直接配置`providers.cpa`，对应Web“新增自定义模型API”；用户明确协议为OpenAI Responses（不是截图中的Chat Completions）。`cpa`只是自定义provider标识，`gpt-6.1-sol`只是配置模型名，不保证上游来源。此前额外的host-cpa包装已移除；门禁、附件和协作装配是独立安全功能，不是CPA实现。更正范围与核验见[标准API修正](<../../docs/EXTERNAL-CPA-CUSTOM-API.md>)。
+
+```json
+{"id":"llm-pi-ai","name":"@deepseek-ai/dsh-llm-pi-ai","config":{"providers":{"cpa":{"displayName":"CPA","apiKeyEnv":"CPA_API_KEY","api":"openai-responses","baseURL":"http://10.242.66.179:8317/v1","models":[{"id":"gpt-6.1-sol","name":"gpt-6.1-sol","input":["text","image"]}]}}}}
+```
+
+以上为核心配置摘录；完整渲染还保留原有不重试与图片字节限额。密钥沿用服务器原私有凭据引用，不重新录入或复制。网络可达与模型协议兼容需分别验证，不用仅配置完成冒充ZeroTier可达或真实模型验收。
 
 ## 发布与准备
 

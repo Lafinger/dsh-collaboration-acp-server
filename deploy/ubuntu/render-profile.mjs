@@ -1,4 +1,5 @@
 import {fileURLToPath} from 'node:url';
+import {cpaProviderConfig} from './model-config.mjs';
 export function renderProfile(release){
  if(!/^\/opt\/dsh-collaboration-test\/releases\/[a-f0-9]{40}$/.test(release))throw Error('An exact verified release SHA is required');
  return JSON.stringify([{insert:[
@@ -12,7 +13,7 @@ export function renderProfile(release){
   {id:'credentials',name:'@deepseek-ai/dsh-credentials-local',config:{path:'/srv/dsh-collaboration-test/dsh-home/.credentials.yaml',watch:false}},
   {id:'attachments',name:'@deepseek-ai/dsh-attachment-local',config:{dshHome:'/srv/dsh-collaboration-test/dsh-home',maxImageBytes:20*1024*1024,maxImagesPerMessage:5,maxMessageImageBytes:20*1024*1024,normalizedImageMaxPixels:2048*2048,normalizedImageMaxDimension:2048,normalizedImageMaxBytes:1024*1024}},
   {id:'model-request-gate',name:release+'/model-gate.mjs'},
-  {id:'llm-pi-ai',name:release+'/host-cpa.mjs'},
+  {id:'llm-pi-ai',name:'@deepseek-ai/dsh-llm-pi-ai',config:cpaProviderConfig},
   {id:'session-persistence',name:'@deepseek-ai/dsh-session-persistence-jsonl',config:{root:'/srv/dsh-collaboration-test/dsh-home/sessions',compression:'none'}},
   {id:'agent-loop',name:'@deepseek-ai/dsh-agent-loop',config:{agents:[],maxParallelToolCalls:1}},
   {id:'collaboration-server-mount',name:release+'/mount-server.mjs'},

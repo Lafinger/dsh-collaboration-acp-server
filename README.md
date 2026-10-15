@@ -10,7 +10,7 @@
 
 保留现用Ubuntu已部署的钉钉扫码、项目权限及[日志保留维护](<docs/DINGTALK-RETENTION.md>)基线；本轮只新增CPA配置、PNG／JPEG／WebP原生工具图片、历史预算和GIF双端禁传。现用基线与本轮增量分开提交；服务端不另发tag／Release，必须按双平台CI成功的固定SHA部署。[Ubuntu步骤与隐藏key录入](<deploy/ubuntu/README.md>)、[设计确认](<docs/设计确认-CPA切换与本地模拟退役.md>)。
 
-CPA固定gpt-6.1-sol／OpenAI Responses，声明图片输入；不强制High、不重试、不回退Codego。**真实模型门禁保持关闭**，离线协议和权限验证不证明CPA真实兼容或视觉效果。升级不代装现用GUI、不启用机器人、不清库或重放。当前协作协议v3拒绝旧v2和SSH-only业务回退；既有0.4.2标签早于现用钉钉基线，不能作为本轮升级源。
+CPA是用户通过ZeroTier访问的**外部服务**，DSH只用标准模型插件的`providers.cpa`自定义API配置连接，不在Ubuntu部署CPA或修改DSH源码；[标准API修正](<docs/EXTERNAL-CPA-CUSTOM-API.md>)。模型配置gpt-6.1-sol／OpenAI Responses，声明图片输入；不强制High、不重试、不回退Codego。**真实模型门禁保持关闭**，离线协议和权限验证不证明CPA真实兼容或视觉效果。升级不代装现用GUI、不启用机器人、不清库或重放。当前协作协议v3拒绝旧v2和SSH-only业务回退；既有0.4.2标签早于现用钉钉基线，不能作为本轮升级源。
 
 ## 安装与启用
 
