@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,symlinkSync,linkSync,unlinkSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,symlinkSync,linkSync,unlinkSync,realpathSync} from 'node:fs';
 import {join} from 'node:path';import {tmpdir} from 'node:os';import {randomUUID} from 'node:crypto';import {zstdCompressSync} from 'node:zlib';
 import {openDatabase} from '../business/lib/sqlite/connection.js';
 import {IdentityStore} from '../src/identity-store.mjs';import {CommunicationStore} from '../src/communication-store.mjs';
 import {registerImLog,purgeExpiredImLogs} from '../src/im-log-retention.mjs';import {acquireKernelLock,acquireMaintenanceLock} from '../src/maintenance-lock.mjs';
 const confirmation='PURGE_EXPIRED_IM_TRANSCRIPTS_AND_DATABASE_BODIES',now=Date.now();
-function fixture(t){const root=mkdtempSync(join(tmpdir(),'im-retention-'));const sessions=join(root,'sessions');mkdirSync(sessions,{mode:0o700});const db=openDatabase({path:':memory:'}),identities=new IdentityStore({db,serviceId:'test',corpId:'corp',clientId:'app'});new CommunicationStore({identities});t.after(()=>db.close());
+function fixture(t){const root=realpathSync(mkdtempSync(join(tmpdir(),'im-retention-')));const sessions=join(root,'sessions');mkdirSync(sessions,{mode:0o700});const db=openDatabase({path:':memory:'}),identities=new IdentityStore({db,serviceId:'test',corpId:'corp',clientId:'app'});new CommunicationStore({identities});t.after(()=>db.close());
  function log({age=91,compressed=false,registered=true,id=randomUUID(),headerId=id}={}){const dir=join(sessions,'--workspace--',id);mkdirSync(dir,{recursive:true,mode:0o700});const header={type:'session',version:4,id:headerId,cwd:join(root,'workspace'),createdAt:now-age*86400000,isSeeded:false,delegationDepth:0};const file=join(dir,'session.v4.jsonl'+(compressed?'.zstd':''));const body=JSON.stringify(header)+'\n'+JSON.stringify({private:'synthetic-expired-body'})+'\n';writeFileSync(file,compressed?zstdCompressSync(body):body);if(registered)registerImLog({db,sessionId:id,account:'alice',projectId:'project',artifact:{root:sessions,path:file,header:{...header,id}},now:header.createdAt});return{id,dir,file,header};}
  const options={identities,retentionDays:90,root:sessions,confirmation,now};return{root,sessions,db,identities,log,options};}
 async function apply(f){const p=await purgeExpiredImLogs(f.options);return purgeExpiredImLogs({...f.options,dryRun:false,expectedPlanHash:p.planHash});}

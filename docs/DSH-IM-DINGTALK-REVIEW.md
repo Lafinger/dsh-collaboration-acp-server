@@ -26,7 +26,7 @@
 | R9 高：角色换人后旧同意仍有效 | [角色更新](<../business/src/service/project-service.ts#L92-L102>)无交接历史；[方案门禁](<../business/src/domain/plan.ts#L141-L154>)计入旧agree而不核对确认人现资格。离线确认换掉Alice后，Bob下一确认仍促成方案生效。 | 管理员管理角色；受影响待生效方案暂停、人修订新版本、重收全部角色确认，保留旧同意／拒绝；已生效决定不自动回滚。 |
 | R10 高：ACK不等于保存 | [钉钉运行时](https://github.com/xmanrui/dsh-im/blob/v4.39.0/src/channels/dingtalk/dingtalk-runtime.mjs)先socketCallBackResponse成功，再异步解析和bridge.accept；ACK后崩溃可能无持久记录。 | 先验证／持久登记再ACK，异步处理不等待模型完成；做不到不承诺可靠双向，不假称平台断线消息可完整补投。 |
 | R11 高：发送部分成功／未知状态 | [主动发送](https://github.com/xmanrui/dsh-im/blob/v4.39.0/src/channels/dingtalk/dingtalk-api.mjs)长Markdown可能分段发送；[投递服务](https://github.com/xmanrui/dsh-im/blob/v4.39.0/plugin-src/host/delivery-service.mjs)普通send结果不是持久出站日志。别名路由可变，重试整条可能重复。 | 持久投递意图、逐段状态、实际路由重核；恢复不盲重发在途／未知结果。模板提醒以已提交事实派生，发送前检查版本、资格和是否仍需处理。 |
-| R12 高：重置后旧IM仍可到达 | 清空本库不删除钉钉消息。旧[重置脚本](<../deploy/docker-linux/reset-state.mjs#L9-L25>)不覆盖新附件／通信状态；[客户端映射](<../../dsh-collaboration-client/src/member-client.mjs#L53-L79>)与服务器独立保存。 | 先停收停发、冻结队列和撤销登录，再清限定数据；新批次保留旧消息失效边界，迟到消息／按钮不关联新项目；删除与备份清单实施前再确认。 |
+| R12 高：重置后旧IM仍可到达 | 清空本库不删除钉钉消息。旧[重置脚本](<../deploy/docker-linux/reset-state.mjs#L9-L25>)不覆盖新附件／通信状态；[客户端映射](<https://github.com/Lafinger/dsh-collaboration-client/blob/ecc91eeee55765122703d734e348de80a9c3f22d/src/member-client.mjs#L53-L79>)与服务器独立保存。 | 先停收停发、冻结队列和撤销登录，再清限定数据；新批次保留旧消息失效边界，迟到消息／按钮不关联新项目；删除与备份清单实施前再确认。 |
 
 ## 3. 离线验证结果
 
