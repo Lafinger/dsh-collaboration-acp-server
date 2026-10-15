@@ -39,6 +39,20 @@ B客户端资料需要：
 - `knownHostsFile`有`[10.242.169.184]:19482`的经核验完整主机公钥条目；指纹文本不是完整公钥行。StrictHostKeyChecking保留，不盲信扫描结果、不删除旧记录。
 - 密钥、known_hosts、databasePath用B电脑实际绝对路径，不能套用A的用户名。使用设置导入／选择；已登录先退出，配置指纹改变不绕过保护。
 
+### 已核对身份后的公钥登记
+
+当客户端旧配置自报A账号时，不能把B设备公钥登记到A名下。须用用户提供的钉钉后台员工UserID，在服务器已有corpId／clientId作用域内精确比对；保留开头0，以字符串匹配，账号必须唯一、已启用且为预置非管理员B账号。只读匹配不等于代替本人扫码。
+
+[公钥登记脚本](<../deploy/ubuntu/enroll-member-zerotier.py>)读取root-owned0600的有界登记manifest，字段为version、account、employeeUserId、source、publicKey、publicKeyFingerprint。实际员工标识及本人公钥只进私有运维manifest，不提交Git。脚本拒绝A账号、错误作用域／员工ID、A公钥复用、非Ed25519／附带选项／多行公钥、非单源/32以及覆盖其他已登记密钥。
+
+完成第一阶段并确认业务空闲后，只追加B账号的`@10.242.66.179`到AllowUsers，仅在B公钥文件登记`from="10.242.66.179/32",restrict`的准确公钥；A文件和原LAN授权不改。先语法检查，再重载专属成员SSH，不重启业务后端、不写身份／项目库；重载或校验失败撤回本次新key并恢复来源规则。重复执行仅在完全相同manifest／边界下幂等，不自动覆盖未知状态。
+
+```sh
+python3 /absolute/verified-member-release/enroll-member-zerotier.py --manifest /absolute/root-owned-0600-manifest.json --confirmation ENROLL_VERIFIED_B_SINGLE_ZERO_TIER_KEY
+```
+
+仍按GitHub双平台CI成功固定SHA核验产物后同步。本脚本依赖同目录已核验的第一阶段模块；第一阶段脚本此后因AllowUsers已扩展会有意拒绝，不把它当可重新初始化全服务的入口。[8项合成登记测试](<../deploy/ubuntu/test_member_enrollment.py>)覆盖作用域及前导0、A身份／公钥拒绝、来源／key约束、成功幂等及失败回滚。最后由B在实际电脑验证TCP、公钥握手、本人钉钉扫码和项目访问，不用本机伪造B来源或复制B私钥代测。
+
 ## 验证与限制
 
 离线回归[测试](<../deploy/ubuntu/test_member_zerotier.py>)覆盖仅一条监听增量、单源/32及网卡、漂移拒绝、运行中业务拒绝、成功幂等及重载失败回滚；[CI入口](<../test/member-zerotier.test.mjs>)在两平台执行。测试不触发真实模型或服务。
