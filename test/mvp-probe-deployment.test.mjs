@@ -22,7 +22,7 @@ test('real Host probe gate rejects Agent requests and direct LLM before any mode
  }finally{await ctx.fiber.dispose();}
 });
 test('additive dedicated ingress keeps every existing byte and source/TLS/listener boundary; new paths have backend nonce CSP and WSS',()=>{
- const original=readFileSync(new URL('../deploy/ubuntu/login-lan.baseline.conf',import.meta.url),'utf8').replace('        listen 192.168.2.20:443 ssl;\n','        listen 192.168.2.20:443 ssl;\n        listen 10.242.169.184:443 ssl;\n');
+ const original=readFileSync(new URL('../deploy/ubuntu/login-lan.baseline.conf',import.meta.url),'utf8').replaceAll('\r\n','\n').replace('        listen 192.168.2.20:443 ssl;\n','        listen 192.168.2.20:443 ssl;\n        listen 10.242.169.184:443 ssl;\n');
  const changed=renderProbeIngress(original),added=changed.slice(changed.indexOf('        # Isolated MVP PC identity probe only.'),changed.indexOf('        location / { return 404; }'));
  assert.equal(changed.replace(added,''),original);assert.equal((changed.match(/proxy_pass http:\/\/127\.0\.0\.1:19481;/g)||[]).length,1);
  assert.match(added,/location = \/collaboration\/socket/);assert.match(added,/proxy_set_header Upgrade \$http_upgrade/);assert.match(probeProxyInclude,/add_header X-Collaboration-Probe/);assert.ok(!probeProxyInclude.includes('hide_header Content-Security-Policy'));
