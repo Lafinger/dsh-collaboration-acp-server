@@ -21,7 +21,7 @@
 4. 服务器用应用token调用 `topapi/v2/user/getuserinfo`，再查组织内UnionID转换和员工详情，核验内部、在职、员工ID与UnionID一致，从官方详情取显示名。它与旧OAuth的userAccessToken交换不同。
 5. 页面先展示实际官方身份，再由本人确认。仅原DSH持proof可领取一次服务token，自动完成登录。已处理／重放／跨设备领取失败关闭。
 
-官方SDK固定 `dingtalk-jsapi@3.2.9`，仅打包PC免登API，通过[同源产物](<../assets/dingtalk-pc.js>)提供；不从未核验旧CDN版本加载。修改依赖后运行 `node scripts/build-pc-sdk.mjs`，CI重构建比对。SDK含MIT授权原生桥标识，应保留而非按本插件名称改写。
+官方SDK固定 `dingtalk-jsapi@3.2.9`，仅打包PC免登API，通过[同源产物](<../assets/dingtalk-pc.js>)提供；不从未核验旧CDN版本加载。其API文件为CommonJS，构建入口须取明确的可调用导出 `requestAuthCode$`，不能把namespace默认对象当函数。[实际SDK运行回归](<../test/pc-sdk-runtime.test.mjs>)执行已提交产物，并用离线原生桥验证 `runtime.permission.requestAuthCodeV2` 请求／成功回调，而不仅替换一个手写 `dd`。修改依赖后运行 `node scripts/build-pc-sdk.mjs`，CI重构建比对。SDK含MIT授权原生桥标识，应保留而非按本插件名称改写。离线原生桥仍不等同真实电脑用户完成认证。
 
 PC官方SDK可能经钉钉顶层容器桥接；登录页CSP只允许官方钉钉域名容器嵌入，拒绝其他frame，脚本nonce限定。cookie使用Secure／HttpOnly／SameSite=None以支持该跨站容器，写操作仍严格校验**本应用origin＋JSON自定义头＋一次请求cookie**，不接受来自钉钉父页面origin的直接POST。真实客户端第三方cookie策略仍须实测，禁止为排障开放任意frame或关闭origin检查。
 
