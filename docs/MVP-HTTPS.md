@@ -46,7 +46,9 @@ PC官方SDK可能经钉钉顶层容器桥接；登录页CSP只允许官方钉钉
 
 已执行合成身份、真实HTTP／WebSocket、真实DSH宿主和双插件TLS代理测试：自动登记／仅管理员写／全员项目可见／私人隔离／官方码一次性／并发领取／角色版本／设备撤销／7天边界／5分钟资格／不自动重发。Windows DPAPI使用合成秘密完成真实系统往返。
 
-只读官方接口已确认 `manager7701` 对应有效员工陈锦鸿；原服务端应用信息缺AgentId，应用列表查询403，未猜测或增加权限。用户随后提供真实数字AgentId，明确PC应用“未配置”；应用标识只进服务器私有配置，不提交源码。真实应用PC首页／发布范围／端内免登地址仍需管理员按[官方文档](https://open.dingtalk.com/document/orgapp/enterprise-internal-application-logon-free)配置。**测试模型和平台身份替身不是钉钉实际认证、付费模型或A/B真实业务验收。**
+只读官方接口已确认 `manager7701` 对应有效员工陈锦鸿；原服务端应用信息缺AgentId，应用列表查询403，未猜测或增加权限。用户随后提供真实数字AgentId并确认保存发布；应用标识只进服务器私有配置，不提交源码。2026-10-16由陈锦鸿在真实电脑钉钉完成本人确认，原A客户端自动领取成功；Windows CurrentUser DPAPI保存后重建客户端恢复同一身份、固定失效时间保持、本机退出均通过，模型／业务调用0。此验证是隔离验证profile，不是现用GUI安装、B认证或正式业务闭环通过。
+
+用户进一步明确选择统一ZeroTier DNS：将原域名的一条DNS-only A记录从LAN地址改为服务器现有ZeroTier地址，保留同一域名／证书；协作HTTPS网络许可从B个人/32改为现有LAN／ZeroTier子网。A也已在同一ZeroTier，B现在可配合。只用[精确基线网络渲染](<../deploy/ubuntu/mvp-private-network.mjs>)与[单记录DNS策略](<../deploy/ubuntu/mvp-dns-policy.mjs>)，先固定成功CI、后应用；不顺带修改系统SSH、防火墙、ZeroTier控制器或CPA路线。新地址仍需A／B实际DNS、可信TLS和电脑钉钉分别验证，不能以A成功代替B或认为纯LAN未安装ZeroTier也能访问。
 
 ## 临时真实PC可行性实例（不是切换）
 
