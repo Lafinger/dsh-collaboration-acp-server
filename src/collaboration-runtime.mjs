@@ -46,7 +46,7 @@ export async function createCollaborationRuntime(config, ctx) {
   const security=config.dingtalk?new Store({db,serviceId:config.serviceId,...config.dingtalk}):null;
   const login=security?new Login({identities:security,provider:new DingTalkIdentityProvider(config.dingtalk),publicOrigin:config.dingtalk.publicOrigin,agentId:config.dingtalk.agentId}):null;
   login?.expireInterrupted();
-  const access=security?new ProjectAccess({identities:security,services}):null;
+  const access=security?new ProjectAccess({identities:security,services,refreshMember:account=>login.refresh(account)}):null;
   const attachments = new AttachmentService({ db, root: join(root, 'attachments'), materials, projects: services.projects });
   materials.contentProvider = attachments.materialContent.bind(attachments);
   const vision=new VisionAccess({ctx,attachments,access});

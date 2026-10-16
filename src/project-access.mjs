@@ -12,7 +12,7 @@ const denied=()=>({ok:false,code:'PROJECT_ACCESS_DENIED',message:'This operation
 
 /** Server-enforced scope. Uses the same SQLite connection as synchronous business services. */
 export class ProjectAccess {
-  constructor({identities,services,authorize}){this.identities=identities;this.db=identities.db;this.services=services;this.authorize=authorize;}
+  constructor({identities,services,authorize,refreshMember}){this.identities=identities;this.db=identities.db;this.services=services;this.authorize=authorize;this.refreshMember=refreshMember;}
   scope(principal){
     if(!principal||!['dsh','im-private','im-group'].includes(principal.channel))unavailable();
     this.authorize?.(principal);
@@ -113,11 +113,26 @@ export class ProjectAccess {
     return result;
   }
   allows(principal,name){return (principal.channel==='dsh'?dshTools:principal.channel==='im-private'?privateImTools:new Set(['session_whoami'])).has(name);}
+  async preparePlanConfirmation(args,principal){
+    // Check this caller/channel/object before using any official organization lookup.
+    this.scope(principal);if(!this.allows(principal,'plan_confirm'))unavailable();this.references(args,principal);
+    const plan=this.services.plans.get(args.plan_id).plan;
+    if(!plan.relevantRoles.includes(args.role)||!this.identities.roles(principal.account,principal.projectId).includes(args.role))unavailable();
+    const project=this.services.projects.getWithRoles(principal.projectId);
+    const accounts=new Set(plan.relevantRoles.map(role=>project.roles.find(slot=>slot.role===role)?.member).filter(Boolean));
+    // Official refresh is outside the SQLite write lock. Cached fresh members add no network call.
+    // A stale peer cache is not a grant or a revocation: the existing verifier must decide.
+    for(const account of accounts)await this.refreshMember(account);
+    return plan.version;
+  }
   transform(principal){
     return original=>({...original,execute:async(args,exec)=>{
       try{
+        const confirmationVersion=original.name==='plan_confirm'&&this.refreshMember?await this.preparePlanConfirmation(args,principal):undefined;
         let operation;
         inTransaction(this.db,()=>{
+          // Consent to the inspected version cannot drift to a revision during the awaited refresh.
+          if(confirmationVersion!==undefined&&this.services.plans.get(args.plan_id).plan.version!==confirmationVersion)unavailable();
           this.validateInput(original.name,args,principal);
           const own=this.identities.roles(principal.account,principal.projectId);
           if((original.name==='todo_list'||original.name==='notice_list')&&own.length===0){operation=Promise.resolve({ok:true,count:0,[original.name==='todo_list'?'todos':'notices']:[]});return;}
