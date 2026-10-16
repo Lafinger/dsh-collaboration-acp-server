@@ -17,6 +17,20 @@
     "communication": "Disabled; DingTalk identity only, no bot or IM business lifecycle",
     "legacyBelow": "The remaining v3 fields document the historical SSH/OAuth mode only, never fallback from MVP mode"
   },
+  "webQrMvp": {
+    "version": 2,
+    "discovery": "Exact origin/serviceId/mvpHttpsVersion=2/protocolVersion=3/loginMethod=dingtalk-qr",
+    "initialize": "clientCapabilities.webQrLogin=1 plus exact v3; agentCapabilities.mvpHttps=true,mvpHttpsVersion=2,loginMethod=dingtalk-qr. PC clients fail closed",
+    "start": "Explicit original deviceId/proof creates one 5-minute request; returns requestId/loginUrl/openUrl/loginMethod/expiresAt, no account or pairing code. Same proof start is idempotent only within original TTL",
+    "resume": "collaboration/login/resume {deviceId,proof} queries original request only; never creates a replacement request or opens browser",
+    "browser": "Same-origin POST /collaboration/qr/bind with fragment capability, JSON custom header and HttpOnly Secure SameSite=Lax cookie; official hosted OAuth page only. Callback uses state and cookie; official active internal member auto-enrolls actual identity, no second app confirmation",
+    "claim": "Original {requestId,deviceId,proof}; repeat response-loss claim recovers same token/expiry during original TTL until explicit ack. HMAC token derives under original proof, never stored server-side; browser capability cannot derive it",
+    "cancel": "collaboration/login/cancel {requestId,deviceId,proof}; cancelled blocks late callback/claim, completed reports an already-issued login instead of false cancellation",
+    "ack": "collaboration/login/ack after durable DPAPI save disables short-lived claim response recovery; never changes 7-day login",
+    "persistence": "Same service/origin mapping and Windows DPAPI file; pending proof/cancel intent also encrypted for restart, no plaintext fallback. Server stores only token/proof/browser-capability hashes",
+    "cutover": "Explicit stopped maintenance only: same member/service/project/session epoch/revisions, revoke prior PC device credentials and pending requests once; new QR startup refuses unupgraded PC mode. No reset or SSH/PC runtime fallback",
+    "network": "Existing LAN/ZeroTier computer HTTPS boundary; phone ordinary Internet official authorization only, real path verification required; no new public ingress"
+  },
   "transport": "Bounded JSON-RPC NDJSON over member-owned strict SSH and server-local socket",
   "compatibility": "Exact collaborationProtocolVersion 3; no downgrade to SSH-only business access",
   "transportIdentity": "collaboration/connect is connector-only; verified SSH account is not sufficient business authorization",

@@ -1,0 +1,16 @@
+{
+  "mode": "mvp-qr",
+  "serviceId": "",
+  "workspace": "",
+  "stateRoot": "",
+  "provider": "",
+  "model": "",
+  "dingtalk": {
+    "corpId": "",
+    "clientId": "",
+    "clientSecret": "",
+    "administratorUserId": "",
+    "publicOrigin": "",
+    "loginPort": 19481
+  }
+}

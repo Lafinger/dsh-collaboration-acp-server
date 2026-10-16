@@ -1,0 +1,3 @@
+import * as server from 'dsh-collaboration-acp-server';
+export const name='collaboration-qr-authentication-probe-mount';export const inject=['llm','agentLoop','sessionPersistence','credentials','attachments','collaborationQrProbePolicy'];
+export async function apply(ctx){if(ctx.get('collaborationQrProbePolicy')?.modelRequestsAllowed!==false)throw Error('Closed QR authentication-only gate required');const fiber=ctx.plugin(server,{configFile:'/srv/dsh-collaboration-test/mvp-qr-probe/dsh-home/collaboration-acp-server.json'});await fiber.await();const service=fiber.ctx.get('collaborationServer')?.service;if(fiber.ctx.get('collaborationServerStatus')?.state!=='running'||service?.authenticationOnly!==true)throw Error('QR authentication-only probe not running');}

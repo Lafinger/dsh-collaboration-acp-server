@@ -1,0 +1,27 @@
+[Unit]
+Description=Temporary isolated DSH official web QR authentication probe only
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=dsh-collab-test
+Group=dsh-collab-test
+WorkingDirectory=/srv/dsh-collaboration-test/mvp-qr-probe/workspace
+Environment=HOME=/srv/dsh-collaboration-test/mvp-qr-probe
+Environment=DSH_HOME=/srv/dsh-collaboration-test/mvp-qr-probe/dsh-home
+Environment=DSH_TELEMETRY_DISABLED=1
+UMask=0077
+ExecStart=/usr/bin/node __CANDIDATE_RUNTIME__/node_modules/@deepseek-ai/dsh/lib/bin.js --profile collaboration-qr-probe
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/dsh-collaboration-test/mvp-qr-probe
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+# No Install section; never enabled at boot or retried automatically.

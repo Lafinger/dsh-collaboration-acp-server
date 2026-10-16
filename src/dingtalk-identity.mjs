@@ -43,7 +43,7 @@ export class DingTalkIdentityProvider {
     const name=typeof detail.result?.name==='string'&&detail.result.name.trim()&&detail.result.name.length<=200?detail.result.name.trim():userId;
     return {corpId:this.corpId,userId,unionId,internal:true,...displayName?{name}:{}};
   }
-  async exchange(code) {
+  async exchange(code,{displayName=false}={}) {
     requireText(code,'authorization code',4096);
     const token=await this.json('https://api.dingtalk.com/v1.0/oauth2/userAccessToken',{
       body:{clientId:this.clientId,clientSecret:this.clientSecret,code,grantType:'authorization_code'}});
@@ -51,7 +51,7 @@ export class DingTalkIdentityProvider {
     const accessToken=requireText(token.accessToken,'user token',4096);
     const me=await this.json('https://api.dingtalk.com/v1.0/contact/users/me',{headers:{'x-acs-dingtalk-access-token':accessToken}});
     // Neither refresh token nor personal contact fields are retained.
-    return this.resolveUnion(requireText(me.unionId,'unionId',200));
+    return this.resolveUnion(requireText(me.unionId,'unionId',200),{displayName});
   }
   async exchangePc(code) {
     requireText(code,'PC免登授权码',4096);

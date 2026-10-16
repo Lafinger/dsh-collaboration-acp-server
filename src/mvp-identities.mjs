@@ -5,15 +5,17 @@ const deny=()=>{throw new AccessError(-32003,'组织身份或登录不可用');}
 
 /** Fresh MVP store: official identity auto-enrollment, all projects visible; no member-management API. */
 export class MvpIdentityStore extends IdentityStore {
+  get authenticationMode(){return 'mvp-https-v1';}
+  get enrollmentActor(){return 'official-pc-login';}
   constructor({administratorUserId,...options}){
     super({...options,loginTtlMs:43200000});
     this.administratorUserId=requireText(administratorUserId,'指定管理员员工标识',200);
     this.loginTtlMs=604800000;
     this.transaction(()=>{
       const mode=this.db.prepare("SELECT value FROM collaboration_security_meta WHERE key='authentication-mode'").get()?.value;
-      if(mode!==undefined&&mode!=='mvp-https-v1')throw new Error('Authorization store uses another authentication mode');
+      if(mode!==undefined&&mode!==this.authenticationMode)throw new Error('Authorization store uses another authentication mode; explicit upgrade required');
       if(mode===undefined&&(this.db.prepare('SELECT 1 FROM collaboration_members LIMIT 1').get()||this.db.prepare('SELECT 1 FROM projects LIMIT 1').get()))throw new Error('MVP requires fresh collaboration state; no legacy identity/business adoption');
-      this.db.prepare("INSERT OR IGNORE INTO collaboration_security_meta VALUES('authentication-mode','mvp-https-v1')").run();
+      this.db.prepare("INSERT OR IGNORE INTO collaboration_security_meta VALUES('authentication-mode',?)").run(this.authenticationMode);
       const key='mvp-administrator-user',previous=this.db.prepare('SELECT value FROM collaboration_security_meta WHERE key=?').get(key)?.value;
       if(previous!==undefined&&previous!==this.administratorUserId)throw new Error('Fixed MVP administrator identity changed; explicit fresh deployment required');
       this.db.prepare('INSERT OR IGNORE INTO collaboration_security_meta VALUES(?,?)').run(key,this.administratorUserId);
@@ -33,7 +35,7 @@ export class MvpIdentityStore extends IdentityStore {
       if(!found){
         if(this.member(account))deny();
         this.db.prepare('INSERT INTO collaboration_members(account,corp_id,client_id,user_id,union_id,enabled,administrator) VALUES(?,?,?,?,?,1,?)').run(account,this.corpId,this.clientId,userId,unionId,userId===this.administratorUserId?1:0);
-        this.audit('official-pc-login','member-auto-enroll',account);
+        this.audit(this.enrollmentActor,'member-auto-enroll',account);
       }
       if(!!this.member(account).administrator!==(userId===this.administratorUserId))deny();
       const name=typeof identity.name==='string'&&identity.name.trim()&&identity.name.length<=200?identity.name.trim():userId;
