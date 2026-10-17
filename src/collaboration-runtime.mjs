@@ -26,6 +26,7 @@ import {MvpIdentityStore} from './mvp-identities.mjs';
 import {MvpLoginService} from './mvp-login.mjs';
 import {QrIdentityStore} from './qr-identities.mjs';
 import {QrLoginService} from './qr-login.mjs';
+import {RobotRuntime} from './robot-runtime.mjs';
 
 /** One business database, borrowed host services, tools registered only into authenticated Agent scopes. */
 export async function createCollaborationRuntime(config, ctx) {
@@ -35,7 +36,7 @@ export async function createCollaborationRuntime(config, ctx) {
   mkdirSync(workspace, { recursive: true }); mkdirSync(root, { recursive: true,mode:0o700 });
   const maintenance=await acquireMaintenanceLock(root);let db;
   try{db = openDatabase({ path: join(root, 'collaboration.sqlite') });}catch(error){await maintenance.release();throw error;}
-  let runtime,communication;
+  let runtime,communication,robot;
   try{
   const identities = new SessionIdentityService(db), tasks = new TaskService(db), materials = new MaterialService(db, join(root, 'files'));
   const services = {
@@ -76,9 +77,11 @@ export async function createCollaborationRuntime(config, ctx) {
   await runtime.start();
   communication=security&&!mvp?new CommunicationBridge({identities:security,login,access,services,runtime,workspace,retentionDays:config.dingtalk.communicationRetentionDays}):null;
   await communication?.registerExistingLogs();
+  // Optional private owner-file switch only; never pass original login-app credentials.
+  if(qr&&security){try{robot=new RobotRuntime({root,security,login,access,services});void robot.start();}catch{robot=null;}}
   const close = runtime.closeAll.bind(runtime);
   let closing;
-  runtime.closeAll = () => closing ??= (async () => { try { try{await communication?.close();}finally{await close();} } finally { try{db.close();}finally{await maintenance.release();} } })();
-  return { runtime, workspace, root, services, attachments,security,login,access,communication };
-  }catch(error){try{try{await communication?.close();}finally{await runtime?.closeAll();}}finally{try{if(db.isOpen)db.close();}finally{await maintenance.release();}}throw error;}
+  runtime.closeAll = () => closing ??= (async () => { try { try{await robot?.close();}finally{try{await communication?.close();}finally{await close();}} } finally { try{db.close();}finally{await maintenance.release();} } })();
+  return { runtime, workspace, root, services, attachments,security,login,access,communication,robot };
+  }catch(error){try{try{await robot?.close();}finally{try{await communication?.close();}finally{await runtime?.closeAll();}}}finally{try{if(db.isOpen)db.close();}finally{await maintenance.release();}}throw error;}
 }
