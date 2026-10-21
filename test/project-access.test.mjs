@@ -15,6 +15,7 @@ import {materialToolDefinitions} from '../business/lib/tool/material-tools.js';
 import {noticeToolDefinitions} from '../business/lib/tool/notice-tools.js';
 import {IdentityStore} from '../src/identity-store.mjs';
 import {ProjectAccess} from '../src/project-access.mjs';
+import {ToolArgsError} from '@deepseek-ai/dsh-tools';
 
 function fixture(t){
   const db=openDatabase({path:':memory:'});t.after(()=>db.close());const root=mkdtempSync(join(tmpdir(),'project-access-'));
@@ -69,6 +70,48 @@ test('IM private receives only narrowed metadata, no writes/full materials; grou
   const full=await f.tool('material_read',p).execute({material_id:'forged',version:1},{});assert.equal(full.ok,false);
   const write=await f.tool('project_update_details',p).execute({project_id:f.a.id,goal:'wrong'},{});assert.equal(write.ok,false);assert.equal(f.services.projects.get(f.a.id).goal,null);
   const group=await f.tool('todo_list',{...p,channel:'im-group'}).execute({project_id:f.a.id},{});assert.equal(group.ok,false);
+});
+
+function analysisInput(f){
+  const path=join(f.root,'synthetic-analysis.txt');writeFileSync(path,'Synthetic fixed input; no production content.');
+  const material=f.services.materials.upload({projectId:f.a.id,sourcePath:path,purpose:'synthetic',submittedBy:'alice'});
+  return {project_id:f.a.id,trigger:'Synthetic reproduction',scope:[{material_id:material.material.id,version:1}],requirements:Array.from({length:9},()=>({text:'Synthetic requirement',sources:[{material_id:material.material.id,version:1}]})),undecided:[],inferences:['Synthetic inference'],not_understood:[],basis_missing:[]};
+}
+
+test('authorized malformed analysis arguments return INVALID_ARGS before business dispatch without echoing input',async t=>{
+  const f=fixture(t),args=analysisInput(f);let dispatches=0,submits=0;
+  const submit=f.services.analyses.submit.bind(f.services.analyses);f.services.analyses.submit=(...values)=>{submits++;return submit(...values);};
+  const original=analysisToolDefinitions(f.services.analyses).find(d=>d.name==='analysis_submit');
+  const tool=f.access.transform(f.principal)({...original,execute:(...values)=>{dispatches++;return original.execute(...values);}});
+  const result=await tool.execute({...args,inferences:[{text:'SYNTHETIC_PRIVATE_ARGUMENT'}]},{});
+  assert.equal(result.ok,false);assert.equal(result.code,'INVALID_ARGS');assert.equal(dispatches,0);assert.equal(submits,0);
+  assert.equal(f.services.analyses.listByProject(f.a.id).length,0);assert.ok(!JSON.stringify(result).includes('SYNTHETIC_PRIVATE_ARGUMENT'));
+});
+
+test('correcting a rejected inference shape commits exactly one analysis without automatic replay',async t=>{
+  const f=fixture(t),args=analysisInput(f),tool=f.tool('analysis_submit');
+  const invalid=await tool.execute({...args,inferences:[{text:'Synthetic inference'}]},{});
+  assert.equal(invalid.code,'INVALID_ARGS');assert.equal(f.services.analyses.listByProject(f.a.id).length,0);
+  const corrected=await tool.execute(args,{});assert.equal(corrected.ok,true);
+  const stored=f.services.analyses.listByProject(f.a.id);assert.equal(stored.length,1);assert.equal(stored[0].id,corrected.analysis_id);
+});
+
+test('cross-project references remain denied before schema feedback or business dispatch',async t=>{
+  const f=fixture(t),args=analysisInput(f),path=join(f.root,'synthetic-other.txt');writeFileSync(path,'Synthetic other project.');
+  const other=f.services.materials.upload({projectId:f.b.id,sourcePath:path,purpose:'synthetic',submittedBy:'bob'});let dispatches=0;
+  const original=analysisToolDefinitions(f.services.analyses).find(d=>d.name==='analysis_submit');
+  const tool=f.access.transform(f.principal)({...original,execute:(...values)=>{dispatches++;return original.execute(...values);}});
+  const result=await tool.execute({...args,scope:[{material_id:other.material.id,version:1}],inferences:[{text:'SYNTHETIC_PRIVATE_ARGUMENT'}]},{});
+  assert.equal(result.code,'PROJECT_ACCESS_DENIED');assert.equal(dispatches,0);assert.equal(f.services.analyses.listByProject(f.a.id).length,0);
+  assert.ok(!JSON.stringify(result).includes('SYNTHETIC_PRIVATE_ARGUMENT'));
+});
+
+test('a schema-typed error thrown after valid business dispatch remains opaque and never claims no write',async t=>{
+  const f=fixture(t),args=analysisInput(f),original=analysisToolDefinitions(f.services.analyses).find(d=>d.name==='analysis_submit');
+  const tool=f.access.transform(f.principal)({...original,execute:async(...values)=>{await original.execute(...values);throw new ToolArgsError(['SYNTHETIC_POST_COMMIT_SECRET']);}});
+  const result=await tool.execute(args,{});
+  assert.equal(result.code,'PROJECT_ACCESS_DENIED');assert.equal(f.services.analyses.listByProject(f.a.id).length,1);
+  assert.ok(!JSON.stringify(result).includes('SYNTHETIC_POST_COMMIT_SECRET'));assert.ok(!JSON.stringify(result).includes('No business operation'));
 });
 
 test('revocation after tool invocation suppresses output and old/corrupted stored cross references are rejected',async t=>{
