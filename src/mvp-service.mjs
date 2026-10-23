@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {projectRoleRevision} from './project-role-revision.mjs';
 import {AccessService} from './service.mjs';
 import {AccessError,requireText,requireCollaborationVersion,collaborationMeta,ACP_PROTOCOL_VERSION} from './protocol.mjs';
 import {attachmentCapability,requireAttachmentCapability} from './attachment-protocol.mjs';
@@ -45,7 +46,7 @@ export class MvpAccessService extends AccessService {
     if(method==='collaboration/connect'||method.startsWith('collaboration/communication'))throw new AccessError(-32601,'此MVP不提供该入口');
     return super.dispatch(c,method,p);
   }
-  roleRevision(projectId){return createHash('sha256').update(JSON.stringify([projectId,this.identities.db.prepare('SELECT revision FROM mvp_project_revisions WHERE project_id=?').get(projectId)?.revision??1,this.projects.getWithRoles(projectId).roles])).digest('hex');}
+  roleRevision(projectId){return projectRoleRevision(this.identities,this.projects,projectId);}
   adminView(account,projectId){
     this.identities.requireAdministrator(account);
     const members=this.identities.db.prepare('SELECT m.account,n.name FROM collaboration_members m LEFT JOIN mvp_member_names n ON n.account=m.account WHERE m.enabled=1 ORDER BY n.name,m.account').all().map(row=>({account:row.account,name:row.name??row.account}));

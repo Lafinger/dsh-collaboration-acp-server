@@ -1,3 +1,4 @@
+import { validateJsonSchemaValue } from '@deepseek-ai/dsh-tools';
 import { AccessError, requireText } from './protocol.mjs';
 import { inTransaction } from '../business/lib/sqlite/schema.js';
 
@@ -134,6 +135,12 @@ export class ProjectAccess {
           // Consent to the inspected version cannot drift to a revision during the awaited refresh.
           if(confirmationVersion!==undefined&&this.services.plans.get(args.plan_id).plan.version!==confirmationVersion)unavailable();
           this.validateInput(original.name,args,principal);
+          // analysis_submit's declared schema is independent of identity/path injection.
+          // Keep other tools' trusted normalization and error precedence unchanged.
+          // Only this authorized pre-dispatch check can claim non-execution.
+          if(original.name==='analysis_submit'&&original.parameters&&validateJsonSchemaValue(original.parameters,args,'').length>0){
+            operation=Promise.resolve({ok:false,code:'INVALID_ARGS',message:'Tool arguments do not match the declared schema. No business operation was invoked.'});return;
+          }
           const own=this.identities.roles(principal.account,principal.projectId);
           if((original.name==='todo_list'||original.name==='notice_list')&&own.length===0){operation=Promise.resolve({ok:true,count:0,[original.name==='todo_list'?'todos':'notices']:[]});return;}
           const filtered=(original.name==='todo_list'||original.name==='notice_list')?{...args,roles:own}:args;
