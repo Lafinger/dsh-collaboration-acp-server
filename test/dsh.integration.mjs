@@ -87,7 +87,7 @@ test('actual official DSH loop: isolated accounts, scoped identity override, per
   const [ar, br] = await Promise.all([send(a, as.sessionId, 'whoami'), send(b, bs.sessionId, 'whoami')]);
   assert.equal(JSON.parse(ar.text).account, 'alice'); assert.equal(JSON.parse(br.text).account, 'bob');
   assert.equal(f.identities.current(as.sessionId), 'alice'); assert.equal(f.identities.current(bs.sessionId), 'bob');
-  const forged = await send(a, as.sessionId, 'declare bob'); assert.equal(JSON.parse(forged.text).code, 'AUTHENTICATED_IDENTITY_IMMUTABLE');
+  const forged = await send(a, as.sessionId, 'declare bob'); assert.match(forged.text,/当前人类消息未授权/u);
   assert.equal(f.identities.current(as.sessionId), 'alice');
   await a.request('session/close', { sessionId: as.sessionId });
   const a2 = await f.connect('alice'); await a2.request('initialize', initializeParams());
@@ -97,14 +97,14 @@ test('actual official DSH loop: isolated accounts, scoped identity override, per
   assert.ok(call.messages.some(m => m.content.some(c => c.type === 'text' && c.text === 'whoami')));
   assert.ok(!call.messages.some(m => m.content.some(c => c.type === 'text' && c.text.includes('"account":"bob"'))));
 });
-test('actual business plan_confirm uses authenticated account, not forged submitted_by', async t => {
+test('authenticated standalone model cannot turn a vague confirm into a formal own-role decision', async t => {
   const f = await setup(t);
   const project = f.projects.create({ key: 'ISOLATED', name: 'fixture' });
   f.projects.setMember(project.id, 'pm', 'alice');
   const plan = f.plans.register({ projectId: project.id, title: 'fixture plan', rolesReason: 'pm owns this fixture', relevantRoles: ['pm'], tasks: [], undecided: [] });
   f.model.confirmations = { plan_id: plan.plan.id, role: 'pm' };
   const a = await f.connect('alice'); await a.request('initialize', initializeParams()); const as = await a.request('session/new', {});
-  const response = await send(a, as.sessionId, 'confirm'); assert.equal(JSON.parse(response.text).ok, true);
+  const response = await send(a, as.sessionId, 'confirm'); assert.match(response.text,/当前人类消息未授权/u);
   const records = f.db.prepare('SELECT submitted_by FROM confirmations').all();
-  assert.ok(records.length > 0); assert.ok(records.every(r => r.submitted_by === 'alice'));
+  assert.equal(records.length,1,'The original undecided role slot remains');assert.ok(records.every(r=>r.submitted_by===null));assert.ok(f.plans.get(plan.plan.id).slots.every(slot=>slot.outcome===null));assert.ok(!f.model.calls.at(-1).tools.some(t=>t.name==='plan_confirm'));
 });

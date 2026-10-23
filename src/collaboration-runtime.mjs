@@ -68,8 +68,9 @@ export async function createCollaborationRuntime(config, ctx) {
         agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>access.allows(principal,t.name)||principal.channel==='dsh'&&t.name.startsWith('attachment_'))};});
         agentCtx.tools.guard(exec=>{try{access.scope(principal);if(!access.allows(principal,exec.name)&&!(principal.channel==='dsh'&&exec.name.startsWith('attachment_')))return 'Tool unavailable in this authenticated channel';return undefined;}catch{return 'Authenticated member, device or project qualification unavailable';}});
       }
-      const attachmentTurnTools = new Set(['session_whoami','project_list','project_get','material_list','material_read','material_versions','analysis_begin','analysis_submit','analysis_get','analysis_list','task_list','task_get','task_versions','task_origin','plan_get','plan_history','plan_list','trace','attachment_transfer','attachment_inspect','attachment_archive','attachment_receipts']);
-      agentCtx.tools.guard(exec => !attachments.active.has(String(agent.session.id)) || attachmentTurnTools.has(exec.name) ? undefined : 'Attachment turns may only transfer, inspect, archive and analyze; no member assignment, plan approval or other business writes');
+      const humanAllowed=(name,args)=>principal&&principal.channel!=='dsh'||attachments.allows(agent.session.id,account,name,args);
+      agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>humanAllowed(t.name))};});
+      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:'当前人类消息未授权此操作；草稿不能登记业务，模型不能代本人确认。');
     },
   });
   runtime.attachments = attachments;

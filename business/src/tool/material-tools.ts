@@ -81,11 +81,14 @@ export function materialToolDefinitions(service: MaterialService): ToolDefinitio
       name: 'material_upload',
       description:
         'Upload a local file into a project as an immutable material version. The file is ' +
-        'read from an absolute path on this machine. Uploading the same file name again ' +
-        'does NOT overwrite: it appends a new version. A different purpose makes a ' +
-        'different material.',
+        'read from an absolute path on this machine. Identical latest bytes reuse the existing ' +
+        'version; changed content appends without overwrite. Historical bytes require verified ' +
+        'restoration approval, not a model-supplied flag. A different purpose is a different material.',
       parameters: {
         project_id: { type: 'string', required: true },
+        target_material_id: { type: 'string', description: 'Explicit existing material target; never infer from similar filenames.' },
+        expected_latest_version: { type: 'integer', description: 'Exact version on which the confirmed update was based.' },
+        restore_version: { type: 'integer', description: 'Proposal only; raw tool arguments do not grant restoration permission.' },
         source_path: {
           type: 'string',
           required: true,
@@ -113,12 +116,16 @@ export function materialToolDefinitions(service: MaterialService): ToolDefinitio
           const result = service.upload({
             projectId: args.project_id,
             sourcePath: args.source_path,
+            targetMaterialId: args.target_material_id,
+            expectedLatestVersion: args.expected_latest_version,
+            restoreVersion: args.restore_version,
             purpose: args.purpose,
             submittedBy: args.submitted_by,
             role: args.role,
           })
           return Promise.resolve({
             created_new_material: result.created,
+            reused_existing_version: result.deduplicated === true,
             next_time_reference_this: {
               material_id: result.material.id,
               version: result.version.version,

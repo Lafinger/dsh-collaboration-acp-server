@@ -549,3 +549,139 @@ describe('versionFileName', () => {
     assert.throws(() => versionFileName(1.5, 'a.txt'))
   })
 })
+
+
+describe('NLMVP material intake rules', () => {
+  test('same latest bytes reuse the existing immutable version', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'same'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(input)
+      const b = e.materials.upload(input)
+      assert.equal(b.material.id, a.material.id)
+      assert.equal(b.version.version, 1, 'same latest bytes must not create v2')
+      assert.equal((b as unknown as { deduplicated?: boolean }).deduplicated, true)
+      assert.equal(e.materials.getWithVersions(a.material.id).versions.length, 1)
+      assert.equal(e.materials.read({ materialId: a.material.id, version: 1 }).content, 'same')
+    } finally { e.cleanup() }
+  })
+  test('historical bytes require new explicit restoration confirmation', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(input)
+      e.write('spec.md', 'new'); e.materials.upload(input); e.write('spec.md', 'old')
+      assert.throws(() => e.materials.upload(input), (error: unknown) => error instanceof CollaborationError && String(error.code) === 'MATERIAL_RESTORE_CONFIRMATION_REQUIRED')
+      assert.equal(e.materials.getWithVersions(a.material.id).latestVersion, 2)
+      assert.equal(e.materials.read({ materialId: a.material.id, version: 1 }).content, 'old')
+    } finally { e.cleanup() }
+  })
+  test('explicit target appends new named source without renaming old material', () => {
+    const e = env()
+    try {
+      const a = e.materials.upload({ projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' })
+      const input = { projectId: e.projectId, sourcePath: e.write('spec-v2.md', 'new'), purpose: 'requirements', submittedBy: 'B', targetMaterialId: a.material.id, expectedLatestVersion: 1 }
+      const b = e.materials.upload(input)
+      assert.equal(b.material.id, a.material.id, 'explicit target must not create another material')
+      assert.equal(b.material.originalName, 'spec.md')
+      assert.equal(b.material.submittedBy, 'A')
+      assert.equal(b.version.version, 2)
+      assert.equal(e.materials.read({ materialId: a.material.id, version: 1 }).content, 'old')
+    } finally { e.cleanup() }
+  })
+  test('explicit target cannot escape the requested project', () => {
+    const e = env()
+    try {
+      const a = e.materials.upload({ projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' })
+      const other = e.projects.create({ key: 'BETA', name: 'Beta' })
+      const input = { projectId: other.id, sourcePath: e.write('other.md', 'new'), purpose: 'requirements', submittedBy: 'B', targetMaterialId: a.material.id, expectedLatestVersion: 1 }
+      assert.throws(() => e.materials.upload(input))
+      assert.equal(e.materials.listByProject(other.id).length, 0)
+      assert.equal(e.materials.getWithVersions(a.material.id).latestVersion, 1)
+    } finally { e.cleanup() }
+  })
+  test('stale expected latest version refuses without creating rows', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(input)
+      e.write('spec.md', 'middle'); e.materials.upload(input); e.write('spec.md', 'new')
+      const stale = { ...input, targetMaterialId: a.material.id, expectedLatestVersion: 1 }
+      assert.throws(() => e.materials.upload(stale), (error: unknown) => error instanceof CollaborationError && String(error.code) === 'VERSION_CONFLICT')
+      assert.equal(e.materials.getWithVersions(a.material.id).latestVersion, 2)
+    } finally { e.cleanup() }
+  })
+  test('deduplication cannot certify a corrupt stored original', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'same'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(input)
+      writeFileSync(a.absolutePath, 'corrupt')
+      assert.throws(() => e.materials.upload(input))
+      assert.equal(e.materials.getWithVersions(a.material.id).versions.length, 1)
+    } finally { e.cleanup() }
+  })
+})
+
+
+describe('NLMVP trusted restoration and rollback', () => {
+  test('model supplied restoration fields cannot replace separate trusted evidence', () => {
+    const e = env()
+    try {
+      const base = { projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(base)
+      e.write('spec.md', 'new'); e.materials.upload(base); e.write('spec.md', 'old')
+      const proposal = { ...base, targetMaterialId: a.material.id, expectedLatestVersion: 2, restoreVersion: 1, authorization: { restore: { materialId: a.material.id, version: 1, expectedLatestVersion: 2 } } }
+      assert.throws(() => e.materials.upload(proposal), (error: unknown) => error instanceof CollaborationError && error.code === 'MATERIAL_RESTORE_CONFIRMATION_REQUIRED')
+      assert.equal(e.materials.getWithVersions(a.material.id).latestVersion, 2)
+      const restored = e.materials.upload(proposal, undefined, { restore: { materialId: a.material.id, version: 1, expectedLatestVersion: 2 } })
+      assert.equal(restored.version.version, 3)
+      for (const [version, content] of [[1, 'old'], [2, 'new'], [3, 'old']] as const) assert.equal(e.materials.read({ materialId: a.material.id, version }).content, content)
+    } finally { e.cleanup() }
+  })
+  test('wrong trusted target and stale trusted restoration cannot authorize a write', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' }
+      const a = e.materials.upload(input)
+      e.write('spec.md', 'new'); e.materials.upload(input); e.write('spec.md', 'old')
+      const proposal = { ...input, targetMaterialId: a.material.id, expectedLatestVersion: 2, restoreVersion: 1 }
+      for (const restore of [{ materialId: 'different', version: 1, expectedLatestVersion: 2 }, { materialId: a.material.id, version: 1, expectedLatestVersion: 1 }]) {
+        assert.throws(() => e.materials.upload(proposal, undefined, { restore }), (error: unknown) => error instanceof CollaborationError && error.code === 'MATERIAL_RESTORE_CONFIRMATION_REQUIRED')
+      }
+      assert.equal(e.materials.getWithVersions(a.material.id).versions.length, 2)
+    } finally { e.cleanup() }
+  })
+  test('deduplicated receipt callback participates in transaction without changing original category', () => {
+    const e = env()
+    try {
+      e.db.exec('CREATE TABLE synthetic_receipt_links (receipt TEXT PRIMARY KEY, version INTEGER)')
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'same'), purpose: 'requirements', submittedBy: 'A', role: 'product' as const }
+      const first = e.materials.upload(input, result => { e.db.prepare('INSERT INTO synthetic_receipt_links VALUES (?, ?)').run('original', result.version.version) })
+      assert.throws(() => e.materials.upload({ ...input, submittedBy: 'B', role: 'backend' }, result => { assert.equal(result.deduplicated, true); e.db.prepare('INSERT INTO synthetic_receipt_links VALUES (?, ?)').run('failed', result.version.version); throw new Error('synthetic association failed') }), /synthetic association failed/)
+      assert.equal(e.db.prepare('SELECT COUNT(*) n FROM synthetic_receipt_links').get()?.n, 1)
+      const second = e.materials.upload({ ...input, submittedBy: 'B', role: 'backend' }, result => { e.db.prepare('INSERT INTO synthetic_receipt_links VALUES (?, ?)').run('second', result.version.version) })
+      assert.equal(second.material.role, 'product')
+      assert.equal(second.material.submittedBy, 'A')
+      assert.equal(second.deduplicated, true)
+      assert.equal(e.db.prepare('SELECT COUNT(*) n FROM synthetic_receipt_links').get()?.n, 2)
+      assert.equal(e.materials.getWithVersions(first.material.id).versions.length, 1)
+      assert.equal(readFileSync(first.absolutePath, 'utf8'), 'same')
+    } finally { e.cleanup() }
+  })
+  test('existing destination file is never overwritten or removed after refusal', () => {
+    const e = env()
+    try {
+      const input = { projectId: e.projectId, sourcePath: e.write('spec.md', 'old'), purpose: 'requirements', submittedBy: 'A' }
+      const first = e.materials.upload(input)
+      const occupied = first.absolutePath.replace(/v1__spec\.md$/, 'v2__spec.md')
+      assert.notEqual(occupied, first.absolutePath)
+      writeFileSync(occupied, 'preexisting-do-not-touch')
+      e.write('spec.md', 'new')
+      assert.throws(() => e.materials.upload(input))
+      assert.equal(readFileSync(occupied, 'utf8'), 'preexisting-do-not-touch')
+      assert.equal(e.materials.getWithVersions(first.material.id).versions.length, 1)
+      assert.equal(readFileSync(first.absolutePath, 'utf8'), 'old')
+    } finally { e.cleanup() }
+  })
+})

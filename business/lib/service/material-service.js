@@ -16,8 +16,8 @@
  * A refusal must leave NOTHING behind: no file, no row.
  */
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, statSync, unlinkSync } from 'node:fs';
+import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { CollaborationError } from '../domain/error.js';
 import { newId } from '../domain/ids.js';
 import { roleDirOf } from '../domain/material.js';
@@ -48,88 +48,111 @@ export class MaterialService {
     get root() {
         return this.files.root;
     }
-    /**
-     * Upload a file as a new immutable version.
-     *
-     * MVP-010: the same filename uploaded again appends a version by default — it never
-     * silently overwrites. A different `purpose` is a different material.
-     */
-    upload(input, commitMetadata) {
-        const project = this.requireWritableProject(input.projectId);
+    /** Append changed content; reuse identical latest bytes, never overwrite history. */
+    upload(input, commitMetadata, authorization) {
+        this.requireWritableProject(input.projectId);
         const originalName = requireText(input.originalName ?? basename(input.sourcePath), 'original name', MAX_NAME_LENGTH);
         const purpose = requireText(input.purpose, 'purpose', MAX_PURPOSE_LENGTH);
         const submittedBy = requireText(input.submittedBy, 'submittedBy', MAX_NAME_LENGTH);
-        let role = null;
-        if (input.role !== undefined && input.role !== null) {
-            if (!isRoleId(input.role)) {
-                throw new CollaborationError('ROLE_UNKNOWN', `unknown role "${input.role}"`, { role: input.role });
+        const targetId = input.targetMaterialId === undefined ? undefined : requireText(input.targetMaterialId, 'target material', MAX_NAME_LENGTH);
+        for (const [field, value] of [['expectedLatestVersion', input.expectedLatestVersion], ['restoreVersion', input.restoreVersion]]) {
+            if (value !== undefined && (!Number.isSafeInteger(value) || value < 1)) {
+                throw new CollaborationError('INVALID_ARGUMENT', `${field} must be a positive integer`, { field });
             }
-            role = input.role;
         }
-        // Read the source BEFORE touching the store, so a missing or unreadable source cannot
-        // leave a half-written version behind.
-        const source = this.readSource(input.sourcePath);
-        const existing = this.materials.findByIdentity(project.id, originalName, purpose);
-        // A material's filing category is fixed; later uploads must not move only a new version.
-        if (existing !== null)
-            role = existing.role;
-        const materialId = existing?.id ?? newId();
-        const now = this.clock.now();
-        const material = existing ?? {
-            id: materialId,
-            projectId: project.id,
-            originalName,
-            purpose,
-            submittedBy,
-            role,
-            createdAt: now,
-        };
-        // Allocate the version and record it in one transaction. The file is copied inside it
-        // too: a duplicate version number would be caught by the unique index and rolled back,
-        // so the copy must be undoable as well (we remove the file on failure).
-        const payload = source;
+        let requestedRole = null;
+        if (input.role !== undefined && input.role !== null) {
+            if (!isRoleId(input.role))
+                throw new CollaborationError('ROLE_UNKNOWN', `unknown role "${input.role}"`, { role: input.role });
+            requestedRole = input.role;
+        }
+        const payload = this.readSource(input.sourcePath);
         let writtenPath = null;
         try {
-            const version = inTransaction(this.db, () => {
+            return inTransaction(this.db, () => {
+                // Resolve identity and latest inside the same write transaction as allocation.
+                const project = this.requireWritableProject(input.projectId);
+                const existing = targetId === undefined
+                    ? this.materials.findByIdentity(project.id, originalName, purpose)
+                    : this.requireMaterial(targetId);
+                if (existing !== null && (existing.projectId !== project.id || existing.purpose !== purpose)) {
+                    throw new CollaborationError('MATERIAL_IDENTITY_CONFLICT', '所选资料不属于本次项目或用途，请确认目标。');
+                }
+                const materialId = existing?.id ?? newId();
+                const versions = existing === null ? [] : this.materials.versionsOf(materialId);
+                const latest = versions[versions.length - 1] ?? null;
+                const latestVersion = latest?.version ?? 0;
+                if (input.expectedLatestVersion !== undefined && input.expectedLatestVersion !== latestVersion) {
+                    throw new CollaborationError('VERSION_CONFLICT', '资料已出现不同版本，请核对后再决定本次更新。', { materialId, expectedLatestVersion: input.expectedLatestVersion, latestVersion });
+                }
+                const matches = (row) => payload.issue === null && row.issue === null && /^[a-f0-9]{64}$/.test(payload.sha256) && row.sha256 === payload.sha256 && row.size === payload.size;
+                if (existing !== null && latest !== null && matches(latest)) {
+                    const absolutePath = this.requireIntactOriginal(latest);
+                    const result = { material: existing, version: latest, created: false, absolutePath, deduplicated: true };
+                    // A new receipt still needs its own association. No old content/metadata changes.
+                    commitMetadata?.(result);
+                    return result;
+                }
+                const historical = versions.find(matches);
+                if (historical !== undefined) {
+                    const chosen = input.restoreVersion === undefined ? historical : versions.find(row => row.version === input.restoreVersion && matches(row));
+                    const trusted = authorization?.restore;
+                    if (chosen === undefined || trusted === undefined || trusted.materialId !== materialId || trusted.version !== chosen.version || trusted.expectedLatestVersion !== latestVersion || input.expectedLatestVersion !== latestVersion || input.restoreVersion !== chosen.version) {
+                        throw new CollaborationError('MATERIAL_RESTORE_CONFIRMATION_REQUIRED', '本次内容与历史旧版相同。是否确实要将旧内容恢复为一个新版本？', { materialId, historicalVersion: chosen?.version ?? historical.version, latestVersion, originalName: existing?.originalName ?? originalName });
+                    }
+                }
+                else if (input.restoreVersion !== undefined || authorization?.restore !== undefined) {
+                    throw new CollaborationError('INVALID_ARGUMENT', '本次文件内容与指定历史版本不符，尚未恢复。');
+                }
+                const now = this.clock.now();
+                const material = existing ?? { id: materialId, projectId: project.id, originalName, purpose, submittedBy, role: requestedRole, createdAt: now };
                 if (existing === null)
                     this.materials.insertMaterial(material);
-                const next = this.materials.latestVersion(materialId) + 1;
-                const dir = this.files.resolve(project.key, roleDirOf(role), 'materials', materialId);
-                const target = this.files.resolve(project.key, roleDirOf(role), 'materials', materialId, versionFileName(next, originalName));
+                const next = latestVersion + 1;
+                const dir = this.files.resolve(project.key, roleDirOf(material.role), 'materials', materialId);
+                const target = this.files.resolve(project.key, roleDirOf(material.role), 'materials', materialId, versionFileName(next, material.originalName));
                 mkdirSync(dir, { recursive: true });
-                copyFileSync(payload.path, target);
+                // Refuse an existing destination, including orphan files, rather than overwrite.
+                copyFileSync(payload.path, target, constants.COPYFILE_EXCL);
                 writtenPath = target;
-                const row = {
-                    materialId,
-                    version: next,
-                    relPath: this.files.relativeOf(target),
-                    size: payload.size,
-                    sha256: payload.sha256,
-                    issue: payload.issue,
-                    createdAt: now,
-                };
+                if (payload.issue === null) {
+                    const stored = this.readSource(target);
+                    if (stored.issue !== null || stored.sha256 !== payload.sha256 || stored.size !== payload.size) {
+                        throw new CollaborationError('FILE_INTEGRITY_MISMATCH', '本次原件在保存过程中发生变化，尚未登记新版本。');
+                    }
+                }
+                const row = { materialId, version: next, relPath: this.files.relativeOf(target), size: payload.size, sha256: payload.sha256, issue: payload.issue, createdAt: now };
                 this.materials.insertVersion(row);
-                commitMetadata?.({ material, version: row, created: existing === null, absolutePath: target });
-                return row;
+                const result = { material, version: row, created: existing === null, absolutePath: target };
+                commitMetadata?.(result);
+                return result;
             });
-            return {
-                material,
-                version,
-                created: existing === null,
-                absolutePath: this.files.resolve(project.key, roleDirOf(role), 'materials', materialId, versionFileName(version.version, originalName)),
-            };
         }
         catch (error) {
-            // Never leave an orphan file behind a failed transaction.
             if (writtenPath !== null) {
                 try {
                     unlinkSync(writtenPath);
                 }
-                catch {
-                    // Best effort: the row was rolled back, which is what correctness depends on.
-                }
+                catch { /* The failed transaction retains no row. */ }
             }
             throw error;
+        }
+    }
+    requireIntactOriginal(version) {
+        const path = this.absolutePathOf(version.relPath);
+        try {
+            const stat = lstatSync(path);
+            const actual = realpathSync(path);
+            const within = relative(realpathSync(this.files.root), actual);
+            if (!stat.isFile() || stat.isSymbolicLink() || within === '' || within.startsWith('..') || isAbsolute(within))
+                throw new Error('unsafe stored original');
+            const bytes = readFileSync(actual);
+            if (bytes.byteLength !== version.size || createHash('sha256').update(bytes).digest('hex') !== version.sha256)
+                throw new Error('stored original mismatch');
+            return path;
+        }
+        catch {
+            throw new CollaborationError('FILE_INTEGRITY_MISMATCH', '已有资料原件缺失或校验失败，请先核对原件。', { materialId: version.materialId, version: version.version });
         }
     }
     getWithVersions(materialId) {

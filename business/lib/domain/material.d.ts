@@ -2,7 +2,8 @@
  * Materials and their immutable versions (M2).
  *
  * A material is a named work input inside a project. Uploading it again does NOT modify
- * it — it appends a new immutable version (MVP-007). A reference always names a specific
+ * it — changed content appends a new immutable version; identical latest bytes reuse one.
+ * A reference always names a specific
  * version and is never silently upgraded to the latest (MVP-009).
  */
 import type { ProjectId } from './project.js';
@@ -54,6 +55,11 @@ export interface UploadMaterialInput {
     readonly projectId: ProjectId;
     /** Absolute path to the file to read. */
     readonly sourcePath: string;
+    /** Explicit existing material target. Filename similarity is never an identity hint. */
+    readonly targetMaterialId?: MaterialId | undefined;
+    readonly expectedLatestVersion?: number | undefined;
+    /** A proposal only; restoration also requires separate runtime-owned evidence. */
+    readonly restoreVersion?: number | undefined;
     /** Overrides the filename taken from `sourcePath`. Used when the caller knows better. */
     readonly originalName?: string | undefined;
     readonly purpose: Purpose;

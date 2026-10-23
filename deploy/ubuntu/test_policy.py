@@ -101,6 +101,8 @@ class DeploymentPolicy(unittest.TestCase):
         release.mkdir(parents=True)
         evidence = release / 'verified-release.json'
         evidence.write_text(json.dumps({'commit': sha, 'repository': 'Lafinger/dsh-collaboration-acp-server', 'ciConclusion': 'success', 'publicFiles': {}}))
+        # Synthetic public evidence must not inherit group-write from the runner umask.
+        evidence.chmod(0o644)
         profile = self.home / 'profiles/collaboration-dingtalk'
         profile.mkdir(parents=True)
         (root / 'node_modules').mkdir()

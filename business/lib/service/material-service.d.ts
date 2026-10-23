@@ -8,8 +8,18 @@ export interface UploadResult {
     readonly version: MaterialVersion;
     /** True when this upload created a NEW material rather than a new version of one. */
     readonly created: boolean;
+    /** True only when identical current bytes reused an existing immutable version. */
+    readonly deduplicated?: boolean;
     /** Absolute path of the stored file, for the uploader's own confirmation. */
     readonly absolutePath: string;
+}
+/** Runtime-owned evidence, never accepted from a model tool argument. */
+export interface MaterialUploadAuthorization {
+    readonly restore?: {
+        readonly materialId: MaterialId;
+        readonly version: number;
+        readonly expectedLatestVersion: number;
+    };
 }
 export interface ParsedMaterialContent {
     readonly content: string | null;
@@ -26,13 +36,9 @@ export declare class MaterialService {
     private readonly files;
     constructor(db: DatabaseSync, fileRoot: string, clock?: Clock);
     get root(): string;
-    /**
-     * Upload a file as a new immutable version.
-     *
-     * MVP-010: the same filename uploaded again appends a version by default — it never
-     * silently overwrites. A different `purpose` is a different material.
-     */
-    upload(input: UploadMaterialInput, commitMetadata?: (result: UploadResult) => void): UploadResult;
+    /** Append changed content; reuse identical latest bytes, never overwrite history. */
+    upload(input: UploadMaterialInput, commitMetadata?: (result: UploadResult) => void, authorization?: MaterialUploadAuthorization): UploadResult;
+    private requireIntactOriginal;
     getWithVersions(materialId: MaterialId): MaterialWithVersions;
     listByProject(projectId: ProjectId): readonly MaterialWithVersions[];
     /**

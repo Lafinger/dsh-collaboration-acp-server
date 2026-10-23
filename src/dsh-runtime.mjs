@@ -1,6 +1,7 @@
 import { installModelSelection } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
+import {deriveHumanPolicy,allowsHumanTool} from './human-authorization.mjs';
 
 /** Borrow host services; this owner never constructs or disposes the host runtime. */
 export class DshRuntime {
@@ -8,7 +9,7 @@ export class DshRuntime {
     if (!ctx) throw new Error('Host DSH context required');
     this.ctx = ctx; this.provider = provider; this.model = model; this.setup = setup;
     this.handles = new Set(); this.opening = new Set(); this.closing = false;
-    this.abort = new AbortController();
+    this.abort = new AbortController();this.humanRequests=new Map();
   }
   async start() {
     for (const key of ['agents', 'llm', 'sessions', 'tools', 'sessionPersistence']) {
@@ -34,9 +35,11 @@ export class DshRuntime {
       await this.setup?.(agentCtx, agent, owner,principal);
       // Host publication presets can add scope-local tools later: guard stays monotonic.
       const allowed = new Map(agentCtx.tools.view(agent).visible);
+      const humanAllowed=name=>principal?.channel&&principal.channel!=='dsh'?true:typeof this.attachments?.allows==='function'?this.attachments.allows(String(agent.session.id),owner,name):allowsHumanTool(this.humanRequests.get(String(agent.session.id)),name);
+      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:'当前人类消息未授权此操作；草稿不能登记业务，模型不能代本人确认。');
       agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
         const assembly = await next();
-        return { ...assembly, tools: assembly.tools.filter(tool => allowed.has(tool.name) && allowed.get(tool.name) === agentCtx.tools.get(tool.name, agent)) };
+        return { ...assembly, tools: assembly.tools.filter(tool => humanAllowed(tool.name)&&allowed.has(tool.name) && allowed.get(tool.name) === agentCtx.tools.get(tool.name, agent)) };
       });
       agentCtx.tools.guard(exec => allowed.has(exec.name) && allowed.get(exec.name) === agentCtx.tools.get(exec.name, agent) ? undefined : 'Only authenticated collaboration business tools are allowed');
       // A restored durable inbox must not implicitly execute an old business instruction.
@@ -56,10 +59,12 @@ export class DshRuntime {
   async prompt(handle, text, signal, emit, attachmentRequest) {
     if (this.closing || !this.handles.has(handle)) throw new Error('Inactive collaboration Agent');
     const agent = handle.agent;
-    const releaseAttachments = attachmentRequest ? this.attachments.bind(attachmentRequest, signal) : () => {};
+    const key=String(agent.session.id);if(this.humanRequests.has(key))throw new Error('A human turn is already active for this Agent');
+    this.humanRequests.set(key,attachmentRequest??{policy:deriveHumanPolicy(text)});
+    let releaseAttachments=()=>{};
+    try{if(attachmentRequest&&this.attachments)releaseAttachments=this.attachments.bind(attachmentRequest,signal);else if(attachmentRequest?.manifests?.length||attachmentRequest?.receiptScopes?.length)throw new Error('Attachment service unavailable for this runtime');}catch(error){this.humanRequests.delete(key);throw error;}
     let releaseVision=()=>{};
-    try{releaseVision=this.vision?.begin(agent.session.id,handle.collaborationOwner,handle.collaborationPrincipal,text)??releaseVision;}catch(error){releaseAttachments();throw error;}
-    const attachmentNotice = attachmentRequest ? this.attachments.notice(attachmentRequest) : '';
+    try{releaseVision=this.vision?.begin(agent.session.id,handle.collaborationOwner,handle.collaborationPrincipal,text)??releaseVision;}catch(error){releaseAttachments();this.humanRequests.delete(key);throw error;}
     let reason = 'end_turn', failure,finalText=null;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
       if (subject !== agent || frame.type !== 'chunk') return;
@@ -84,11 +89,11 @@ export class DshRuntime {
     signal.addEventListener('abort', abort, { once: true });
     try {
       if (signal.aborted) return { stopReason: 'cancelled' };
-      agent.followup(createUserMessage({ content: [{ type: 'text', text: text + attachmentNotice }], source: { kind: 'user' } }));
+      agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' }, ...(attachmentRequest?.messageId?{id:attachmentRequest.messageId}:{}) }));
       await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
       return { stopReason: signal.aborted ? 'cancelled' : reason,finalText:!signal.aborted&&reason==='end_turn'?finalText:null };
-    } finally { releaseVision();releaseAttachments(); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
+    } finally { releaseVision();releaseAttachments();this.humanRequests.delete(key); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
   }
   async persistedImLog(handle){
     const artifact=await this.persistedImLogById(handle.agent.session.id,handle.agent.session.header.cwd);if(!artifact)throw new Error('Materialized IM session header unavailable');return artifact;
