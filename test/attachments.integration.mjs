@@ -5,10 +5,11 @@ function* text(value){yield{type:'block-start',index:0,blockType:'text'};yield{t
 class AttachmentModel extends LlmAdapter{
  calls=0;receipt=null;archive=null;projectId=null;blockedAssignment=false;
  async*stream(options){this.calls++;if(this.calls>10)throw new Error('Bounded fixture loop');const last=options.messages.at(-1),result=last?.role==='tool'?last:last?.content.find(b=>b.type==='tool-result');
- if(!result){assert.ok(options.tools.some(t=>t.name==='attachment_transfer'));const content=[...options.messages].reverse().find(m=>m.role==='user').content.map(b=>b.text??'').join('');const handle=/"handle":"([a-f0-9]{64})"/.exec(content)[1];yield*tool('attachment_transfer',{handle});return;}
+ if(!result){assert.ok(options.tools.some(t=>t.name==='attachment_receipts'));yield*tool('attachment_receipts',{});return;}
  const call=options.messages.flatMap(message=>message.content).find(block=>block.type==='tool-call'&&block.id===result.toolCallId);
  if(call?.name==='project_set_role_member'){assert.equal(result.isError,true);this.blockedAssignment=true;yield*text('Unauthorized assignment blocked');return;}
  const value=JSON.parse(result.content.filter(b=>b.type==='text').map(b=>b.text).join(''));assert.equal(value.ok,true);
+ if(call?.name==='attachment_receipts'){assert.equal(value.authorized_attachments.length,1);yield*tool('attachment_transfer',{handle:value.authorized_attachments[0].handle});return;}
  if(call?.name==='attachment_transfer'){this.receipt=value.receipt_id;yield*tool('attachment_inspect',{receipt_id:this.receipt});return;}
  if(call?.name==='attachment_inspect'){assert.equal(value.parsed.content,'Requirement: test only');yield*tool('attachment_archive',{receipt_id:this.receipt,purpose:'测试需求',role:'product',reason:'Requirement body says test only'});return;}
  this.archive=value;yield*tool('project_set_role_member',{project_id:this.projectId,role:'product',member:'alice'});

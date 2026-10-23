@@ -9,13 +9,14 @@ import {LlmAdapter,ToolCallId} from '@deepseek-ai/dsh-llm';
 import {LocalAttachmentStore} from '@deepseek-ai/dsh-attachment-local';
 import {createHost} from './helpers/host.mjs';
 import {createCollaborationRuntime} from '../src/collaboration-runtime.mjs';
+import {prepareHumanRequest} from '../src/human-authorization.mjs';
 const text=message=>message?.content.filter(b=>b.type==='text').map(b=>b.text).join('')??'';
 class VisualFixture extends LlmAdapter {
  calls=[];
  async*stream(options){
   this.calls.push(options);const last=options.messages.at(-1);let call;
-  if(last.role==='user')call={name:'attachment_transfer',arguments:JSON.stringify({handle:'a'.repeat(64)})};
-  else if(last.role==='tool'&&!last.content.some(b=>b.type==='image')){const result=JSON.parse(text(last));assert.equal(result.ok,true);call={name:'attachment_inspect',arguments:JSON.stringify({receipt_id:result.receipt_id})};}
+  if(last.role==='user')call={name:'attachment_receipts',arguments:'{}'};
+  else if(last.role==='tool'&&!last.content.some(b=>b.type==='image')){const result=JSON.parse(text(last));assert.equal(result.ok,true);call=result.authorized_attachments?{name:'attachment_transfer',arguments:JSON.stringify({handle:result.authorized_attachments[0].handle})}:{name:'attachment_inspect',arguments:JSON.stringify({receipt_id:result.receipt_id})};}
   if(call){const id=ToolCallId(randomUUID());yield {type:'block-start',index:0,blockType:'tool-call'};yield {type:'tool-call-delta',index:0,id,name:call.name,argumentsDelta:call.arguments};yield {type:'block-end',index:0,block:{type:'tool-call',id,...call}};yield {type:'finish',reason:{kind:'tool-calls'}};return;}
   assert.equal(last.role,'tool');assert.equal(last.content.filter(b=>b.type==='image').length,1);const value=JSON.parse(text(last));assert.equal(value.visual_analysis,'not-yet-confirmed');assert.equal(value.archive_authorized,false);
   yield {type:'block-start',index:0,blockType:'text'};yield {type:'text-delta',index:0,text:'Synthetic model received pixels'};yield {type:'block-end',index:0,block:{type:'text',text:'Synthetic model received pixels'}};yield {type:'finish',reason:{kind:'stop'}};
@@ -28,8 +29,8 @@ test('actual Agent loop transfers authorized picture, emits durable native tool 
   const app=await createCollaborationRuntime({workspace:join(root,'workspace'),stateRoot:join(root,'state'),provider:'fixture',model:'fixture'},host.ctx);runtime=app.runtime;
   const project=app.services.projects.create({key:'VISUAL',name:'Synthetic image'}),sessionId=randomUUID();handle=await runtime.open({id:sessionId,owner:'alice',cwd:join(root,'workspace')});
   const data=await sharp({create:{width:20,height:10,channels:3,background:'#f00'}}).png().toBuffer(),manifest={handle:'a'.repeat(64),name:'sample.png',bytes:data.length,sha256:createHash('sha256').update(data).digest('hex'),sourceKind:'file-attachment',projectId:project.id,archiveAuthorized:false};let reads=0;
-  const result=await runtime.prompt(handle,'附件操作: 仅传输\nproject_id: '+project.id+'\nInspect current selected image',new AbortController().signal,()=>{},{sessionId,account:'alice',requestId:'one',manifests:[manifest],read:async({offset,maxBytes})=>{reads++;const part=data.subarray(offset,offset+maxBytes);return {offset,bytes:part.length,data:part.toString('base64'),eof:offset+part.length===data.length};}});
-  assert.equal(result.finalText,'Synthetic model received pixels');assert.equal(adapter.calls.length,3);assert.equal(reads,1);assert.equal(app.services.materials.listByProject(project.id).length,0);
+  const command='帮我看看这张图片',admitted=prepareHumanRequest({text:command,projectId:project.id,manifests:[manifest],sessionId,account:'alice',requestId:'one'});const result=await runtime.prompt(handle,command,new AbortController().signal,()=>{},{...admitted,read:async({offset,maxBytes})=>{reads++;const part=data.subarray(offset,offset+maxBytes);return {offset,bytes:part.length,data:part.toString('base64'),eof:offset+part.length===data.length};}});
+  assert.equal(result.finalText,'Synthetic model received pixels');assert.equal(adapter.calls.length,4);assert.equal(reads,1);assert.equal(app.services.materials.listByProject(project.id).length,0);
   assert.equal(handle.agent.session.deriveMessages().filter(m=>m.role==='tool').flatMap(m=>m.content).filter(b=>b.type==='image').length,1);
   await runtime.close(handle);handle=await runtime.open({id:sessionId,owner:'alice',cwd:join(root,'workspace'),resume:true});assert.equal(reads,1);assert.equal(handle.agent.session.deriveMessages().flatMap(m=>m.content).filter(b=>b.type==='image').length,1);
  }finally{await runtime?.closeAll();await host.close();}

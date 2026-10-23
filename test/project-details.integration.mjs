@@ -7,6 +7,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { LlmAdapter, ToolCallId } from '@deepseek-ai/dsh-llm';
 import { createTestCollaboration } from './helpers/host.mjs';
+import {prepareHumanRequest} from '../src/human-authorization.mjs';
 
 class DetailsModel extends LlmAdapter {
   calls = 0;
@@ -20,9 +21,9 @@ class DetailsModel extends LlmAdapter {
       yield { type: 'block-end', index: 0, block: { type: 'text', text } };
       yield { type: 'finish', reason: { kind: 'stop' } }; return;
     }
-    assert.ok(options.tools.some(t => t.name === 'project_update_details'));
+    assert.equal(options.tools.some(t => t.name === 'project_update_details'),this.expectWrite);
     const text = [...options.messages].reverse().find(m => m.role === 'user' && m.source?.kind === 'user').content.map(b => b.text ?? '').join('');
-    const args = JSON.parse(/^FIXTURE_UPDATE (.+)$/m.exec(text)[1]);
+    const args = this.args;
     const id = ToolCallId(randomUUID()), block = { type: 'tool-call', id, name: 'project_update_details', arguments: JSON.stringify(args) };
     yield { type: 'block-start', index: 0, blockType: 'tool-call' };
     yield { type: 'tool-call-delta', index: 0, id, name: block.name, argumentsDelta: block.arguments };
@@ -43,13 +44,13 @@ test('official scoped details tool updates existing project atomically, retains 
     const stored = materials.upload({ projectId: project.id, sourcePath: source, purpose: 'Sample', submittedBy: 'alice' });
     const analysis = analyses.submit({ projectId: project.id, trigger: 'Fixture only', scope: [{ materialId: stored.material.id, version: 1 }], requirements: [], undecided: [], inferences: [], notUnderstood: [], basisMissing: [] });
     db = new DatabaseSync(join(root, 'state/collaboration.sqlite'), { readOnly: true });
-    const facts = () => Object.fromEntries(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name!='projects' ORDER BY name").all().map(({ name }) => [name, db.prepare('SELECT * FROM "' + name + '"').all()]));
+    const facts = () => Object.fromEntries(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('projects','attachment_human_grants','attachment_restore_proposals') ORDER BY name").all().map(({ name }) => [name, db.prepare('SELECT * FROM "' + name + '"').all()]));
     const roles = projects.getWithRoles(project.id).roles;
     const id = randomUUID(); let handle = await collaboration.runtime.open({ id, owner: 'alice', cwd: collaboration.workspace, resume: false });
     const before = facts();
     const run = async (args, attachmentRequest) => {
-      const chunks = [], prompt = 'FIXTURE_UPDATE ' + JSON.stringify(args) + (attachmentRequest ? '\n附件操作: 上传并归档\nproject_id: ' + project.id : '');
-      const result = await collaboration.runtime.prompt(handle, prompt, new AbortController().signal, u => { if (u.sessionUpdate === 'agent_message_chunk') chunks.push(u.content.text); }, attachmentRequest);
+      adapter.args=args;adapter.expectWrite=!attachmentRequest;const chunks=[],prompt=attachmentRequest?'请归档这份合成资料':'请更新项目背景和目标';const admitted=prepareHumanRequest({text:prompt,projectId:project.id,manifests:attachmentRequest?.manifests??[],sessionId:id,account:'alice',requestId:randomUUID()});
+      const result = await collaboration.runtime.prompt(handle, prompt, new AbortController().signal, u => { if (u.sessionUpdate === 'agent_message_chunk') chunks.push(u.content.text); }, {...attachmentRequest,...admitted});
       assert.equal(result.stopReason, 'end_turn'); return chunks.join('');
     };
     const first = JSON.parse(await run({ project_id: project.id, background: '  Approved background  ' }));

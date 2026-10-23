@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 import { AccessError, requireText, textPrompt, ACP_PROTOCOL_VERSION, collaborationMeta, requireCollaborationVersion } from './protocol.mjs';
 import { attachmentCapability, requireAttachmentCapability, validateAttachmentManifest } from './attachment-protocol.mjs';
+import { humanAuthorizationCapability, prepareHumanRequest } from './human-authorization.mjs';
 
 export class AccessService {
   constructor({ authority, store, runtime, cwd, login, identities, projects,communication }) {
@@ -69,9 +70,11 @@ export class AccessService {
       if (p.protocolVersion !== ACP_PROTOCOL_VERSION) throw new AccessError(-32011, 'Unsupported ACP-shaped base protocol version');
       c.attachmentTransfer = null;
       if (p.clientCapabilities?.attachmentTransfer !== undefined) { requireAttachmentCapability(p.clientCapabilities.attachmentTransfer); c.attachmentTransfer = attachmentCapability(); }
+      c.humanAuthorization = null;
+      if (p.clientCapabilities?.humanAuthorization !== undefined) { if(p.clientCapabilities.humanAuthorization?.version!==2)throw new AccessError(-32012,'Unsupported human authorization capability'); c.humanAuthorization=humanAuthorizationCapability(); }
       c.initialized = true;
       return { protocolVersion: ACP_PROTOCOL_VERSION, _meta: collaborationMeta(), agentInfo: { name: 'dsh-collaboration-acp-server', version },
-        agentCapabilities: { loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false }, ...(c.attachmentTransfer && this.runtime.attachments ? { attachmentTransfer: attachmentCapability() } : {}) }, authMethods: this.login?[{id:'dingtalk-device',name:'钉钉扫码认证',description:'SSH transport identity alone does not authorize business access'}]:[] };
+        agentCapabilities: { ...(c.humanAuthorization ? {humanAuthorization:humanAuthorizationCapability()}:{}), loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false }, ...(c.attachmentTransfer && this.runtime.attachments ? { attachmentTransfer: attachmentCapability() } : {}) }, authMethods: this.login?[{id:'dingtalk-device',name:'钉钉扫码认证',description:'SSH transport identity alone does not authorize business access'}]:[] };
 
     }
     if (!c.initialized) throw new AccessError(-32600, 'Initialize first');
@@ -103,9 +106,17 @@ export class AccessService {
     if(this.communication&&method==='collaboration/communication/reply'){
       const result=this.communication.store.reply({account:identity.account,projectId:p.projectId,requestId:p.requestId,body:p.body,sourceId:requireText(p.replyId,'stable communication replyId',200)+':'+identity.account});this.communication.schedule();return result;
     }
+    if (method === 'collaboration/attachments/receipts') {
+      const entry=this.requireSession(c,requireText(p.sessionId,'sessionId',200));
+      if(!this.runtime.attachments)throw new AccessError(-32012,'Attachment receipts unavailable');
+      const projectId=entry.principal?.projectId??this.store.scope(entry.id)?.project_id;
+      if(!projectId)throw new AccessError(-32004,'旧会话没有项目范围，请开启项目会话后核对附件。');
+      return this.runtime.attachments.listForClient(entry.id,identity.account,projectId);
+    }
     if (method === 'session/new') {
       const id = randomUUID();let scope={};
       if(this.login){const projectId=requireText(p.projectId,'projectId',200),participant=this.identities.requireProject(identity.account,projectId);scope={projectId,participantRevision:participant.revision,memberRevision:this.identities.requireMember(identity.account).revision,epoch:this.identities.epoch};}
+      if(!this.login&&p.projectId!==undefined){const projectId=requireText(p.projectId,'projectId',200);(this.projects??this.runtime.attachments?.projects)?.get(projectId);scope={projectId};}
       this.store.create(id, identity.account,scope);
       return this.open(c, id, false);
     }
@@ -156,26 +167,46 @@ export class AccessService {
     }
   }
   async prompt(c, p) {
-    const e = this.requireSession(c, p.sessionId);
+    let e,text,requestId,manifests,humanRequest;
+    const operationResults=[];
+    try {
+    e = this.requireSession(c, p.sessionId);
     if (e.running) throw new AccessError(-32007, 'A prompt is already running');
-    const text = textPrompt(p.prompt); const requestId = requireText(p._meta?.requestId, 'requestId', 200);
-    const manifests = p._meta?.attachments;
+    text = textPrompt(p.prompt); requestId = requireText(p._meta?.requestId, 'requestId', 200);
+    if(p._meta?.humanAuthorization!==undefined&&!c.humanAuthorization)throw new AccessError(-32012,'请先协商人类授权v2能力，再发送本次操作。');
+    manifests = p._meta?.attachments;
     if (manifests !== undefined) {
       requireAttachmentCapability(c.attachmentTransfer);
       if (!this.runtime.attachments) throw new AccessError(-32012, 'Attachment transfer unavailable');
       validateAttachmentManifest(manifests);
       if(this.login)for(const manifest of manifests)if(manifest.projectId!==e.principal.projectId)throw new AccessError(-32003,'Attachment project differs from the authenticated conversation');
-      this.runtime.attachments.validateHumanRequest(text, manifests);
+      if(!c.humanAuthorization)this.runtime.attachments.validateHumanRequest(text, manifests);
+    }
+    const projectId=e.principal?.projectId??this.store.scope(e.id)?.project_id??manifests?.[0]?.projectId;
+    const catalog=this.projects??this.runtime.attachments?.projects;
+    const humanProjects=projectId&&catalog?(this.login?this.identities.projects(c.identity.account).map(id=>catalog.get(id)):[catalog.get(projectId)]):undefined;
+    humanRequest=prepareHumanRequest({projects:humanProjects,text,authorization:p._meta?.humanAuthorization,required:!!c.humanAuthorization,projectId,manifests:manifests??[],sessionId:e.id,account:c.identity.account,requestId,receipt:id=>this.runtime.attachments.receipt(e.id,c.identity.account,id),pendingRestores:()=>this.runtime.attachments.pendingRestores(e.id,c.identity.account,projectId)});
+    if(this.runtime.attachments)humanRequest=this.runtime.attachments.authorizeMaterialTargets(humanRequest,text);
+    } catch(error) {
+      const id=p._meta?.requestId,sessionId=p.sessionId;
+      const ownedPrior=typeof sessionId==='string'&&typeof id==='string'&&this.store.owner(sessionId)===c.identity.account&&this.store.db.prepare('SELECT state FROM access_requests WHERE session_id=? AND request_id=?').get(sessionId,id);
+      if(c.humanAuthorization?.version===2&&typeof id==='string'&&id.trim()&&id.length<=200&&!ownedPrior)throw new AccessError(error instanceof AccessError?error.code:-32602,error instanceof AccessError?error.message:'当前消息未通过校验，业务操作尚未开始。',{requestId:id,executionState:'not_started'});
+      throw error;
     }
     this.store.begin(e.id, requestId); e.controller = new AbortController();
     // Mark running before publication, which can itself discover a disconnected/stalled consumer.
     e.running = Promise.resolve().then(() => {
       this.publish(e, { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } });
       if (e.controller.signal.aborted) return { stopReason: 'cancelled' };
-      return this.runtime.prompt(e.handle, text, e.controller.signal, update => this.publish(e, update), manifests?.length ? {
-        sessionId: e.id, requestId, account: c.identity.account, manifests,
+      return this.runtime.prompt(e.handle, text, e.controller.signal, update => this.publish(e, update), {...humanRequest,onOperation:result=>{
+              if(operationResults.some(old=>old.kind===result.kind&&old.receipt_id===result.receipt_id))return;
+              const record=Object.freeze({...result});operationResults.push(record);
+              const name=`《${record.name}》`;
+              const human=record.kind==='attachment_transfer'?`已收到并校验${name}。`:record.kind==='restore_confirmation_required'?`${name}与历史第${record.restoreVersion}版内容相同，当前最新为第${record.expectedLatestVersion}版；尚未恢复。是否将旧内容恢复为新版本？`:record.restoreVersion!==undefined?`已将${name}的第${record.restoreVersion}版内容恢复为新的第${record.version}版，历史版本保留。`:record.already_archived?`${name}此前已归档为第${record.version}版，本次未新增版本。`:record.deduplicated?`${name}与已归档的第${record.version}版内容相同，未新增版本。`:`已将${name}归档为第${record.version}版。`;
+              this.publish(e,{sessionUpdate:'agent_message_chunk',content:{type:'text',text:human+'\n'},_meta:{requestId,operationResult:record}});
+            },
         read: params => c.peer.request('collaboration/attachment/read', params, { timeoutMs: 30000 }),
-      } : undefined);
+      });
     });
     try {
       const result = await e.running;
@@ -185,7 +216,7 @@ export class AccessService {
     } catch (error) {
       this.store.settle(e.id, requestId, e.controller.signal.aborted ? 'cancelled' : 'unknown');
       if (e.controller.signal.aborted) return { stopReason: 'cancelled' };
-      throw new AccessError(-32009, 'Prompt failed; some operations may already have committed. No automatic retry.', { cause: error.message });
+      throw new AccessError(-32009, 'Prompt failed; some operations may already have committed. No automatic retry.', { cause: error.message,requestId,operationResults });
     } finally { e.running = null; e.controller = null; }
   }
   detach(e) {
