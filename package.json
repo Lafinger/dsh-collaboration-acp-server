@@ -1,6 +1,6 @@
 {
   "name": "dsh-collaboration-acp-server",
-  "version": "0.7.1-rc.1",
+  "version": "0.7.1-rc.2",
   "private": true,
   "type": "module",
   "license": "MIT",

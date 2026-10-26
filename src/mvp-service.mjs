@@ -3,6 +3,7 @@ import {projectRoleRevision} from './project-role-revision.mjs';
 import {AccessService} from './service.mjs';
 import {AccessError,requireText,requireCollaborationVersion,collaborationMeta,ACP_PROTOCOL_VERSION} from './protocol.mjs';
 import {attachmentCapability,requireAttachmentCapability} from './attachment-protocol.mjs';
+import {humanAuthorizationCapability} from './human-authorization.mjs';
 const deny=()=>{throw new AccessError(-32003,'当前登录没有管理员操作资格');};
 const exact=(value,required,optional=[])=>value&&typeof value==='object'&&!Array.isArray(value)&&required.every(k=>Object.hasOwn(value,k))&&Object.keys(value).every(k=>required.includes(k)||optional.includes(k));
 
@@ -20,7 +21,8 @@ export class MvpAccessService extends AccessService {
       requireCollaborationVersion(p);if(p.protocolVersion!==ACP_PROTOCOL_VERSION)throw new AccessError(-32011,'双端协议不匹配');
       if(c.initialized)throw new AccessError(-32600,'连接已初始化');
       c.attachmentTransfer=null;if(p.clientCapabilities?.attachmentTransfer!==undefined){requireAttachmentCapability(p.clientCapabilities.attachmentTransfer);if(this.runtime.attachments)c.attachmentTransfer=attachmentCapability();}
-      c.initialized=true;return {protocolVersion:ACP_PROTOCOL_VERSION,_meta:collaborationMeta(),serviceId:this.identities.serviceId,agentInfo:{name:'dsh-collaboration-mvp',version:'0.6.0'},authMethods:[{id:'dingtalk-device',name:'电脑钉钉登录'}],agentCapabilities:{loadSession:true,...c.attachmentTransfer?{attachmentTransfer:c.attachmentTransfer}:{},mvpHttps:true}};
+      c.humanAuthorization=null;if(p.clientCapabilities?.humanAuthorization!==undefined){if(p.clientCapabilities.humanAuthorization?.version!==2)throw new AccessError(-32012,'Unsupported human authorization capability');c.humanAuthorization=humanAuthorizationCapability();}
+      c.initialized=true;return {protocolVersion:ACP_PROTOCOL_VERSION,_meta:collaborationMeta(),serviceId:this.identities.serviceId,agentInfo:{name:'dsh-collaboration-mvp',version:'0.6.0'},authMethods:[{id:'dingtalk-device',name:'电脑钉钉登录'}],agentCapabilities:{...c.humanAuthorization?{humanAuthorization:humanAuthorizationCapability()}:{},loadSession:true,...c.attachmentTransfer?{attachmentTransfer:c.attachmentTransfer}:{},mvpHttps:true}};
     }
     if(!c.initialized)throw new AccessError(-32600,'请先初始化连接');
     if(typeof method!=='string'||!p||typeof p!=='object'||Array.isArray(p))throw new AccessError(-32602,'请求格式不正确');
