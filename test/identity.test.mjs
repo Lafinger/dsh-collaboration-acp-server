@@ -10,7 +10,7 @@ import {opaqueSecret} from '../src/identity-store.mjs';
 
 function fixture(t){
   const db=openDatabase({path:':memory:'});t.after(()=>db.close());let clock=1000000;
-  const identities=new IdentityStore({db,serviceId:'service',corpId:'corp',clientId:'app',now:()=>clock});
+  const identities=new IdentityStore({db,serviceId:'service',corpId:'corp',clientId:'app',now:()=>clock,organizationTtlMs:300000});
   for(const account of ['alice','bob'])identities.bind({account,userId:`u-${account}`,unionId:`union-${account}`,administrator:account==='alice'});
   const verify=account=>identities.markVerified(account,{corpId:'corp',userId:`u-${account}`,unionId:`union-${account}`,internal:true});
   verify('alice');verify('bob');

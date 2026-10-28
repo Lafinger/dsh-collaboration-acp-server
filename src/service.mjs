@@ -14,7 +14,7 @@ export class AccessService {
     this.onAuthorizationChange=({account,projectId})=>{for(const e of this.sessions.values())if((!account||e.connection?.identity?.account===account)&&(!projectId||e.principal?.projectId===projectId))e.controller?.abort();};
     this.onLoginRevoked=({loginId})=>{for(const c of this.connections)if(c.login?.loginId===loginId){c.login=null;for(const e of this.sessions.values())if(e.connection===c)e.controller?.abort();}};
     identities?.on('authorization-change',this.onAuthorizationChange);identities?.on('login-revoked',this.onLoginRevoked);
-    this.authorizationMonitor=identities?setInterval(()=>{for(const e of this.sessions.values())if(e.controller)try{this.requireBusinessIdentity(e.connection);this.requireScope(e.connection,e.id);}catch{e.controller.abort();}},1000):null;
+    this.authorizationMonitor=identities?setInterval(()=>{for(const e of this.sessions.values())if(e.controller)try{this.requireQualification(e.connection,e.id);}catch{e.controller.abort();}},1000):null;
     this.authorizationMonitor?.unref?.();
   }
   attach(peer) {
@@ -46,6 +46,23 @@ export class AccessService {
       if(!scope?.project_id)throw new AccessError(-32004,'Legacy unscoped conversation is read-only; start a project-bound conversation');
       const participant=this.identities.requireProject(this.requireBusinessIdentity(c).account,scope.project_id);
       if(scope.epoch!==this.identities.epoch||scope.participant_revision!==participant.revision||scope.member_revision!==this.identities.requireMember(c.identity.account).revision)throw new AccessError(-32004,'Conversation qualification changed; start a new project context');
+    }
+    return scope;
+  }
+  requireQualification(c,id) {
+    // Stable qualification only. The organization re-verification lease is a freshness signal enforced
+    // where business commits happen; it is not a revocation. Treating a lapsed lease as one aborted
+    // turns that were still legitimately authorized, which surfaced to callers as a silent cancel.
+    // Real revocations still trip here: account disablement, organization subject change, member or
+    // participant revision, epoch rollover, login revocation and expiry.
+    const scope=this.store.scope(id);
+    if(this.login){
+      if(!scope?.project_id)throw new AccessError(-32004,'Legacy unscoped conversation is read-only; start a project-bound conversation');
+      const identity=this.requireIdentity(c);
+      if(!c.login)throw new AccessError(-32003,'DingTalk device login required');
+      this.identities.requireLoginLink(c.login);
+      const participant=this.identities.requireProjectLink(identity.account,scope.project_id);
+      if(scope.epoch!==this.identities.epoch||scope.participant_revision!==participant.revision||scope.member_revision!==this.identities.requireMemberLink(identity.account).revision)throw new AccessError(-32004,'Conversation qualification changed; start a new project context');
     }
     return scope;
   }
@@ -89,6 +106,11 @@ export class AccessService {
         else if(c.login)this.identities.revokeLogin(c.login.loginId);c.login=null;return {authenticated:false};
       }
       if(method==='collaboration/login/status'){
+        // Idle polling has to renew the organization re-verification lease. The client keeps this call
+        // on a timer, so this is the one renewal opportunity that exists while a long turn is running;
+        // renewing only on business writes let the lease expire underneath the turn. A fresh cache
+        // needs nothing, so only a stale lease reaches the verifier.
+        if(c.login&&(this.identities.member(identity.account)?.verified_until??0)<=this.identities.now())try{await this.login.refresh(identity.account);}catch{}
         try{this.requireBusinessIdentity(c);return {authenticated:true,account:identity.account,expiresAt:c.login.expiresAt,serviceId:identity.serviceId};}
         catch{return {authenticated:false,serviceId:identity.serviceId};}
       }

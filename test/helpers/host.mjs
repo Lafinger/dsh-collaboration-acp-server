@@ -29,8 +29,13 @@ export async function createTestRuntime(options) {
   return runtime;
 }
 export async function createTestCollaboration(config) {
-  const host = await createHost({ root: join(config.stateRoot, 'host'), adapter: config.adapter });
-  const collaboration = await createCollaborationRuntime({ ...config, provider: host.provider, model: host.model }, host.ctx);
+  // Scenarios advance synthetic time by the organization re-verification window, so pin that window
+  // here instead of inheriting the shipped default. Only the mechanism is under test, not the default.
+  const pinned = config.dingtalk && config.dingtalk.organizationTtlMs === undefined
+    ? { ...config, dingtalk: { ...config.dingtalk, organizationTtlMs: 300000 } }
+    : config;
+  const host = await createHost({ root: join(pinned.stateRoot, 'host'), adapter: pinned.adapter });
+  const collaboration = await createCollaborationRuntime({ ...pinned, provider: host.provider, model: host.model }, host.ctx);
   const close = collaboration.runtime.closeAll.bind(collaboration.runtime);
   collaboration.runtime.closeAll = async () => { try { await close(); } finally { await host.close(); } };
   return { ...collaboration, host };
