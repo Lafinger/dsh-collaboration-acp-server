@@ -21,7 +21,7 @@ class DetailsModel extends LlmAdapter {
       yield { type: 'block-end', index: 0, block: { type: 'text', text } };
       yield { type: 'finish', reason: { kind: 'stop' } }; return;
     }
-    assert.equal(options.tools.some(t => t.name === 'project_update_details'),this.expectWrite);
+    assert.ok(options.tools.some(t => t.name === 'project_update_details'),'the business write tool stays advertised in every turn');
     const text = [...options.messages].reverse().find(m => m.role === 'user' && m.source?.kind === 'user').content.map(b => b.text ?? '').join('');
     const args = this.args;
     const id = ToolCallId(randomUUID()), block = { type: 'tool-call', id, name: 'project_update_details', arguments: JSON.stringify(args) };
@@ -62,7 +62,9 @@ test('official scoped details tool updates existing project atomically, retains 
     const definition = handle.agent.ctx.tools.get('project_update_details', handle.agent);
     const extra = await definition.execute({ project_id: project.id, goal: 'Must not change', name: 'Forbidden rename' }, {}); assert.equal(extra.ok, false);
     const data = Buffer.from('Synthetic attachment'), request = { sessionId: id, requestId: 'blocked', account: 'alice', manifests: [{ handle: 'a'.repeat(64), name: 'sample.txt', bytes: data.length, sha256: createHash('sha256').update(data).digest('hex'), projectId: project.id, archiveAuthorized: true, sourceKind: 'file-attachment' }], read: () => { throw new Error('No attachment transfer expected'); } };
-    await run({ project_id: project.id, goal: 'Attachment must not edit project' }, request);
+    const refused = await run({ project_id: project.id, goal: 'Attachment must not edit project' }, request);
+    assert.match(refused, /当前人类消息未授权「更新项目背景或目标」/u);
+    assert.match(refused, /请单独发一句：更新项目背景：/u);
     assert.equal(projects.get(project.id).goal, 'Approved goal');
     assert.deepEqual(facts(), before); assert.deepEqual(projects.getWithRoles(project.id).roles, roles);
     assert.deepEqual(projects.get(other.id), other); assert.equal(analyses.get(analysis.id).id, analysis.id);

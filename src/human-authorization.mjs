@@ -9,10 +9,32 @@ const fail=message=>{throw new AccessError(-32602,message);};
 function keys(value,allowed,label){if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!allowed.includes(k)))fail('Invalid '+label);}
 const restoreConfirmation=text=>/^(?:确认|确认恢复)[。！!\s]*$/u.test(currentHumanInstruction(text));
 function positiveInteger(value){return Number.isSafeInteger(value)&&value>0;}
+// One vocabulary for the words a person and the model both see: 上传/归档/成果/进展. The labels name what
+// the operation does, the phrases are the exact sentence a person can paste to authorize it.
+export const HUMAN_TOOL_LABELS=Object.freeze({
+ analysis_submit:'提交需求分析',plan_register:'登记正式计划',plan_revise:'修订计划',result_submit:'提交成果',
+ progress_add:'记录进展',project_update_details:'更新项目背景或目标',todo_mark_read:'把通知标为已读',result_acceptance_open:'发起验收'});
+const humanPhrases=Object.freeze({
+ analysis_submit:'提交这份需求分析',plan_register:'提交方案',plan_revise:'提交修订后的方案',result_submit:'提交成果',
+ progress_add:'记录进展：<这次的进展>',project_update_details:'更新项目背景：<新的背景>',todo_mark_read:'把通知标为已读',result_acceptance_open:'发起验收'});
+// Write tools stay visible so the model can plan a real operation and ask for it; the per-call guard is
+// what refuses, and the refusal tells the person the exact sentence that would authorize it. Attachment
+// tools are excluded: they take opaque handles the model cannot hold, so advertising them only invites
+// invented handles.
+export const BUSINESS_WRITE_TOOLS=new Set(['analysis_submit','plan_register','plan_revise','result_submit','progress_add','project_update_details','todo_mark_read','result_acceptance_open']);
+export function humanVisibleTool(name){return !forbidden.has(name)&&(READ_ONLY_TOOLS.has(name)||BUSINESS_WRITE_TOOLS.has(name));}
+export function humanToolDenial(name){
+ const label=HUMAN_TOOL_LABELS[name]??name,phrase=humanPhrases[name];
+ return '当前人类消息未授权「'+label+'」，所以没有执行；草稿不能登记业务，模型不能代本人确认。要现在做的话，请单独发一句：'+(phrase??label)+'。';
+}
 export function deriveHumanPolicy(text){
  const instruction=currentHumanInstruction(text),writes=new Set(),kinds=new Set();
- const blocked=/(?:不要|别|勿|取消|撤销|不必|不用|无需|不需要|不想|不打算|禁止|先不|暂不|不允许|不是|并不|未授权|没有授权)[^，,。！？；;\n]{0,20}(?:提交|登记|记录|更新|标记|标为|发起|申请|启动)|如果|假如|倘若|以后|稍后|(?:等|待)[^\n]{0,35}(?:提交|登记|记录|更新|标记|标为|发起|申请|启动)/u;
- if(blocked.test(instruction))return Object.freeze({kind:'draft',writes});
+ // Judged clause by clause: one clause people phrase as a condition or a deferral must not authorize
+ // anything, and it must not void the clauses that do carry a clear instruction.
+ const hypothetical=/^(?:如果|假如|倘若|要是|万一)/u;
+ const deferral=/(?:以后|稍后|改天|回头|等[^\n]{0,24}?(?:再|之后|后)|待[^\n]{0,24}?(?:再|后))/u;
+ const negative=/(?:不要|别|勿|取消|撤销|不必|不用|无需|不需要|不想|不打算|禁止|先不|暂不|不允许|不是|并不|未授权|没有授权)/u;
+ const commitVerb=/提交|登记|记录|更新|标记|标为|发起|申请|启动/u;
  const clauses=instruction.split(/[，,。！？；;\n]+|(?:并且|然后|并)(?=提交|登记)/u).map(c=>c.trim()).filter(Boolean);
  const informational=/查询|检查|查看|阅读|读取|告诉我|解释|说明如何|状态|流程|步骤|方式|是否|如何|怎么|为什么|什么意思|什么时候|(?:吗|么|呢|\?)\s*$/u;
  const courtesy='(?:(?:请|麻烦|帮我|替我|劳驾|烦请|你需要|你要|我需要|我希望|需要|希望|务必|现在|直接|立即|马上|先|只|仅)\\s*)*';
@@ -23,6 +45,8 @@ export function deriveHumanPolicy(text){
  const acceptance=new RegExp('^'+courtesy+'(?:(?:为|对)[^，,。！？；;\\n]{1,40})?(?:发起|申请|启动)[^，,。！？；;\\n]{0,30}验收','u');
  for(const clause of clauses){
   if(informational.test(clause.split(/[:：]/u)[0]))continue;
+  if(hypothetical.test(clause)&&commitVerb.test(clause))continue;
+  if(deferral.test(clause)||negative.test(clause))continue;
   if(acceptance.test(clause)){kinds.add('acceptance');continue;}
   if(progress.test(clause)){kinds.add('progress');continue;}
   if(details.test(clause)){kinds.add('details');continue;}
@@ -32,9 +56,11 @@ export function deriveHumanPolicy(text){
   else if(/分析/u.test(clause))kinds.add('analysis');
   else if(/方案|计划/u.test(clause))kinds.add(/修订|修改后的|修正后的|调整后的/u.test(clause)?'revise':'plan');
  }
- const kind=kinds.size===1?[...kinds][0]:null;
- for(const name of ({analysis:['analysis_submit'],plan:['plan_register'],revise:['plan_revise'],result:['result_submit'],progress:['progress_add'],details:['project_update_details'],'read-notice':['todo_mark_read'],acceptance:['result_acceptance_open']}[kind]??[]))writes.add(name);
- return Object.freeze({kind:kind??'draft',writes});
+ // Authorization is the union of what the clauses actually asked for; several clear instructions in one
+ // message used to collapse to none, which left the model unable to act on a legitimate request.
+ const kind=kinds.size===0?'draft':kinds.size===1?[...kinds][0]:'mixed';
+ for(const each of kinds)for(const name of ({analysis:['analysis_submit'],plan:['plan_register'],revise:['plan_revise'],result:['result_submit'],progress:['progress_add'],details:['project_update_details'],'read-notice':['todo_mark_read'],acceptance:['result_acceptance_open']}[each]??[]))writes.add(name);
+ return Object.freeze({kind,writes});
 }
 export function allowsHumanTool(request,name){return !forbidden.has(name)&&(READ_ONLY_TOOLS.has(name)||request?.policy?.writes.has(name));}
 export function prepareHumanRequest({text,authorization,required=false,projectId,manifests=[],sessionId,account,requestId,receipt,projects,pendingRestores}){

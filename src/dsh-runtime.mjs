@@ -1,7 +1,7 @@
 import { installModelSelection } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import {deriveHumanPolicy,allowsHumanTool} from './human-authorization.mjs';
+import {deriveHumanPolicy,allowsHumanTool,humanVisibleTool,humanToolDenial} from './human-authorization.mjs';
 
 /** Borrow host services; this owner never constructs or disposes the host runtime. */
 export class DshRuntime {
@@ -36,10 +36,12 @@ export class DshRuntime {
       // Host publication presets can add scope-local tools later: guard stays monotonic.
       const allowed = new Map(agentCtx.tools.view(agent).visible);
       const humanAllowed=name=>principal?.channel&&principal.channel!=='dsh'?true:typeof this.attachments?.allows==='function'?this.attachments.allows(String(agent.session.id),owner,name):allowsHumanTool(this.humanRequests.get(String(agent.session.id)),name);
-      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:'当前人类消息未授权此操作；草稿不能登记业务，模型不能代本人确认。');
+      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:humanToolDenial(String(exec.name)));
       agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
         const assembly = await next();
-        return { ...assembly, tools: assembly.tools.filter(tool => humanAllowed(tool.name)&&allowed.has(tool.name) && allowed.get(tool.name) === agentCtx.tools.get(tool.name, agent)) };
+        // Write tools stay advertised so the model can plan the real operation and say what it needs.
+        // What is refused is the call, with the exact sentence the person can send to allow it.
+        return { ...assembly, tools: assembly.tools.filter(tool => humanVisibleTool(tool.name)&&allowed.has(tool.name) && allowed.get(tool.name) === agentCtx.tools.get(tool.name, agent)) };
       });
       agentCtx.tools.guard(exec => allowed.has(exec.name) && allowed.get(exec.name) === agentCtx.tools.get(exec.name, agent) ? undefined : 'Only authenticated collaboration business tools are allowed');
       // A restored durable inbox must not implicitly execute an old business instruction.
