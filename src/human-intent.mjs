@@ -1,10 +1,10 @@
 // Pure, conservative current-human admission. No file, network, SDK or model access.
 // Client and server may use the same bytes; original human text is never rewritten.
-const ARCHIVE = /归档|(?:保存|存入|收进|放入|放进)(?:到|为)?[^。！？；\n]{0,12}(?:项目资料|资料库)/u;
+const ARCHIVE = /归档|存档|(?:保存|存入|收进|放入|放进|存为|存成)(?:到|为|成)?[^。！？；\n]{0,12}(?:项目资料|资料库|资料)/u;
 const READ = /看看|看一下|读一读|阅读|分析|检查|审阅|解读|梳理|整理需求/u;
 const NEGATION = '(?:不要|别|不必|不用|无需|不需要|不想|不打算|禁止|先不|暂不|不允许|未授权|没有授权|并不|不是|请勿|勿|取消|撤销|没说|没让|不让)';
 const NO_TRANSFER = new RegExp(NEGATION + '[^。！？；\\n]{0,8}(?:上传|传输|发送)', 'u');
-const NO_ARCHIVE = new RegExp(NEGATION + '[^。！？；\\n]{0,12}(?:归档|保存|存入|收进|放入|放进)', 'u');
+const NO_ARCHIVE = new RegExp(NEGATION + '[^。！？；\\n]{0,12}(?:归档|存档|保存|存入|收进|放入|放进|存为|存成)', 'u');
 const NO_READ = new RegExp(NEGATION + '[^。！？；\\n]{0,8}(?:阅读|分析|读取|检查|查看)', 'u');
 const INFORMATIONAL = /怎么|如何|为什么|什么意思|是什么意思|什么叫|是否应该|要不要|该不该/u;
 const clarify = (reason, message) => ({ kind: 'clarify', reason, message });
@@ -56,8 +56,8 @@ export function classifyHumanIntent(text) {
   const commandView = typeof text === 'string' ? text.replace(/《[^》]*》/gu, ' __document_label__ ') : text;
   const instruction = currentHumanInstruction(commandView);
   if (!instruction) return clarify('missing-intent', '还没有处理附件。你希望我先阅读分析，还是归档为项目资料？');
-  if (/(?:未|没有|并未|从未)授权|(?:原文|文档|引用|示例)[^。！？；\n]{0,8}(?:提到|出现|有|写着|说过)/u.test(instruction)) return clarify('question-not-instruction', '还没有处理附件。你是在询问操作方式，还是希望我现在阅读或归档？');
-  if (NO_TRANSFER.test(instruction)) return clarify('transfer-not-authorized', '不会上传或归档这份附件。若要我阅读分析，请明确允许本次传输阅读。');
+  if (/(?:未|没有|并未|从未)授权|(?:原文|文档|引用|示例)[^。！？；\n]{0,8}(?:提到|出现|有|写着|说过)/u.test(instruction)) return clarify('question-not-instruction', '还没有处理附件。你是在问怎么做，还是要我现在阅读或归档？要阅读请发：帮我看看这份文件；要归档请发：归档这份文件。');
+  if (NO_TRANSFER.test(instruction)) return clarify('transfer-not-authorized', '不会上传或归档这份附件。要阅读分析，请单独发一句：帮我看看这份文件。');
   const clauses = instruction.split(/[，,。！？；;\n]+/u).map(value => value.trim()).filter(Boolean);
   const deferred = /如果|假如|倘若|可能|以后|稍后|再说|等[^，,。！？；;\n]{0,20}(?:再|后)|待[^，,。！？；;\n]{0,20}(?:再|后)/u;
   const question = clause => INFORMATIONAL.test(clause) || /(?:吗|么|呢|\?)\s*$/u.test(clause);
@@ -91,7 +91,7 @@ export function resolveHumanProject({ text, projects = [], currentProjectId = nu
   const stated = instruction.match(/这是\s*(.{1,100}?)\s*的(?:需求文档|需求|项目资料|资料|文档)/u)?.[1]?.trim();
   if (stated && !matches.some(row => [row.name, row.key].includes(stated))) return clarify('unresolved-stated-project', '请确认这份资料所属的项目名称，不会按相似名字自动归档。');
   // An explicit destination without an exact trusted label must not fall back to current.
-  const destination = instruction.match(/(?:归档|保存|存入|放入|放进|收进)(?:到|为)\s*([^，。！？；\n]+)/u)?.[1]?.split(/并|然后|再/u)[0]?.trim();
+  const destination = instruction.match(/(?:归档|存档|保存|存入|放入|放进|收进|存为|存成)(?:到|为|成)\s*([^，。！？；\n]+)/u)?.[1]?.split(/并|然后|再/u)[0]?.trim();
   const genericDestination = destination && /^(?:(?:当前|本|这个)项目(?:的)?)?(?:项目资料库?|资料库|资料)?$/u.test(destination);
   const destinationName = destination?.replace(/(?:的)?(?:项目资料库|项目资料|资料库|资料)$/u, '').trim();
   if (destination && !genericDestination && !rows.some(row => [row.name, row.key].some(label => typeof label === 'string' && label && (label === destination || label === destinationName)))) return clarify('unresolved-destination', '请明确要归档到哪个项目。');

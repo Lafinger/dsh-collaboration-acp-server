@@ -19,6 +19,9 @@ test('versioned contract and wire helpers are byte-identical across independentl
  assert.equal(readFileSync(new URL('../../docs/PROTOCOL-v3.json',import.meta.url),'utf8'),readFileSync(join(clientRoot,'docs/PROTOCOL-v3.json'),'utf8'));
  assert.equal(readFileSync(new URL('../../src/protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/protocol.mjs'),'utf8'));
  assert.equal(readFileSync(new URL('../../src/attachment-protocol.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/attachment-protocol.mjs'),'utf8'));
+ // The current-human admission vocabulary decides what a message authorizes on both sides, so the two
+ // repositories must ship the same bytes or one can authorize an archive the other refuses.
+ assert.equal(readFileSync(new URL('../../src/human-intent.mjs',import.meta.url),'utf8'),readFileSync(join(clientRoot,'src/human-intent.mjs'),'utf8'));
 });
 test('independent client adapter converses with real server runtime; no history replay on followup',async()=>{
  const root=mkdtempSync(join(tmpdir(),'collaboration-joint-'));const {runtime,workspace}=await createCollaborationRuntime({workspace:join(root,'workspace'),stateRoot:join(root,'state'),fixture:true});
