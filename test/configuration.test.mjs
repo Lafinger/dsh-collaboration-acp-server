@@ -11,6 +11,22 @@ test('MVP file uses only unified HTTPS and fixed official administrator, no lega
  for(const bad of [{...value,accounts},{...value,socketPath},{...value,dingtalk:{...value.dingtalk,agentId:''}},{...value,dingtalk:{...value.dingtalk,administratorUserId:''}}]){writeFileSync(f.file,JSON.stringify(bad),{mode:0o600});assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required');}
 });
 test('QR mode requires same private HTTPS/organization/admin but no PC AgentId, never adopts legacy account fields',()=>{const f=fixture(),{accounts,socketPath,...plain}=f.config,value={...plain,mode:'mvp-qr',dingtalk:{...plain.dingtalk,administratorUserId:'boss'}};writeFileSync(f.file,JSON.stringify(value),{mode:0o600});const result=resolveServerConfiguration({configFile:f.file});assert.equal(result.state,'configured');assert.equal(result.config.dingtalk.loginTtlMs,604800000);assert.equal(result.config.dingtalk.agentId,undefined);writeFileSync(f.file,JSON.stringify({...value,accounts}),{mode:0o600});assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required');});
+test('QR and MVP organization re-verification lease defaults to 15 minutes and stays bounded at 60',()=>{
+ const f=fixture(),{accounts,socketPath,...plain}=f.config,base={...plain,dingtalk:{...plain.dingtalk,administratorUserId:'boss'}};
+ for(const mode of ['mvp-qr','mvp-https']){
+  const value=mode==='mvp-qr'?{...base,mode}:{...base,mode,dingtalk:{...base.dingtalk,agentId:'123'}};
+  writeFileSync(f.file,JSON.stringify(value),{mode:0o600});
+  const configured=resolveServerConfiguration({configFile:f.file});
+  assert.equal(configured.state,'configured',mode);
+  assert.equal(configured.config.dingtalk.organizationTtlMs,900000,mode);
+  writeFileSync(f.file,JSON.stringify({...value,dingtalk:{...value.dingtalk,organizationTtlMs:1800000}}),{mode:0o600});
+  assert.equal(resolveServerConfiguration({configFile:f.file}).config.dingtalk.organizationTtlMs,1800000,mode);
+  for(const organizationTtlMs of [0,3600001,1.5]){
+   writeFileSync(f.file,JSON.stringify({...value,dingtalk:{...value.dingtalk,organizationTtlMs}}),{mode:0o600});
+   assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required',`${mode} ${organizationTtlMs}`);
+  }
+ }
+});
 test('missing configuration stays pending and does not expose guessed deployment values', () => {
   const f = fixture(), r = resolveServerConfiguration({ configFile: f.file });
   assert.equal(r.state, 'configuration-required'); assert.equal(r.config, undefined);
