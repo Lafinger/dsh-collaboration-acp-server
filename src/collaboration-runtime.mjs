@@ -14,6 +14,7 @@ import { TraceService } from '../business/lib/service/trace-service.js';
 import { ResultService } from '../business/lib/service/result-service.js';
 import { registerTools } from '../business/lib/tool/register.js';
 import { AttachmentService } from './attachment-service.mjs';
+import { humanToolDenial, humanVisibleTool } from './human-authorization.mjs';
 import { registerAttachmentTools } from './attachment-tools.mjs';
 import { IdentityStore } from './identity-store.mjs';
 import { LoginService } from './login-service.mjs';
@@ -69,8 +70,10 @@ export async function createCollaborationRuntime(config, ctx) {
         agentCtx.tools.guard(exec=>{try{access.scope(principal);if(!access.allows(principal,exec.name)&&!(principal.channel==='dsh'&&exec.name.startsWith('attachment_')))return 'Tool unavailable in this authenticated channel';return undefined;}catch{return 'Authenticated member, device or project qualification unavailable';}});
       }
       const humanAllowed=(name,args)=>principal&&principal.channel!=='dsh'||attachments.allows(agent.session.id,account,name,args);
-      agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>humanAllowed(t.name))};});
-      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:'当前人类消息未授权此操作；草稿不能登记业务，模型不能代本人确认。');
+      // Business write tools stay advertised even without authorization so the model can name the real
+      // operation and ask for it; the guard below still refuses the call and says how to authorize it.
+      agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>humanAllowed(t.name)||humanVisibleTool(t.name))};});
+      agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:humanToolDenial(String(exec.name)));
     },
   });
   runtime.attachments = attachments;
