@@ -14,10 +14,10 @@ const label = value => {
 
 /** Plugin-owned authorization metadata. Shares the business connection for atomic checks/writes. */
 export class IdentityStore extends EventEmitter {
-  constructor({ db, serviceId, corpId, clientId, now = Date.now, organizationTtlMs = 300000, loginTtlMs = 43200000 }) {
+  constructor({ db, serviceId, corpId, clientId, now = Date.now, organizationTtlMs = 900000, loginTtlMs = 43200000 }) {
     super(); this.db = db; this.serviceId = requireText(serviceId, 'serviceId', 200);
     this.corpId = requireText(corpId, 'corpId', 200); this.clientId = requireText(clientId, 'clientId', 200); this.now = now;
-    if (!Number.isSafeInteger(organizationTtlMs) || organizationTtlMs <= 0 || organizationTtlMs > 300000
+    if (!Number.isSafeInteger(organizationTtlMs) || organizationTtlMs <= 0 || organizationTtlMs > 3600000
       || !Number.isSafeInteger(loginTtlMs) || loginTtlMs <= 0 || loginTtlMs > 43200000) throw new Error('Identity validity exceeds approved limits');
     this.organizationTtlMs = organizationTtlMs; this.loginTtlMs = loginTtlMs;
     db.exec('PRAGMA synchronous=FULL');
@@ -111,17 +111,26 @@ export class IdentityStore extends EventEmitter {
       this.suspendPending(account,null,'Organization qualification explicitly revoked');this.audit('official-organization-refresh','member-qualification-revoked',account);
     });this.emit('authorization-change',{account});
   }
-  requireMember(account) {
+  requireMemberLink(account) {
     const m = this.member(account);
-    if (!m || !m.enabled || m.corp_id!==this.corpId || m.client_id!==this.clientId || m.verified_until<=this.now()) deny();
+    if (!m || !m.enabled || m.corp_id!==this.corpId || m.client_id!==this.clientId) deny();
+    return m;
+  }
+  requireMember(account) {
+    const m = this.requireMemberLink(account);
+    if (m.verified_until<=this.now()) deny();
     return m;
   }
   requireAdministrator(account) { const m = this.requireMember(account); if (!m.administrator) deny(); return m; }
-  requireProject(account, projectId) {
-    this.requireMember(account);
+  requireProjectLink(account, projectId) {
+    this.requireMemberLink(account);
     const p = this.db.prepare('SELECT enabled,revision FROM collaboration_participants WHERE account=? AND project_id=?').get(account,projectId);
     if (!p?.enabled || !this.db.prepare('SELECT id FROM projects WHERE id=?').get(projectId)) deny();
     return p;
+  }
+  requireProject(account, projectId) {
+    this.requireMember(account);
+    return this.requireProjectLink(account, projectId);
   }
   projects(account) {
     this.requireMember(account);
@@ -143,12 +152,13 @@ export class IdentityStore extends EventEmitter {
     const m=this.requireMember(login.account); if (login.member_revision!==m.revision) deny();
     return { account:login.account,serviceId:this.serviceId,loginId:login.id,deviceId,expiresAt:login.expires_at,epoch:login.epoch };
   }
-  requireLogin(identity) {
+  assertLogin(identity, m) {
     const row=this.db.prepare('SELECT * FROM collaboration_logins WHERE id=?').get(identity?.loginId);
-    const m=this.requireMember(identity?.account);
     if(!row||row.account!==identity.account||row.device_id!==identity.deviceId||row.revoked||row.expires_at<=this.now()||row.epoch!==this.epoch||row.member_revision!==m.revision)deny();
     return identity;
   }
+  requireLogin(identity) { return this.assertLogin(identity, this.requireMember(identity?.account)); }
+  requireLoginLink(identity) { return this.assertLogin(identity, this.requireMemberLink(identity?.account)); }
   revokeDevice(token,account,deviceId){
     if(typeof token!=='string'||token.length>200||!token.trim())deny();requireText(deviceId,'deviceId',200);
     const row=this.db.prepare('SELECT id,account,device_id FROM collaboration_logins WHERE token_hash=?').get(hashSecret(token));

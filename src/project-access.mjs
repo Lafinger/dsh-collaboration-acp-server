@@ -129,6 +129,11 @@ export class ProjectAccess {
   transform(principal){
     return original=>({...original,execute:async(args,exec)=>{
       try{
+        // Re-verify organization qualification before committing, but only when the cached lease is
+        // already stale: a fresh cache needs no network call, so the common path gains no await and no
+        // verifier traffic. A lease that lapsed while the turn was still running must not turn an
+        // authorized write into a denial.
+        if(this.refreshMember&&(this.identities.member(principal.account)?.verified_until??0)<=this.identities.now())try{await this.refreshMember(principal.account);}catch{}
         const confirmationVersion=original.name==='plan_confirm'&&this.refreshMember?await this.preparePlanConfirmation(args,principal):undefined;
         let operation;
         inTransaction(this.db,()=>{

@@ -46,8 +46,8 @@ export function resolveServerConfiguration(input = {}, { fallbackPath = defaultC
   if(!text(d.corpId)||!text(d.clientId)||typeof d.clientSecret!=='string'||!d.clientSecret.trim()||d.clientSecret.length>4096)return pending('缺少钉钉组织／应用／私有凭据');
   try{const origin=new URL(d.publicOrigin);if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)throw new Error();}catch{return pending('钉钉登录需明确HTTPS origin，不开放普通DSH或投递接口');}
   if(!Number.isSafeInteger(d.loginPort)||d.loginPort<1||d.loginPort>65535)return pending('需指定本机OAuth后端端口');
-  for(const [key,max,defaultValue]of [['organizationTtlMs',300000,300000],['loginTtlMs',43200000,43200000],['communicationRetentionDays',90,90]]){
+  for(const [key,max,defaultValue]of [['organizationTtlMs',3600000,900000],['loginTtlMs',43200000,43200000],['communicationRetentionDays',90,90]]){
     const value=d[key]??defaultValue;if(!Number.isSafeInteger(value)||value<1||value>max)return pending('钉钉有限复核、登录或保留期限无效');
   }
-  return { state: 'configured', configPath, config:{...config,dingtalk:{organizationTtlMs:300000,loginTtlMs:43200000,communicationRetentionDays:90,...d}}, message: '配置格式完整；仍需宿主服务、钉钉权限验证和已注册模型路线。' };
+  return { state: 'configured', configPath, config:{...config,dingtalk:{organizationTtlMs:900000,loginTtlMs:43200000,communicationRetentionDays:90,...d}}, message: '配置格式完整；仍需宿主服务、钉钉权限验证和已注册模型路线。' };
 }
