@@ -89,7 +89,10 @@ export function resolveHumanProject({ text, projects = [], currentProjectId = nu
   if (explicitIds.length && !rows.some(row => row.id === explicitIds[0])) return clarify('unavailable-project', '没有找到可供你使用的目标项目，请重新确认项目名称。');
   if (currentProjectId && ids.length === 1 && ids[0] !== currentProjectId) return clarify('bound-project-conflict', '这份资料指向另一个项目。请进入对应项目会话处理，不会更改当前会话归属。');
   const stated = instruction.match(/这是\s*(.{1,100}?)\s*的(?:需求文档|需求|项目资料|资料|文档)/u)?.[1]?.trim();
-  if (stated && !matches.some(row => [row.name, row.key].includes(stated))) return clarify('unresolved-stated-project', '请确认这份资料所属的项目名称，不会按相似名字自动归档。');
+  // "整个项目" / "本项目" / "这个项目" 指代当前会话已绑定的项目，不是一个新指名的项目；
+  // 拿它去和真实项目名比对必然失败，会把已选好项目的会话误判为未解析。
+  const genericStated = stated !== undefined && /^(?:(?:我们|咱们|本次|这次|当前|目前|本|整个|该|这个|那个|此)(?:的)?)?项目$/u.test(stated);
+  if (stated && !genericStated && !matches.some(row => [row.name, row.key].includes(stated))) return clarify('unresolved-stated-project', '请确认这份资料所属的项目名称，不会按相似名字自动归档。');
   // An explicit destination without an exact trusted label must not fall back to current.
   const destination = instruction.match(/(?:归档|存档|保存|存入|放入|放进|收进|存为|存成)(?:到|为|成)\s*([^，。！？；\n]+)/u)?.[1]?.split(/并|然后|再/u)[0]?.trim();
   const genericDestination = destination && /^(?:(?:当前|本|这个)项目(?:的)?)?(?:项目资料库?|资料库|资料)?$/u.test(destination);
