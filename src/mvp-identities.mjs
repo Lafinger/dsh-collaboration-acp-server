@@ -48,6 +48,14 @@ export class MvpIdentityStore extends IdentityStore {
     if(!this.db.prepare('SELECT 1 FROM projects WHERE id=?').get(projectId))deny();
     return {enabled:1,revision:1};
   }
+  // Stable variant used by the qualification monitor: identical project visibility, no lease freshness.
+  // MVP/QR members are visible on every project and never populate collaboration_participants, so the
+  // inherited participant-table lookup would deny every check and abort running turns once a second.
+  requireProjectLink(account,projectId){
+    this.requireMemberLink(account);requireText(projectId,'项目',200);
+    if(!this.db.prepare('SELECT 1 FROM projects WHERE id=?').get(projectId))deny();
+    return {enabled:1,revision:1};
+  }
   projects(account){this.requireMember(account);return this.db.prepare('SELECT id FROM projects WHERE archived_at IS NULL ORDER BY created_at,id').all().map(row=>row.id);}
   display(account){const member=this.requireMember(account);return {account,name:this.db.prepare('SELECT name FROM mvp_member_names WHERE account=?').get(account)?.name??account,administrator:!!member.administrator};}
 }
