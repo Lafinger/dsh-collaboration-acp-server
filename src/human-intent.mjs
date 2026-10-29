@@ -47,6 +47,17 @@ function requested(clause, action) {
   if (new RegExp('^' + prefix + '{0,4}(?:把|将)\\s*' + object + '\\s*' + verb, 'u').test(clause)) return true;
   if (action === ARCHIVE && new RegExp('^' + prefix + '{0,4}(?:把|将)\\s*' + object + '\\s*作为\\s*__document_label__\\s*的?新版本\\s*归档(?:吧)?$', 'u').test(clause)) return true;
   if (action === ARCHIVE && /^这是[^，,。！？；;\n]{0,120}?(?:需求文档|项目资料|资料|文档|附件|需求)\s*你需要(?:上传并)?归档(?:该|这(?:份|个)?|那(?:份|个)?|本)(?:文件|文档|附件|资料)(?:并(?:且)?推进项目)?(?:吧)?$/u.test(clause)) return true;
+  // "上传归档为项目资料" / "上传并归档" / "归档为项目资料": members naturally put 上传 in
+  // front of the archive verb, or write 归档为…资料. 上传 alone still authorizes nothing.
+  // The trailing noun must be a real destination or object: 归档指南/归档说明/归档流程 are
+  // document titles, not commands, so explanatory nouns are refused here.
+  const archiveObject = '(?:这(?:份|个)?|那(?:份|个)?|该|此|刚才那份|上述|所选)?(?:文件|文档|附件|资料)';
+  const archiveTarget = '(?:项目资料|资料库|资料|项目里|本项目|当前项目)';
+  if (action === ARCHIVE && new RegExp('^(?:(?:请|麻烦|帮我|替我|现在|直接)\\s*){0,4}(?:上传\\s*(?:并|和|后|再)?\\s*)?(?:归档|存档)(?:到|为|成|进|入)\\s*' + archiveTarget + '(?:吧)?$', 'u').test(clause)) return true;
+  if (action === ARCHIVE && new RegExp('^(?:(?:请|麻烦|帮我|替我|现在|直接)\\s*){0,4}(?:上传\\s*(?:并|和|后|再)?\\s*)?(?:归档|存档)\\s*' + archiveObject + '\\s*(?:到|为|成|进|入)?\\s*' + archiveTarget + '?(?:吧)?$', 'u').test(clause)) return true;
+  // A bare "上传并归档" / "上传归档" states the operation without naming an object; 上传 alone
+  // still does not qualify, so the archive verb must be present.
+  if (action === ARCHIVE && /^(?:(?:请|麻烦|帮我|替我|现在|直接)\s*){0,4}上传\s*(?:并|和|后|再)?\s*(?:归档|存档)(?:吧|一下)?$/u.test(clause)) return true;
   return new RegExp('^' + verb + '(?:这(?:份|个)?|该|此|那个|上述|所选|刚才|之前|它|一下|吧|$)', 'u').test(clause);
 }
 

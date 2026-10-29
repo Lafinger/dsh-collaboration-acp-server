@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveHumanProject, interpretAttachmentRequest } from '../src/human-intent.mjs';
+import { resolveHumanProject, interpretAttachmentRequest, classifyHumanIntent } from '../src/human-intent.mjs';
 
 const current = 'a'.repeat(32);
 const other = 'b'.repeat(32);
@@ -76,4 +76,27 @@ test('naming a different real project still refuses to hijack the bound session'
   });
   assert.equal(result.kind, 'clarify');
   assert.equal(result.reason, 'bound-project-conflict');
+});
+
+test('upload-plus-archive phrasings are admitted, while upload alone still authorizes nothing', () => {
+  // Live incident: "上传归档为项目资料" and "上传并归档" fell through to missing-intent and the
+  // member was asked to choose an action they had already stated.
+  for (const text of [
+    '上传归档为项目资料',
+    '归档为项目资料',
+    '上传并归档为项目资料',
+    '上传并归档这份资料',
+    '请上传并归档这份资料',
+    '@需求-v2.md 上传归档为项目资料',
+    '@需求-v2.md 上传并归档',
+  ]) {
+    assert.equal(classifyHumanIntent(text).kind, 'archive', 'expected archive for: ' + text);
+  }
+  // 上传 on its own is only a transfer; it must never become archive authority.
+  for (const text of ['上传', '上传这份文件', '重新上传']) {
+    assert.equal(classifyHumanIntent(text).kind, 'clarify', 'upload alone must clarify: ' + text);
+  }
+  // A refusal that mentions both verbs still refuses.
+  assert.equal(classifyHumanIntent('只阅读，不要上传并归档').kind, 'clarify');
+  assert.equal(classifyHumanIntent('不要把这份文件归档，也不要上传').kind, 'clarify');
 });

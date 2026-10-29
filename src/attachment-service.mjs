@@ -86,7 +86,13 @@ export class AttachmentService {
   context(sessionId,account){const request=this.active.get(String(sessionId));if(!request||request.account!==account||request.signal.aborted)throw new AccessError(-32013,'Current authorized attachment request unavailable');return request;}
   receipt(sessionId,account,receiptId){
     const row=this.db.prepare('SELECT * FROM attachment_receipts WHERE receipt_id=? AND account=? AND session_id=?').get(receiptId,account,String(sessionId));
-    if(!row)throw new AccessError(-32013,'Attachment receipt is not owned by this account/session');return row;
+    if(row)return row;
+    // A handle is not a receipt id. A receipt only exists after attachment_transfer has
+    // hash-verified the bytes, so passing a handle here means the transfer step was skipped.
+    // Say so instead of the opaque ownership error, which invites blind retries.
+    const pending=(this.active.get(String(sessionId))?.manifests??[]).some(item=>item.handle===receiptId);
+    if(pending)throw new AccessError(-32013,'这是附件 handle，不是 receipt_id：请先调用 attachment_transfer（handle 原样传入）传输并校验，再用返回的 receipt_id 调用 attachment_inspect。');
+    throw new AccessError(-32013,'Attachment receipt is not owned by this account/session');
   }
   async transfer(sessionId,account,handle,toolSignal,authorize){
     const request=this.context(sessionId,account),manifest=request.manifests.find(item=>item.handle===handle);
@@ -130,7 +136,7 @@ export class AttachmentService {
     const candidate=this.active.get(String(sessionId)),request=candidate?.account===account&&!candidate.signal.aborted?candidate:undefined;
     const authorized_attachments=(request?.manifests??[]).filter(m=>!projectId||m.projectId===projectId).map(m=>({handle:m.handle,name:m.name,bytes:m.bytes,sha256:m.sha256,action:m.archiveAuthorized?'archive':'transfer'}));
     const receipts=this.db.prepare('SELECT * FROM attachment_receipts WHERE account=? AND session_id=? ORDER BY created_at DESC LIMIT 100').all(account,String(sessionId)).filter(row=>!projectId||JSON.parse(row.manifest).projectId===projectId).map(row=>{const grant=request?.grants.get(row.receipt_id);return {...this.summary(row),archive_authorized_now:!!grant,...(grant?{current_archive_scope:{action:'archive',...(grant.targetMaterialId===undefined?{}:{target_material_id:grant.targetMaterialId}),...(grant.expectedLatestVersion===undefined?{}:{expected_latest_version:grant.expectedLatestVersion}),...(grant.restoreVersion===undefined?{}:{restore_version:grant.restoreVersion})}}:{})};});
-    return {ok:true,receipts,authorized_attachments,limit:100};
+    return {ok:true,receipts,authorized_attachments,limit:100,next_step:authorized_attachments.length&&!receipts.length?'authorized_attachments 里的 handle 还不是 receipt：先对每个 handle 调用 attachment_transfer，拿到返回的 receipt_id 后再调用 attachment_inspect。':receipts.length?'receipts 里已有的 receipt_id 可直接用于 attachment_inspect。':'没有待处理的附件。'};
   }
   pendingRestores(sessionId,account,projectId){
     return this.db.prepare("SELECT p.*,r.manifest FROM attachment_restore_proposals p JOIN attachment_receipts r ON r.receipt_id=p.receipt_id AND r.account=p.account AND r.session_id=p.session_id WHERE p.account=? AND p.session_id=? AND p.project_id=? AND p.status='pending' AND p.expires_at>? AND r.material_id IS NULL AND (SELECT MAX(version) FROM material_versions WHERE material_id=p.target_material_id)=p.expected_latest_version ORDER BY p.created_at DESC LIMIT 100").all(account,String(sessionId),projectId,Date.now()).map(p=>({receiptId:p.receipt_id,name:JSON.parse(p.manifest).name,targetMaterialId:p.target_material_id,restoreVersion:p.restore_version,expectedLatestVersion:p.expected_latest_version}));
