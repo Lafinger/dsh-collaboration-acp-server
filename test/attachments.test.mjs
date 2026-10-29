@@ -54,3 +54,27 @@ test('corrupt chunk/digest and cancellation remove service-owned staging, transf
  const transferOnly=request(f,data,{archiveAuthorized:false});release=f.service.bind(transferOnly.request,transferOnly.controller.signal);const receipt=await f.service.transfer('alice-session','alice',transferOnly.manifest.handle);release();assert.throws(()=>f.service.archive('alice-session','alice',{receiptId:receipt.receipt_id,purpose:'test',reason:'test'}));
  assert.equal(f.service.list('alice-session','alice').receipts.length,1);assert.equal(f.service.list('alice-session','bob').receipts.length,0);
 });
+
+test('a handle passed as receipt_id is refused with actionable guidance, not an opaque ownership error',async t=>{
+ // Live incident: attachment_receipts returned authorized_attachments[0].handle and the model
+ // passed it straight to attachment_inspect as receipt_id, then retried the same value ~10x
+ // because the error only said "not owned by this account/session".
+ const f=fixture(t),data=docx(xml),r=request(f,data);const release=f.service.bind(r.request,r.controller.signal);
+ const listing=f.service.list('alice-session','alice');
+ assert.equal(listing.receipts.length,0);
+ assert.equal(listing.authorized_attachments.length,1);
+ assert.equal(listing.authorized_attachments[0].handle,r.manifest.handle);
+ assert.match(listing.next_step,/attachment_transfer/);
+ // handle != receipt_id: passing the handle must explain the missing transfer step.
+ assert.throws(()=>f.service.inspect('alice-session','alice',r.manifest.handle),error=>
+   error.code===-32013&&/handle/.test(error.message)&&/attachment_transfer/.test(error.message));
+ // After a real transfer the handle is still not a receipt id, but a receipt now exists.
+ const receipt=await f.service.transfer('alice-session','alice',r.manifest.handle);
+ assert.notEqual(receipt.receipt_id,r.manifest.handle);
+ const inspected=f.service.inspect('alice-session','alice',receipt.receipt_id);
+ assert.match(inspected.parsed.content,/需求 & evidence/);
+ // An unknown id (never authorized) keeps the original conservative message.
+ assert.throws(()=>f.service.inspect('alice-session','alice','f'.repeat(64)),error=>
+   error.code===-32013&&/not owned/.test(error.message));
+ release();
+});
