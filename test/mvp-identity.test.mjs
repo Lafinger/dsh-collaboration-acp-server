@@ -28,6 +28,8 @@ test('MVP official identity auto-enrolls stable accounts, fixed admin only; all 
  assert.equal(a.administrator,1);assert.equal(b.administrator,0);assert.equal(f.identities.enroll(identity()).account,b.account);
  assert.throws(()=>f.identities.enroll({...identity(),unionId:'impostor'}));assert.throws(()=>f.identities.enroll({...identity(),corpId:'other'}));
  const project=f.projects.create({key:'ONE',name:'Shared'});assert.deepEqual(f.identities.projects(b.account),[project.id]);assert.equal(f.identities.requireProject(b.account,project.id).revision,1);
+ assert.deepEqual(f.identities.requireProjectLink(b.account,project.id),{enabled:1,revision:1});
+ assert.throws(()=>f.identities.requireProjectLink(b.account,'missing'));
  assert.equal(f.db.prepare('SELECT count(*) n FROM collaboration_participants').get().n,0);
 });
 test('MVP PC requests bind device proof and browser, reject replay/cross-device and issue fixed seven-day logins',async t=>{
