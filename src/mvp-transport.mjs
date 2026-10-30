@@ -53,7 +53,7 @@ export async function listenMvpHttp(service,login,{port,host='127.0.0.1'}={}){
      if(!allowed(req)||String(req.url).length>1024)return json(403,{ok:false,message:'入口校验失败'});
      const url=new URL(req.url,origin);
      if(url.search)return json(400,{ok:false,message:'请求参数无效'});
-     if(req.method==='GET'&&url.pathname==='/collaboration/info')return json(200,{serviceId:service.identities.serviceId,origin,mvpHttpsVersion:1,loginMethod:'dingtalk-pc',protocolVersion:3});
+     if(req.method==='GET'&&url.pathname==='/collaboration/info')return json(200,{serviceId:service.identities.serviceId,origin,mvpHttpsVersion:1,loginMethod:'dingtalk-pc',protocolVersion:4});
      if(req.method==='GET'&&url.pathname==='/collaboration/pc-sdk.js'){res.writeHead(200,{...policy,'content-type':'application/javascript; charset=utf-8'});res.end(pcSdk);return;}
      if(req.method==='GET'&&url.pathname==='/collaboration/pc-login'){
        const nonce=randomBytes(18).toString('base64');res.writeHead(200,{...policy,'content-type':'text/html; charset=utf-8','content-security-policy':`default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors https://*.dingtalk.com https://*.7ding.ai; base-uri 'none'; form-action 'none'`});res.end(page(nonce));return;

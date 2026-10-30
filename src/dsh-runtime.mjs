@@ -35,7 +35,7 @@ export class DshRuntime {
       await this.setup?.(agentCtx, agent, owner,principal);
       // Host publication presets can add scope-local tools later: guard stays monotonic.
       const allowed = new Map(agentCtx.tools.view(agent).visible);
-      const humanAllowed=name=>principal?.channel&&principal.channel!=='dsh'?true:typeof this.attachments?.allows==='function'?this.attachments.allows(String(agent.session.id),owner,name):allowsHumanTool(this.humanRequests.get(String(agent.session.id)),name);
+      const humanAllowed=name=>{if(principal?.channel&&principal.channel!=='dsh')return true;const request=this.humanRequests.get(String(agent.session.id));if(typeof this.attachments?.allows==='function'){const admitted=this.attachments.allows(String(agent.session.id),owner,name);if(admitted!==undefined)return admitted;}return allowsHumanTool(request,name);};
       agentCtx.tools.guard(exec=>humanAllowed(exec.name)?undefined:humanToolDenial(String(exec.name)));
       agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
         const assembly = await next();
@@ -63,10 +63,12 @@ export class DshRuntime {
     const agent = handle.agent;
     const key=String(agent.session.id);if(this.humanRequests.has(key))throw new Error('A human turn is already active for this Agent');
     this.humanRequests.set(key,attachmentRequest??{policy:deriveHumanPolicy(text)});
-    let releaseAttachments=()=>{};
-    try{if(attachmentRequest&&this.attachments)releaseAttachments=this.attachments.bind(attachmentRequest,signal);else if(attachmentRequest?.manifests?.length||attachmentRequest?.receiptScopes?.length)throw new Error('Attachment service unavailable for this runtime');}catch(error){this.humanRequests.delete(key);throw error;}
+    // Attachments are ingested before the turn starts; no per-turn binding remains.
+    let releaseTurn=()=>{};
+    if(attachmentRequest&&this.attachments)releaseTurn=this.attachments.beginTurn(attachmentRequest,signal);
+    else if(attachmentRequest?.manifests?.length){this.humanRequests.delete(key);throw new Error('Attachment service unavailable for this runtime');}
     let releaseVision=()=>{};
-    try{releaseVision=this.vision?.begin(agent.session.id,handle.collaborationOwner,handle.collaborationPrincipal,text)??releaseVision;}catch(error){releaseAttachments();this.humanRequests.delete(key);throw error;}
+    try{releaseVision=this.vision?.begin(agent.session.id,handle.collaborationOwner,handle.collaborationPrincipal,text)??releaseVision;}catch(error){releaseTurn();this.humanRequests.delete(key);throw error;}
     let reason = 'end_turn', failure,finalText=null;
     const offStream = agent.ctx.on('agent/assistant-stream', ({ agent: subject, frame }) => {
       if (subject !== agent || frame.type !== 'chunk') return;
@@ -91,11 +93,16 @@ export class DshRuntime {
     signal.addEventListener('abort', abort, { once: true });
     try {
       if (signal.aborted) return { stopReason: 'cancelled' };
-      agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' }, ...(attachmentRequest?.messageId?{id:attachmentRequest.messageId}:{}) }));
+      // The session attachment inventory rides with every human message: the model can name a
+      // handle for attachment_read/attachment_archive without any per-turn client grant.
+      const owner=handle.collaborationOwner??attachmentRequest?.account;
+      const inventory=this.attachments&&owner?this.attachments.inventory(agent.session.id,owner):[];
+      const messageText=inventory.length?text+'\n\n[会话附件清单]\n'+inventory.map(item=>`- ${item.name} handle=${item.handle}`).join('\n')+'\n用 attachment_read 阅读附件全文，用 attachment_archive 把附件归档到当前项目。':text;
+      agent.followup(createUserMessage({ content: [{ type: 'text', text: messageText }], source: { kind: 'user' }, ...(attachmentRequest?.messageId?{id:attachmentRequest.messageId}:{}) }));
       await agent.whenIdle(); await this.ctx.sessions.flush(agent.session);
       if (failure && !signal.aborted) throw failure instanceof Error ? failure : new Error(failure.message ?? 'DSH turn failed');
       return { stopReason: signal.aborted ? 'cancelled' : reason,finalText:!signal.aborted&&reason==='end_turn'?finalText:null };
-    } finally { releaseVision();releaseAttachments();this.humanRequests.delete(key); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
+    } finally { releaseVision();releaseTurn();this.humanRequests.delete(key); signal.removeEventListener('abort', abort); offStream(); offEnd(); offError(); }
   }
   async persistedImLog(handle){
     const artifact=await this.persistedImLogById(handle.agent.session.id,handle.agent.session.header.cwd);if(!artifact)throw new Error('Materialized IM session header unavailable');return artifact;

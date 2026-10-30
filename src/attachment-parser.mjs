@@ -77,7 +77,7 @@ export async function parseAttachment(bytes,name){
   try{const image=sharp(bytes,{limitInputPixels:40*1024*1024,failOn:'warning',animated:true});const metadata=await image.metadata();
    const expected={'.png':'png','.jpg':'jpeg','.jpeg':'jpeg','.webp':'webp'}[extension];if(metadata.format!==expected||!metadata.width||!metadata.height||metadata.width>12000||metadata.height>12000||(metadata.pages??1)!==1)throw new Error('Image limits/type mismatch');
    await sharp(bytes,{limitInputPixels:40*1024*1024,failOn:'warning',page:0,pages:1}).raw().toBuffer();
-   parsed={kind:'image',content:null,format:metadata.format,width:metadata.width,height:metadata.pageHeight??metadata.height,pages:metadata.pages??1,visualAnalysis:'not-performed',warnings:['Image format and raster decoded; visual content and OCR have not yet been analyzed. attachment_inspect may present a bounded authorized copy to the current image-capable model.']};
+   parsed={kind:'image',content:null,format:metadata.format,width:metadata.width,height:metadata.pageHeight??metadata.height,pages:metadata.pages??1,visualAnalysis:'not-performed',warnings:['Image format and raster decoded; visual content and OCR have not yet been analyzed. attachment_read may present a bounded copy to the current image-capable model.']};
   }catch{throw new AccessError(-32602,'Invalid, unsupported, or over-limit image');}
  }else throw new AccessError(-32602,'Supported attachments: DOCX, UTF-8 MD/TXT, single-frame PNG/JPEG/WebP; GIF uploads are not allowed');
  return {...parsed,parserVersion:PARSER_VERSION,originalSha256:hash(bytes),textSha256:parsed.content===null?null:hash(Buffer.from(parsed.content))};

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 import { AccessError, requireText, textPrompt, ACP_PROTOCOL_VERSION, collaborationMeta, requireCollaborationVersion } from './protocol.mjs';
-import { attachmentCapability, requireAttachmentCapability, validateAttachmentManifest } from './attachment-protocol.mjs';
+import { attachmentCapability, requireAttachmentCapability } from './attachment-protocol.mjs';
 import { humanAuthorizationCapability, prepareHumanRequest } from './human-authorization.mjs';
 
 export class AccessService {
@@ -88,7 +88,7 @@ export class AccessService {
       c.attachmentTransfer = null;
       if (p.clientCapabilities?.attachmentTransfer !== undefined) { requireAttachmentCapability(p.clientCapabilities.attachmentTransfer); c.attachmentTransfer = attachmentCapability(); }
       c.humanAuthorization = null;
-      if (p.clientCapabilities?.humanAuthorization !== undefined) { if(p.clientCapabilities.humanAuthorization?.version!==2)throw new AccessError(-32012,'Unsupported human authorization capability'); c.humanAuthorization=humanAuthorizationCapability(); }
+      if (p.clientCapabilities?.humanAuthorization !== undefined) { if(p.clientCapabilities.humanAuthorization?.version!==3)throw new AccessError(-32012,'Unsupported human authorization capability'); c.humanAuthorization=humanAuthorizationCapability(); }
       c.initialized = true;
       return { protocolVersion: ACP_PROTOCOL_VERSION, _meta: collaborationMeta(), agentInfo: { name: 'dsh-collaboration-acp-server', version },
         agentCapabilities: { ...(c.humanAuthorization ? {humanAuthorization:humanAuthorizationCapability()}:{}), loadSession: true, sessionCapabilities: { list: {}, resume: {}, close: {} }, promptCapabilities: { image: false }, ...(c.attachmentTransfer && this.runtime.attachments ? { attachmentTransfer: attachmentCapability() } : {}) }, authMethods: this.login?[{id:'dingtalk-device',name:'钉钉扫码认证',description:'SSH transport identity alone does not authorize business access'}]:[] };
@@ -195,24 +195,24 @@ export class AccessService {
     e = this.requireSession(c, p.sessionId);
     if (e.running) throw new AccessError(-32007, 'A prompt is already running');
     text = textPrompt(p.prompt); requestId = requireText(p._meta?.requestId, 'requestId', 200);
-    if(p._meta?.humanAuthorization!==undefined&&!c.humanAuthorization)throw new AccessError(-32012,'请先协商人类授权v2能力，再发送本次操作。');
+    if(p._meta?.humanAuthorization!==undefined&&!c.humanAuthorization)throw new AccessError(-32012,'请先协商人类授权v3能力，再发送本次操作。');
     manifests = p._meta?.attachments;
     if (manifests !== undefined) {
       requireAttachmentCapability(c.attachmentTransfer);
       if (!this.runtime.attachments) throw new AccessError(-32012, 'Attachment transfer unavailable');
-      validateAttachmentManifest(manifests);
       if(this.login)for(const manifest of manifests)if(manifest.projectId!==e.principal.projectId)throw new AccessError(-32003,'Attachment project differs from the authenticated conversation');
-      if(!c.humanAuthorization)this.runtime.attachments.validateHumanRequest(text, manifests);
     }
     const projectId=e.principal?.projectId??this.store.scope(e.id)?.project_id??manifests?.[0]?.projectId;
-    const catalog=this.projects??this.runtime.attachments?.projects;
-    const humanProjects=projectId&&catalog?(this.login?this.identities.projects(c.identity.account).map(id=>catalog.get(id)):[catalog.get(projectId)]):undefined;
-    humanRequest=prepareHumanRequest({projects:humanProjects,text,authorization:p._meta?.humanAuthorization,required:!!c.humanAuthorization,projectId,manifests:manifests??[],sessionId:e.id,account:c.identity.account,requestId,receipt:id=>this.runtime.attachments.receipt(e.id,c.identity.account,id),pendingRestores:()=>this.runtime.attachments.pendingRestores(e.id,c.identity.account,projectId)});
-    if(this.runtime.attachments)humanRequest=this.runtime.attachments.authorizeMaterialTargets(humanRequest,text);
+    // Bytes are pulled and persisted before the turn starts; a failure here rejects the prompt.
+    if(manifests?.length){
+      const controller=new AbortController();
+      await this.runtime.attachments.ingest({sessionId:e.id,account:c.identity.account,requestId,projectId,manifests,read:params=>c.peer.request('collaboration/attachment/read',params,{timeoutMs:30000}),signal:controller.signal});
+    }
+    humanRequest=prepareHumanRequest({text,authorization:p._meta?.humanAuthorization,required:!!c.humanAuthorization,projectId,manifests:manifests??[],sessionId:e.id,account:c.identity.account,requestId});
     } catch(error) {
       const id=p._meta?.requestId,sessionId=p.sessionId;
       const ownedPrior=typeof sessionId==='string'&&typeof id==='string'&&this.store.owner(sessionId)===c.identity.account&&this.store.db.prepare('SELECT state FROM access_requests WHERE session_id=? AND request_id=?').get(sessionId,id);
-      if(c.humanAuthorization?.version===2&&typeof id==='string'&&id.trim()&&id.length<=200&&!ownedPrior)throw new AccessError(error instanceof AccessError?error.code:-32602,error instanceof AccessError?error.message:'当前消息未通过校验，业务操作尚未开始。',{requestId:id,executionState:'not_started'});
+      if(c.humanAuthorization?.version===3&&typeof id==='string'&&id.trim()&&id.length<=200&&!ownedPrior)throw new AccessError(error instanceof AccessError?error.code:-32602,error instanceof AccessError?error.message:'当前消息未通过校验，业务操作尚未开始。',{requestId:id,executionState:'not_started'});
       throw error;
     }
     this.store.begin(e.id, requestId); e.controller = new AbortController();
@@ -221,10 +221,10 @@ export class AccessService {
       this.publish(e, { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } });
       if (e.controller.signal.aborted) return { stopReason: 'cancelled' };
       return this.runtime.prompt(e.handle, text, e.controller.signal, update => this.publish(e, update), {...humanRequest,onOperation:result=>{
-              if(operationResults.some(old=>old.kind===result.kind&&old.receipt_id===result.receipt_id))return;
+              if(operationResults.some(old=>old.kind===result.kind&&old.attachment_id===result.attachment_id))return;
               const record=Object.freeze({...result});operationResults.push(record);
               const name=`《${record.name}》`;
-              const human=record.kind==='attachment_transfer'?`已收到并校验${name}。`:record.kind==='restore_confirmation_required'?`${name}与历史第${record.restoreVersion}版内容相同，当前最新为第${record.expectedLatestVersion}版；尚未恢复。是否将旧内容恢复为新版本？`:record.restoreVersion!==undefined?`已将${name}的第${record.restoreVersion}版内容恢复为新的第${record.version}版，历史版本保留。`:record.already_archived?`${name}此前已归档为第${record.version}版，本次未新增版本。`:record.deduplicated?`${name}与已归档的第${record.version}版内容相同，未新增版本。`:`已将${name}归档为第${record.version}版。`;
+              const human=record.deduplicated?`${name}与已归档的第${record.version}版内容相同，未新增版本。`:`已将${name}归档为第${record.version}版。`;
               this.publish(e,{sessionUpdate:'agent_message_chunk',content:{type:'text',text:human+'\n'},_meta:{requestId,operationResult:record}});
             },
         read: params => c.peer.request('collaboration/attachment/read', params, { timeoutMs: 30000 }),

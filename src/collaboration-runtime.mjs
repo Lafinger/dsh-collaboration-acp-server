@@ -14,7 +14,7 @@ import { TraceService } from '../business/lib/service/trace-service.js';
 import { ResultService } from '../business/lib/service/result-service.js';
 import { registerTools } from '../business/lib/tool/register.js';
 import { AttachmentService } from './attachment-service.mjs';
-import { humanToolDenial, humanVisibleTool } from './human-authorization.mjs';
+import { humanToolDenial, humanVisibleTool, allowsHumanTool } from './human-authorization.mjs';
 import { registerAttachmentTools } from './attachment-tools.mjs';
 import { IdentityStore } from './identity-store.mjs';
 import { LoginService } from './login-service.mjs';
@@ -61,7 +61,7 @@ export async function createCollaborationRuntime(config, ctx) {
       const authorize=access?(_name,args)=>{
         access.scope(principal);
         if(principal.channel!=='dsh')throw new Error('IM attachments unavailable');
-        if(args.receipt_id){const row=attachments.receipt(agent.session.id,account,args.receipt_id);if(JSON.parse(row.manifest).projectId!==principal.projectId)throw new Error('Attachment project mismatch');}
+        if(args.handle){const row=attachments.owned(agent.session.id,account,args.handle);if(row.project_id!==principal.projectId)throw new Error('Attachment project mismatch');}
       }:undefined;
       if(!principal||principal.channel==='dsh')registerAttachmentTools(agentCtx, attachments, { sessionId: agent.session.id, account,authorize,vision });
       agentCtx.on('agent/request',async(payload,next)=>{if(payload.agent!==agent)return next();await vision.prepare(agent,account,principal,payload.signal);return next();});
@@ -69,7 +69,7 @@ export async function createCollaborationRuntime(config, ctx) {
         agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>access.allows(principal,t.name)||principal.channel==='dsh'&&t.name.startsWith('attachment_'))};});
         agentCtx.tools.guard(exec=>{try{access.scope(principal);if(!access.allows(principal,exec.name)&&!(principal.channel==='dsh'&&exec.name.startsWith('attachment_')))return 'Tool unavailable in this authenticated channel';return undefined;}catch{return 'Authenticated member, device or project qualification unavailable';}});
       }
-      const humanAllowed=(name,args)=>principal&&principal.channel!=='dsh'||attachments.allows(agent.session.id,account,name,args);
+      const humanAllowed=(name,args)=>{if(principal&&principal.channel!=='dsh')return true;const admitted=attachments.allows(agent.session.id,account,name,args);return admitted===undefined?allowsHumanTool(runtime.humanRequests.get(String(agent.session.id)),name):admitted;};
       // Business write tools stay advertised even without authorization so the model can name the real
       // operation and ask for it; the guard below still refuses the call and says how to authorize it.
       agentCtx.on('system-prompt/assemble',async(_a,_c,next)=>{const assembly=await next();return {...assembly,tools:assembly.tools.filter(t=>humanAllowed(t.name)||humanVisibleTool(t.name))};});
