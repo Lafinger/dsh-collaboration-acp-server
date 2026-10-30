@@ -24,11 +24,11 @@
 
 ## 开发者协议边界
 
-基础collaborationProtocolVersion=3、attachmentTransfer.version=1保持，initialize独立协商humanAuthorization={version:2}。每个v2 session/prompt携带_meta.humanAuthorization：version、当前真实messageId、UTF8原文textSha256、projectId、attachmentScopes(handle/action)、receiptScopes(receiptId/action及已核验的可选targetMaterialId/expectedLatestVersion/restoreVersion)。原文不补伪人类授权行；元数据与manifest逐项核对，不让模型签发或升级许可。
+基础collaborationProtocolVersion=4、attachmentTransfer.version=2，initialize独立协商humanAuthorization={version:3}。每个v3 session/prompt携带_meta.humanAuthorization：version、当前真实messageId、UTF8原文textSha256、projectId——仅此四项，attachmentScopes/receiptScopes已删除。原文不补伪人类授权行；元数据逐项核对，不让模型签发或升级许可。业务写操作的短语边界判定不变（见上节）。
 
-collaboration/attachments/receipts为受认证、会话/项目作用域内的只读RPC，返回camel白名单receiptId/name/projectId/requestId/archived及必要materialId/version/archiveAuthorized/pendingRestore。requestId用于原始选择组消歧，不能按最后一次transfer时间随便选。pendingRestore只由真实历史内容冲突产生，包含targetMaterialId/restoreVersion/expectedLatestVersion，并校验有效期、上下文、身份和最新版本。
+附件不再走文本授权或按轮scope：成员随消息明确选定的文件在prompt入口由服务端拉取字节并入库（`session_attachments`），上传即授权，按会话持续有效。清单每条人类消息注入模型上下文（name + handle），模型用 `attachment_read(handle)` / `attachment_archive(handle,{purpose,role?})` 两个工具完成读取与归档；`collaboration/attachments/receipts` RPC 保留为受认证、会话/项目作用域内的只读清单（attachmentId=handle/name/projectId/requestId），供客户端核对，不再是模型的前置步骤。
 
-attachment_receipts工具内部保持snake_case，另给当前请求authorized_attachments元数据，模型先查再传输，不从改写的人类正文取handle。正常可信操作通知位于session/update的update._meta.operationResult，update._meta.requestId必须匹配；外层_meta仍为序号。正常归档/去重/旧回执与待恢复确认区别展示，内部工具ID/JSON不作默认人类回复。部分失败error.data.operationResults也只能来自实际提交结果。客户端已发送失败仍以error结束，只有未调用业务prompt的本地澄清以stop结束。
+正常可信操作通知位于session/update的update._meta.operationResult（kind `material_archive`），update._meta.requestId必须匹配；外层_meta仍为序号。归档与去重区别展示，内部工具ID/JSON不作默认人类回复。部分失败error.data.operationResults也只能来自实际提交结果。客户端已发送失败仍以error结束，只有未调用业务prompt的本地澄清以stop结束。
 
 analysis_begin仅只读准备，不登记正式分析；analysis_submit才持久化。默认草稿允许原权限约束的实际读取，禁止未授权正式提交。result_acceptance_open确实创建验收槽位，仍需原条件和明确意图；plan_confirm/result_review/result_accept本人决定入口不由模型新增代办路线。
 

@@ -35,7 +35,7 @@ export async function listenQrHttp(service,login,{port=0,host='127.0.0.1'}={}){
     res.writeHead(303,{...policy,location:'/collaboration/login-complete'});res.end();return;
    }
    if(url.search)return json(400,{ok:false,message:'请求参数无效'});
-   if(req.method==='GET'&&url.pathname==='/collaboration/info')return json(200,{serviceId:service.identities.serviceId,origin,mvpHttpsVersion:2,loginMethod:'dingtalk-qr',protocolVersion:3});
+   if(req.method==='GET'&&url.pathname==='/collaboration/info')return json(200,{serviceId:service.identities.serviceId,origin,mvpHttpsVersion:2,loginMethod:'dingtalk-qr',protocolVersion:4});
    if(req.method==='GET'&&url.pathname==='/collaboration/qr-login'){
     const nonce=randomBytes(18).toString('base64');return html(200,page(nonce),{'content-security-policy':`default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`});
    }

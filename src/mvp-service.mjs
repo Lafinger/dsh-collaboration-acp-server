@@ -21,7 +21,7 @@ export class MvpAccessService extends AccessService {
       requireCollaborationVersion(p);if(p.protocolVersion!==ACP_PROTOCOL_VERSION)throw new AccessError(-32011,'双端协议不匹配');
       if(c.initialized)throw new AccessError(-32600,'连接已初始化');
       c.attachmentTransfer=null;if(p.clientCapabilities?.attachmentTransfer!==undefined){requireAttachmentCapability(p.clientCapabilities.attachmentTransfer);if(this.runtime.attachments)c.attachmentTransfer=attachmentCapability();}
-      c.humanAuthorization=null;if(p.clientCapabilities?.humanAuthorization!==undefined){if(p.clientCapabilities.humanAuthorization?.version!==2)throw new AccessError(-32012,'Unsupported human authorization capability');c.humanAuthorization=humanAuthorizationCapability();}
+      c.humanAuthorization=null;if(p.clientCapabilities?.humanAuthorization!==undefined){if(p.clientCapabilities.humanAuthorization?.version!==3)throw new AccessError(-32012,'Unsupported human authorization capability');c.humanAuthorization=humanAuthorizationCapability();}
       c.initialized=true;return {protocolVersion:ACP_PROTOCOL_VERSION,_meta:collaborationMeta(),serviceId:this.identities.serviceId,agentInfo:{name:'dsh-collaboration-mvp',version:'0.6.0'},authMethods:[{id:'dingtalk-device',name:'电脑钉钉登录'}],agentCapabilities:{...c.humanAuthorization?{humanAuthorization:humanAuthorizationCapability()}:{},loadSession:true,...c.attachmentTransfer?{attachmentTransfer:c.attachmentTransfer}:{},mvpHttps:true}};
     }
     if(!c.initialized)throw new AccessError(-32600,'请先初始化连接');

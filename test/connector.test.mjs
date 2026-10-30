@@ -31,7 +31,7 @@ test('stdio connector fixes trusted account and forbids client identity renegoti
   assert.equal(service.connections.size, 1);
 });
 test('connector rejects authenticated-looking old server response before bridging member traffic',async()=>{
-  const sockets=[];const server=createServer(socket=>{sockets.push(socket);const peer=new JsonPeer(socket);peer.on('message',({method,params,id})=>{assert.equal(method,'collaboration/connect');assert.equal(params._meta.collaborationProtocolVersion,3);peer.result(id,{account:'alice',serviceId:'connector'});});});
+  const sockets=[];const server=createServer(socket=>{sockets.push(socket);const peer=new JsonPeer(socket);peer.on('message',({method,params,id})=>{assert.equal(method,'collaboration/connect');assert.equal(params._meta.collaborationProtocolVersion,4);peer.result(id,{account:'alice',serviceId:'connector'});});});
   server.listen(0,'127.0.0.1');await once(server,'listening');const {port}=server.address();
   try{await assert.rejects(bridgeConnector({account:'alice',serviceId:'connector',secret,endpoint:{host:'127.0.0.1',port}},new PassThrough(),new PassThrough()),error=>error.code===-32011);}finally{sockets.forEach(socket=>socket.destroy());await new Promise(resolve=>server.close(resolve));}
 });

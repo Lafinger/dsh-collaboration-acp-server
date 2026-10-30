@@ -94,7 +94,7 @@ github:Lafinger/dsh-collaboration-acp-server
 - [宿主运行时适配](src/dsh-runtime.mjs)、[业务装配](src/collaboration-runtime.mjs)、[接入服务](src/service.mjs)、[可信身份绑定](src/collaboration-binding.mjs)
 - [轻量SSH connector](src/connector-cli.mjs)：无模型、不另起DSH
 - [业务源码](business/src/)、[核验编译产物](business/lib/)、[历史业务文档](business/docs/协作服务需求文档MVP/README.md)
-- [运维](docs/OPERATIONS.md)、[当前契约](docs/PROTOCOL-v3.json)、[验证](docs/VERIFY.md)、[架构决定](docs/adr/0001-hosted-collaboration-runtime.md)、[术语](GLOSSARY.md)
+- [运维](docs/OPERATIONS.md)、[当前契约](docs/PROTOCOL-v4.json)、[验证](docs/VERIFY.md)、[架构决定](docs/adr/0001-hosted-collaboration-runtime.md)、[术语](GLOSSARY.md)
 
 ## 开发与验证
 

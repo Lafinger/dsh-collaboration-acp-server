@@ -51,8 +51,8 @@ test('a conditional clause cannot lend its instruction to a later clause', () =>
 });
 
 test('write tools are advertised while human-only confirmations never are', () => {
-  for (const name of ['analysis_submit', 'plan_register', 'plan_revise', 'result_submit', 'progress_add', 'project_update_details', 'todo_mark_read', 'result_acceptance_open', 'material_list', 'plan_get']) assert.ok(humanVisibleTool(name), name);
-  for (const name of ['plan_confirm', 'result_review', 'result_accept', 'attachment_transfer', 'attachment_archive']) assert.ok(!humanVisibleTool(name), name);
+  for (const name of ['analysis_submit', 'plan_register', 'plan_revise', 'result_submit', 'progress_add', 'project_update_details', 'todo_mark_read', 'result_acceptance_open', 'material_list', 'plan_get', 'attachment_read', 'attachment_archive']) assert.ok(humanVisibleTool(name), name);
+  for (const name of ['plan_confirm', 'result_review', 'result_accept', 'attachment_transfer', 'attachment_receipts', 'attachment_inspect']) assert.ok(!humanVisibleTool(name), name);
 });
 
 test('a refusal names the operation and the exact sentence that would authorize it', () => {
@@ -66,6 +66,6 @@ test('a refusal names the operation and the exact sentence that would authorize 
   }
 });
 
-test('the version 2 capability is unchanged by the wording work', () => {
-  assert.deepEqual(humanAuthorizationCapability(), { version: 2 });
+test('the version 3 capability is the pairing gate after the attachment redesign', () => {
+  assert.deepEqual(humanAuthorizationCapability(), { version: 3 });
 });
