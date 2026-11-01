@@ -14,6 +14,7 @@ import {MvpAccessService} from './mvp-service.mjs';
 import {listenMvpHttp} from './mvp-transport.mjs';
 import {QrAccessService} from './qr-service.mjs';
 import {listenQrHttp} from './qr-transport.mjs';
+import {listenResultDownloads} from './download-transport.mjs';
 
 export const name = 'collaboration-acp-server';
 export const inject = []; // Empty configuration can mount without host services; configured activation injects them below.
@@ -58,10 +59,10 @@ async function activate(ctx, resolved, setState, pending) {
   if (instances.has(owner)) throw new Error('Only one collaboration service may run in this DSH profile');
   if(!['mvp-https','mvp-qr'].includes(resolved.config.mode))validateSocket(resolved.config);
   const lease = {}; instances.set(owner, lease);
-  let runtime, store, listener, service, loginListener,stopTask;
+  let runtime, store, listener, service, loginListener, downloadListener,stopTask;
   const stop = () => stopTask ??= (async () => {
     state = { ...state, state: 'stopping' }; setState(state);
-    try { if(['mvp-https','mvp-qr'].includes(resolved.config.mode)){try{if(service)await service.close();else await runtime?.closeAll();}finally{await loginListener?.close();}}else{await loginListener?.close();if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll();} }
+    try { if(['mvp-https','mvp-qr'].includes(resolved.config.mode)){try{await downloadListener?.close();if(service)await service.close();else await runtime?.closeAll();}finally{await loginListener?.close();}}else{await loginListener?.close();if (listener) await listener.close(); else if (service) await service.close(); else await runtime?.closeAll();} }
     finally { store?.close(); if (instances.get(owner) === lease) instances.delete(owner); state = { ...state, state: 'stopped' }; setState(state); }
   })();
   try {
@@ -75,14 +76,16 @@ async function activate(ctx, resolved, setState, pending) {
     store = new AccessStore(join(collaboration.root, 'access.sqlite'));
     const Service=qr?QrAccessService:mvp?MvpAccessService:AccessService;
     service = new Service({ authority, store, runtime, cwd: collaboration.workspace,login:collaboration.login,identities:collaboration.security,projects:collaboration.services.projects,communication:collaboration.communication,authenticationOnly:config.authenticationOnly });
-    if(mvp)loginListener=await (qr?listenQrHttp:listenMvpHttp)(service,collaboration.login,{port:config.dingtalk.loginPort});
-    else{
+    if(mvp){
+      loginListener=await (qr?listenQrHttp:listenMvpHttp)(service,collaboration.login,{port:config.dingtalk.loginPort});
+      if(collaboration.downloads)downloadListener=await listenResultDownloads(collaboration.downloads);
+    }else{
       loginListener=await listenLoginHttp(collaboration.login,{port:config.dingtalk.loginPort});
       listener = await listenAccess(service, { socketPath: config.socketPath });
       if (process.platform !== 'win32') chmodSync(config.socketPath, 0o660);
       ctx.provide('collaborationCommunication',collaboration.communication.contract);
     }
-    ctx.provide('collaborationServer', Object.freeze({ service, address: (listener??loginListener).address, serviceId: config.serviceId, stop }));
+    ctx.provide('collaborationServer', Object.freeze({ service, address: (listener??loginListener).address, downloadAddress: downloadListener?.addresses, serviceId: config.serviceId, stop }));
     state = { state: 'running', configPath: resolved.configPath, message: qr?'扫码MVP后端已启用：官方网页登录、全员项目可见、固定管理员；仍需真实浏览器／手机验收。':mvp?'MVP后端已启用：电脑钉钉身份、全员项目可见、固定管理员创建项目与分配角色；仍需HTTPS代理及真实电脑验收。':'协作服务端已启用；业务访问需钉钉登录与项目资格。OAuth后端仅本机，仍须HTTPS代理与真实平台验收。' }; setState(state);
     ctx.logger?.info?.(state.message);
     return stop;

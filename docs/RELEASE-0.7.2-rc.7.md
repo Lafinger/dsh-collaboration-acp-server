@@ -22,12 +22,23 @@
 - **业务写短语边界不变**：`currentHumanInstruction`（文本清洗）保留，`analysis_submit`/`plan_register` 等仍需当前消息明确短语授权；`plan_confirm`/`result_review`/`result_accept` 仍对模型不可见。
 - **数据不迁移**：旧表 `attachment_receipts`/`attachment_human_grants`/`attachment_restore_proposals` 原样保留，新代码不读写；新增 `session_attachments`。
 
-## 验证证据（全部离线、合成内容，未调用真实模型）
+## 离线验证证据（合成内容）
 
-- 服务端：`node --test test/*.test.mjs` 248 项 245 过 0 败（2 skipped）；`test/*.integration.mjs` 78/78；`node scripts/check.mjs` 退出码 0。
+- 服务端：`node --test test/*.test.mjs` 248 项 245 过 0 败（3 skipped）；`test/*.integration.mjs` 78/78；`node scripts/check.mjs` 退出码 0。
 - 客户端：`node scripts/check.mjs` 退出码 0（单元 142、集成 63、审计、命名、构建全过）。
 - 双端联合（`test/joint/client-server.joint.mjs`，3/3）：真实客户端捕获路径 + 真实服务端运行时，用卡死会话原话验收——第一轮 `@需求文档…分析、上传、归档、并生成正式计划` 完成读取+归档（材料第1版落库），模型自作主张 `plan_register` 被守卫拒绝并给出可照抄短语；第二轮无新清单，模型从会话清单读到同一 handle、相同字节去重不新增版本，`请提交方案` 短语授权后计划登记成功。
 - 视觉链路：图片经 `attachment_read` 返回宿主有界副本并持久化，resume 后不重拉客户端字节。
+
+## 真人验收（2026-10-30）
+
+用户本人在真实 DSH GUI、生产配置的真实模型路由（CPA `openai-responses` + `deepseek-v4.1-flash`）下完成两轮验收，结论通过：
+
+- 第一轮 `@南航数字人POC-双人协作测试需求-v2.md 读取内容并归档`：模型没有调用任何查询类前置工具，直接从消息注入的会话附件清单取得 handle，依次调用 `attachment_read` 与 `attachment_archive`，材料第 1 版落库（`material_id 462d52f6…`，`deduplicated: false`）；随后用 `material_read` 回读核对，sha256 与上传一致、无解析告警。
+- 第二轮 `把刚才那份文件再归档一次`（不发新附件）：模型仍取得同一 handle、同一 sha256；`attachment_archive` 返回 `deduplicated: true`，`material_versions` 的 `latest_version` 仍为 1，版本列表仅 v1。
+
+核心假设成立：模型无需查询类前置工具即可从消息清单读到 handle，跨轮引用同一 handle 可用。完整记录见 [真人业务验收记录](<REAL-ACCEPTANCE-2026-10-30.md>)。
+
+遗留观察（不影响通过）：`attachment_archive` 的工具描述未说明内容相同会去重；模型按结构化返回如实回答，未误报版本号。下次改动服务端时可一并修正描述。
 
 ## 过程诚实记录
 

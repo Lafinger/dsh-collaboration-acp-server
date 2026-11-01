@@ -24,6 +24,16 @@ test('acceptance text names both current task versions and does not claim upstre
 test('task assignment is informational with no code or direct completion command; wrong fixed reference cannot format a decision',{timeout:12000},async t=>{
   const f=await robotFixture(t),first=candidate(f,'plan_confirmation'),reference=ref(f,first);assert.throws(()=>formatRobotNotification(first,{...reference,code:'IIIIIIII'}));assert.throws(()=>formatRobotNotification(first,{...reference,binding:{...reference.binding,version:2}}));f.activate();const snapshot=candidate(f,'task_assignment'),text=formatRobotNotification(snapshot);assert.ok(text.includes('没有审批短号'));assert.ok(text.includes('DSH执行并提交成果'));assert.ok(!text.includes(reference.code));assert.throws(()=>formatRobotNotification(snapshot,reference));
 });
+test('server-generated result download links stay verbatim and unredacted',{timeout:12000},async t=>{
+  const f=await robotFixture(t),snapshot=candidate(f,'plan_confirmation'),reference=ref(f,snapshot),token='a'.repeat(43);
+  const links=[`http://192.168.2.20:18080/d/${token}`,`http://10.242.169.184:18080/d/${token}`];
+  const text=formatRobotNotification(snapshot,reference,links);
+  assert.ok(text.includes('下载原件（30天内有效）：'));
+  for(const link of links)assert.ok(text.includes(link));
+  assert.ok(!text.includes('[链接请DSH查看]'));
+  assert.ok(robotTextBytes(text)<=ROBOT_TEXT_BUDGET_BYTES);
+  assert.ok(!formatRobotNotification(snapshot,reference).includes('下载原件'));
+});
 test('saved links, system paths, explicit credential-shaped fields and bidi spoofing are omitted with an incomplete warning',{timeout:12000},async t=>{
   const f=await robotFixture(t),snapshot=candidate(f,'plan_confirmation'),reference=ref(f,snapshot);snapshot.display.plan.title='Saved https://synthetic.example/auth?ticket=HIDDEN_URL /srv/HIDDEN_PATH clientSecret=HIDDEN_SECRET \u202e';const text=formatRobotNotification(snapshot,reference);
   for(const hidden of ['HIDDEN_URL','HIDDEN_PATH','HIDDEN_SECRET','\u202e'])assert.ok(!text.includes(hidden));assert.ok(text.includes('预览不完整'));assert.ok(text.includes(reference.code));

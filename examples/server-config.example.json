@@ -6,6 +6,10 @@
   "provider": "",
   "model": "",
   "accounts": {},
+  "download": {
+    "port": 18080,
+    "hosts": ["192.168.2.20", "10.242.169.184"]
+  },
   "dingtalk": {
     "corpId": "",
     "clientId": "",
