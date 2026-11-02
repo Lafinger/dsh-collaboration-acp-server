@@ -341,6 +341,86 @@ describe('fixed references (MVP-009)', () => {
   })
 })
 
+describe('generic text fallback without a trusted parser', () => {
+  test('raw HTML, unknown extensions and extensionless files use the shared decoder', () => {
+    const e = env()
+    try {
+      const text = '<html><script>throw new Error("never execute")</script>中文\t\r\n\f</html>'
+      for (const [name, bytes] of [
+        ['page.html', Buffer.from(text)],
+        ['unknown.data', Buffer.from(`\ufeff${text}`)],
+        ['utf16-le.xml', Buffer.from(`\ufeff${text}`, 'utf16le')],
+        ['utf16-be.json', Buffer.from(`\ufeff${text}`, 'utf16le').swap16()],
+        ['no-extension', Buffer.from(text)],
+      ] as const) {
+        const path = join(e.outside, name)
+        writeFileSync(path, bytes)
+        const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: path, purpose: 'p', submittedBy: 'Z' })
+        const result = e.materials.read({ materialId: uploaded.material.id, version: 1 })
+        assert.equal(result.content, text)
+        assert.equal(result.issue, null)
+        assert.deepEqual(readFileSync(uploaded.absolutePath), bytes, 'reading never rewrites original bytes')
+        assert.equal(e.materials.getWithVersions(uploaded.material.id).latestVersion, 1)
+      }
+    } finally { e.cleanup() }
+  })
+
+  test('binary or unsupported encodings cannot bypass detection with a txt suffix', () => {
+    const e = env()
+    try {
+      for (const [index, bytes] of [
+        Buffer.from('a\0b'), Buffer.from('a\u0001b'), Buffer.from('a\u0085b'),
+        Buffer.from([0xd6, 0xd0]), Buffer.from('hello', 'utf16le'),
+      ].entries()) {
+        const path = join(e.outside, `binary-${index}.txt`)
+        writeFileSync(path, bytes)
+        const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: path, purpose: 'p', submittedBy: 'Z' })
+        const result = e.materials.read({ materialId: uploaded.material.id, version: 1 })
+        assert.equal(result.content, null)
+        assert.match(result.issue ?? '', /UTF-8|control/)
+      }
+    } finally { e.cleanup() }
+  })
+
+  test('fallback verifies both recorded size and hash, even for otherwise valid text', () => {
+    const e = env()
+    try {
+      for (const [name, replacement] of [['hash.html', 'FAKE'], ['size.html', 'longer text']] as const) {
+        const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: e.write(name, 'real'), purpose: 'p', submittedBy: 'Z' })
+        writeFileSync(uploaded.absolutePath, replacement)
+        const result = e.materials.read({ materialId: uploaded.material.id, version: 1 })
+        assert.equal(result.content, null)
+        assert.match(result.issue ?? '', /校验失败/)
+      }
+    } finally { e.cleanup() }
+  })
+
+  test('large fallback returns all content and preserves the immutable version', () => {
+    const e = env()
+    try {
+      const text = '中文'.repeat(160_000) + 'MATERIAL-END'
+      const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: e.write('large.log', text), purpose: 'p', submittedBy: 'Z' })
+      const result = e.materials.read({ materialId: uploaded.material.id, version: 1 })
+      assert.equal(result.content?.length, text.length)
+      assert.equal(result.content, text)
+      assert.ok(result.content?.endsWith('MATERIAL-END'))
+      assert.deepEqual(result.version, uploaded.version)
+    } finally { e.cleanup() }
+  })
+
+  test('DOCX and images never become hard-decoded text without their dedicated provider', () => {
+    const e = env()
+    try {
+      for (const name of ['a.docx', 'a.png', 'a.jpg', 'a.webp', 'a.gif']) {
+        const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: e.write(name, 'valid UTF-8 but not dedicated extraction'), purpose: 'p', submittedBy: 'Z' })
+        const result = e.materials.read({ materialId: uploaded.material.id, version: 1 })
+        assert.equal(result.content, null)
+        assert.match(result.issue ?? '', /No trusted parsed text/)
+      }
+    } finally { e.cleanup() }
+  })
+})
+
 describe('storage root guard (ADR-0004)', () => {
   test('FileRoot keeps legitimate paths inside', () => {
     const root = new FileRoot(join(tmpdir(), 'fr'))

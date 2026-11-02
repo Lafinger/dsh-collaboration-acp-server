@@ -161,7 +161,9 @@ export function materialToolDefinitions(service: MaterialService): ToolDefinitio
         'Read the content of ONE SPECIFIC version of a material. You must pass the exact ' +
         'version number; this never substitutes the latest version. If the stored file ' +
         'cannot be read you get a reason instead of content — report that honestly rather ' +
-        'than treating the material as empty.',
+        'than treating the material as empty. Supported text returns complete source without a text-size cap or truncation; ' +
+        'HTML and scripts are not executed. Read a user-specified companion separately at its exact version; ' +
+        'do not guess associations or claim reading a description verifies an unreadable original or runtime behavior.',
       parameters: {
         material_id: { type: 'string', required: true },
         version: { type: 'integer', required: true, description: 'Exact version number to read.' },

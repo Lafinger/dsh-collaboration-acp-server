@@ -3,9 +3,14 @@ import { mkdirSync, openSync, closeSync, writeSync, renameSync, readFileSync, ex
 import { join, resolve, relative } from 'node:path';
 import { AccessError, requireText } from './protocol.mjs';
 import { ATTACHMENT_CHUNK_BYTES, validateAttachmentManifest } from './attachment-protocol.mjs';
-import { parseAttachment, PARSER_VERSION, rejectGifUpload } from './attachment-parser.mjs';
+import { parseAttachment, parseTextAttachment, PARSER_VERSION, rejectGifUpload } from './attachment-parser.mjs';
 import {inTransaction} from '../business/lib/sqlite/schema.js';
 const hash=b=>createHash('sha256').update(b).digest('hex');
+const unparsed=(error,sha256)=>({kind:'unparsed',content:null,warnings:[error.message],originalSha256:sha256,textSha256:null,parserVersion:PARSER_VERSION,visualAnalysis:'not-performed',parseError:true});
+function verifyParsed(parsed,sha256){
+  if(parsed.originalSha256!==sha256)throw new AccessError(-32013,'Parsed content source digest mismatch');
+  if(parsed.content!==null&&(typeof parsed.content!=='string'||hash(Buffer.from(parsed.content))!==parsed.textSha256))throw new AccessError(-32013,'Parsed text digest mismatch');
+}
 export class AttachmentService {
   constructor({ db, root, materials, projects }) {
     this.db=db;this.root=resolve(root);this.materials=materials;this.projects=projects;this.turns=new Map();
@@ -61,7 +66,7 @@ export class AttachmentService {
       if(digest.digest('hex')!==manifest.sha256||bytes.length!==manifest.bytes)throw new AccessError(-32602,'Attachment sha256 mismatch');
       rejectGifUpload(bytes,manifest.name);
       let parsed;
-      try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed={kind:'unparsed',content:null,warnings:[error.message],originalSha256:manifest.sha256,textSha256:null,parserVersion:PARSER_VERSION,visualAnalysis:'not-performed',parseError:true};}
+      try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed=unparsed(error,manifest.sha256);}
       if(request.signal.aborted)throw new AccessError(-32010,'Attachment upload cancelled');
       if(existing)this.remove(existing);
       inTransaction(this.db,()=>{
@@ -96,16 +101,21 @@ export class AttachmentService {
     try{this.owned(sessionId,account,handle);return true;}catch{return false;}
   }
   async read(sessionId,account,handle){
-    const row=this.owned(sessionId,account,handle),manifest=JSON.parse(row.manifest),parsed=JSON.parse(row.parsed);
+    const row=this.owned(sessionId,account,handle),manifest=JSON.parse(row.manifest);
     const bytes=readFileSync(join(this.root,row.filename));
     if(bytes.length!==manifest.bytes||hash(bytes)!==manifest.sha256)throw new AccessError(-32013,'Stored attachment integrity mismatch; re-attach the file');
+    let parsed=JSON.parse(row.parsed);
+    verifyParsed(parsed,manifest.sha256);
+    if(parsed.parserVersion!==PARSER_VERSION){
+      try{parsed=await parseAttachment(bytes,manifest.name);}catch(error){parsed=unparsed(error,manifest.sha256);}
+      this.db.prepare('UPDATE session_attachments SET parsed=? WHERE attachment_id=? AND parsed=?').run(JSON.stringify(parsed),row.attachment_id,row.parsed);
+    }
     if(parsed.kind==='image')return this.vision?this.vision.inspect(sessionId,account,handle):{ok:true,handle,name:manifest.name,bytes:manifest.bytes,sha256:manifest.sha256,project_id:manifest.projectId,kind:'image',content:null,visualAnalysis:parsed.visualAnalysis};
     if(parsed.content===null)return {ok:true,handle,name:manifest.name,bytes:manifest.bytes,sha256:manifest.sha256,project_id:manifest.projectId,kind:'unparsed',content:null,warnings:parsed.warnings};
-    if(Buffer.byteLength(parsed.content)>256*1024)throw new AccessError(-32602,'Attachment text exceeds the inline read limit; archive it and read through material tools');
-    return {ok:true,handle,name:manifest.name,bytes:manifest.bytes,sha256:manifest.sha256,project_id:manifest.projectId,kind:'text',content:parsed.content};
+    return {ok:true,handle,name:manifest.name,bytes:manifest.bytes,sha256:manifest.sha256,project_id:manifest.projectId,kind:'text',content:parsed.content,warnings:parsed.warnings};
   }
   /** Archive the stored original into the session-bound project as a material version.
-   * Name defaults to the original filename; repeats create new versions via material rules. */
+   * Identical latest bytes reuse the immutable version; changed bytes append a version. */
   archive(sessionId,account,{handle,purpose,role},authorize){
     const row=this.owned(sessionId,account,handle),manifest=JSON.parse(row.manifest),parsed=JSON.parse(row.parsed);
     const projectId=this.turnOf(sessionId,account)?.projectId??manifest.projectId;
@@ -114,6 +124,7 @@ export class AttachmentService {
     if(role!==undefined&&!['pm','product','design','scenemodel','sceneart','data','frontend','backend','ue'].includes(role))throw new AccessError(-32602,'Role must be an allowed role or omitted for shared');
     const path=join(this.root,row.filename),bytes=readFileSync(path);
     if(bytes.length!==manifest.bytes||hash(bytes)!==manifest.sha256)throw new AccessError(-32013,'Received original integrity mismatch');
+    verifyParsed(parsed,manifest.sha256);
     const classification={purpose,role:role??null,source_kind:manifest.sourceKind,visual_analysis:parsed.visualAnalysis};
     const result=this.materials.upload({projectId:manifest.projectId,sourcePath:path,originalName:manifest.name,purpose,submittedBy:account,role},commit=>{
       authorize?.();
@@ -134,13 +145,24 @@ export class AttachmentService {
     return this.db.prepare('SELECT handle,manifest FROM session_attachments WHERE account=? AND session_id=? ORDER BY created_at LIMIT 100').all(account,String(sessionId)).map(row=>({handle:row.handle,name:JSON.parse(row.manifest).name}));
   }
   materialContent(material,version){
-    const row=this.db.prepare('SELECT * FROM material_extractions WHERE material_id=? AND version=?').get(material.id,version.version);if(!row)return undefined;
-    if(row.source_sha256!==version.sha256)return {content:null,issue:'Parsed content source digest does not match immutable material version',warnings:[]};
-    const path=this.materials.absolutePathOf(version.relPath);
-    try { if (!existsSync(path) || hash(readFileSync(path)) !== version.sha256) return {content:null,issue:'Original material integrity mismatch or missing file',warnings:[]}; }
-    catch { return {content:null,issue:'Original material could not be read for integrity verification',warnings:[]}; }
-    const parsed=JSON.parse(row.parsed),warnings=parsed.warnings??[];
-    if(parsed.content!==null && hash(Buffer.from(parsed.content))!==parsed.textSha256) return {content:null,issue:'Parsed text digest mismatch',warnings:[]};
+    const row=this.db.prepare('SELECT * FROM material_extractions WHERE material_id=? AND version=?').get(material.id,version.version);
+    if(row&&row.source_sha256!==version.sha256)return {content:null,issue:'Parsed content source digest does not match immutable material version',warnings:[]};
+    const path=this.materials.absolutePathOf(version.relPath);let bytes;
+    try {
+      if(!existsSync(path))throw new Error('missing');
+      bytes=readFileSync(path);
+      if(bytes.length!==version.size||hash(bytes)!==version.sha256)return {content:null,issue:'Original material integrity mismatch',warnings:[]};
+    }catch{return {content:null,issue:'Original material could not be read for integrity verification',warnings:[]};}
+    let parsed=row?JSON.parse(row.parsed):undefined;
+    if(parsed){try{verifyParsed(parsed,version.sha256);}catch(error){return {content:null,issue:error.message,warnings:[]};}}
+    // Rebuild only derived evidence. Immutable originals, material versions and past
+    // analyses/decisions are never rewritten, and no undeclared companion is read.
+    if(!parsed||parsed.parserVersion!==PARSER_VERSION){
+      try{parsed=parseTextAttachment(bytes,material.originalName);}catch(error){parsed=unparsed(error,version.sha256);}
+      this.db.prepare('INSERT INTO material_extractions(material_id,version,source_sha256,parsed) VALUES(?,?,?,?) ON CONFLICT(material_id,version) DO UPDATE SET parsed=excluded.parsed')
+        .run(material.id,version.version,version.sha256,JSON.stringify(parsed));
+    }
+    const warnings=parsed.warnings??[];
     return {content:parsed.content,issue:parsed.content===null?(warnings.join('; ')||'No text available for this material'):null,warnings};
   }
 }

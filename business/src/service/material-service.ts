@@ -38,6 +38,7 @@ import { ProjectRepository } from '../sqlite/project-repository.js'
 import { inTransaction } from '../sqlite/schema.js'
 import { FileRoot, versionFileName } from './file-root.js'
 import { systemClock, type Clock } from './project-service.js'
+import { decodeTextContent } from './text-content.js'
 
 const MAX_NAME_LENGTH = 300
 const MAX_PURPOSE_LENGTH = 200
@@ -179,6 +180,12 @@ export class MaterialService {
   }
 
   private requireIntactOriginal(version: MaterialVersion): string {
+    this.readIntactOriginal(version)
+    return this.absolutePathOf(version.relPath)
+  }
+
+  /** Verify the exact bytes being consumed, including the fallback without a parser. */
+  private readIntactOriginal(version: MaterialVersion): Buffer {
     const path = this.absolutePathOf(version.relPath)
     try {
       const stat = lstatSync(path)
@@ -187,7 +194,7 @@ export class MaterialService {
       if (!stat.isFile() || stat.isSymbolicLink() || within === '' || within.startsWith('..') || isAbsolute(within)) throw new Error('unsafe stored original')
       const bytes = readFileSync(actual)
       if (bytes.byteLength !== version.size || createHash('sha256').update(bytes).digest('hex') !== version.sha256) throw new Error('stored original mismatch')
-      return path
+      return bytes
     } catch {
       throw new CollaborationError('FILE_INTEGRITY_MISMATCH', '已有资料原件缺失或校验失败，请先核对原件。', { materialId: version.materialId, version: version.version })
     }
@@ -256,11 +263,11 @@ export class MaterialService {
     try {
       const parsed = this.contentProvider?.(material, version)
       if (parsed !== undefined) return { material, version, absolutePath, ...parsed }
-      const buf = readFileSync(absolutePath)
+      const buf = this.readIntactOriginal(version)
       if (/\.(docx|png|jpe?g|webp|gif)$/i.test(material.originalName)) {
         return { material, version, absolutePath, content: null, issue: 'No trusted parsed text for this binary material; do not decode as UTF-8' }
       }
-      const content = new TextDecoder('utf-8', { fatal: true }).decode(buf)
+      const content = decodeTextContent(buf)
       return { material, version, absolutePath, content, issue: null }
     } catch (error) {
       return {

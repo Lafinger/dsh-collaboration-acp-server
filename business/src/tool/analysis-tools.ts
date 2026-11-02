@@ -13,7 +13,6 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { JsonObject } from './json.js'
 import { runTool } from './result.js'
-import { DEFAULT_CONTENT_LIMIT_BYTES } from '../domain/analysis.js'
 import type { Analysis } from '../domain/analysis.js'
 import type { AnalysisService } from '../service/analysis-service.js'
 
@@ -90,7 +89,11 @@ export function analysisToolDefinitions(service: AnalysisService): ToolDefinitio
         'server reads those versions and returns their content. You can only work from what ' +
         'this returns: anything not listed here is not available to you, so list everything ' +
         'you intend to rely on. Use material_list first to see what exists (names, purposes, ' +
-        'versions) without reading content. This changes nothing and can be abandoned.',
+        'versions) without reading content. Readable text is returned in full without a body-size cap or truncation. ' +
+        'An original and its explanation must each be explicitly in scope: no related files are discovered or read automatically. ' +
+        'An explanation does not close an unreadable-original gap; distinguish its claims from verified original content. ' +
+        'Receiving full text is not proof of checking every part, executing code or passing acceptance. ' +
+        'Report observed transport, resource or model-context failures honestly. This changes nothing and can be abandoned.',
       parameters: {
         project_id: { type: 'string', required: true },
         scope: {
@@ -136,7 +139,6 @@ export function analysisToolDefinitions(service: AnalysisService): ToolDefinitio
             })),
             // Gaps are stated up front so they cannot be overlooked when writing up.
             could_not_read: outcome.uncovered.map(uncoveredToJson),
-            limit_bytes_per_file: DEFAULT_CONTENT_LIMIT_BYTES,
           })
         }),
       presentCall: (args) => present('Begin analysis', `${args.scope.length} version(s)`),

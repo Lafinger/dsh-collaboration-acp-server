@@ -1,20 +1,4 @@
-/**
- * Analysis business rules (M3).
- *
- * Two things this service does that the model cannot do for itself (ADR-0006):
- *
- *   1. It READS the scope. The caller supplies references; the content is fetched here and
- *      handed back. Content outside the scope is never fetched, so it never reaches the
- *      model — "only read the scope" is structural, not a promise.
- *
- *   2. It RECORDS the objective gaps itself: named-but-unreadable, version absent, over the
- *      size cap. Whether a file could be read is a fact, and a fact must not be
- *      self-reported by the party being checked.
- *
- * An analysis is written once, whole. An abandoned attempt leaves no trace.
- */
-import { existsSync, statSync } from 'node:fs';
-import { DEFAULT_CONTENT_LIMIT_BYTES, } from '../domain/analysis.js';
+import {} from '../domain/analysis.js';
 import { CollaborationError } from '../domain/error.js';
 import { newId } from '../domain/ids.js';
 import { assertWritable } from '../domain/project.js';
@@ -48,13 +32,12 @@ export class AnalysisService {
     readScope(input) {
         const project = this.requireProject(input.projectId);
         const scope = normaliseScope(input.scope);
-        const limit = input.limitBytes ?? DEFAULT_CONTENT_LIMIT_BYTES;
         const readAt = this.clock.now();
         const contents = [];
         const uncovered = [];
         const reads = [];
         for (const entry of scope) {
-            const outcome = this.readOne(entry, limit);
+            const outcome = this.readOne(entry);
             for (const warning of outcome.warnings ?? [])
                 uncovered.push({ text: warning, entry, reason: 'not_understood' });
             if (outcome.content === null) {
@@ -168,7 +151,7 @@ export class AnalysisService {
         return this.analyses.listByProject(projectId);
     }
     /** Read one scope entry, classifying WHY it could not be covered. */
-    readOne(entry, limitBytes) {
+    readOne(entry) {
         const empty = { content: null, originalName: '', sha256: '', size: 0 };
         let resolved;
         try {
@@ -193,49 +176,14 @@ export class AnalysisService {
         }
         const { material, version } = resolved;
         const base = { originalName: material.originalName, sha256: version.sha256, size: version.size };
-        // Trusted extraction may be smaller than its binary original; cap the actual model text.
-        const extracted = this.materials.contentProvider?.(material, version);
-        if (extracted !== undefined) {
-            if (extracted.content === null)
-                return { ...base, content: null, reason: 'unreadable', explanation: extracted.issue ?? 'No parsed content', warnings: extracted.warnings };
-            if (Buffer.byteLength(extracted.content) > limitBytes)
-                return { ...base, content: null, reason: 'too_large', explanation: 'Parsed text exceeds analysis content limit', warnings: extracted.warnings };
-            if (!existsSync(this.materials.absolutePathOf(version.relPath)))
-                return { ...base, content: null, reason: 'unreadable', explanation: 'Original material is missing from storage' };
-            return { ...base, content: extracted.content, reason: null, explanation: '', warnings: extracted.warnings };
-        }
-        // Over the cap: record it as uncovered rather than truncating. A half-read file that
-        // looks whole is worse than an admitted gap.
-        if (version.size > limitBytes) {
-            return {
-                ...base,
-                content: null,
-                reason: 'too_large',
-                explanation: `${material.originalName} v${version.version} is ${version.size} bytes, over the ${limitBytes}-byte limit`,
-            };
-        }
-        const absolute = this.materials.absolutePathOf(version.relPath);
-        if (!existsSync(absolute)) {
-            return {
-                ...base,
-                content: null,
-                reason: 'unreadable',
-                explanation: `${material.originalName} v${version.version} is missing from storage`,
-            };
-        }
+        // One authoritative read path owns provider refresh, integrity and decoding. Do not
+        // call the provider separately: it may refresh a cache and must run once per read.
+        // Full text is returned without a byte cap; related explanations require own scope entries.
         try {
-            if (!statSync(absolute).isFile()) {
-                return {
-                    ...base,
-                    content: null,
-                    reason: 'unreadable',
-                    explanation: `${material.originalName} v${version.version} is not a regular file`,
-                };
-            }
             const read = this.materials.read(entry);
             if (read.content === null)
-                return { ...base, content: null, reason: 'unreadable', explanation: read.issue ?? 'Material text unavailable' };
-            return { ...base, content: read.content, reason: null, explanation: '' };
+                return { ...base, content: null, reason: 'unreadable', explanation: read.issue ?? 'Material text unavailable', ...(read.warnings === undefined ? {} : { warnings: read.warnings }) };
+            return { ...base, content: read.content, reason: null, explanation: '', ...(read.warnings === undefined ? {} : { warnings: read.warnings }) };
         }
         catch (error) {
             return {

@@ -4,15 +4,14 @@ import sharp from 'sharp';
 import { extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { AccessError } from './protocol.mjs';
-import { MAX_ATTACHMENT_TEXT_BYTES } from './attachment-protocol.mjs';
-export const PARSER_VERSION='collaboration-attachment-parser/1.1.0';
+import { decodeTextContent } from '../business/lib/service/text-content.js';
+export const PARSER_VERSION='collaboration-attachment-parser/1.2.0';
 export function rejectGifUpload(bytes,name){
  const signature=bytes.subarray(0,6).toString('ascii');
  if(/\.gif$/i.test(name)||signature==='GIF87a'||signature==='GIF89a')throw new AccessError(-32602,'GIF uploads are not allowed; select a PNG, JPEG or WebP original instead');
 }
 const hash=b=>createHash('sha256').update(b).digest('hex');
 function checkedText(bytes){try{return new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,'');}catch{throw new AccessError(-32602,'Text is not valid UTF-8; encoding must be explicitly converted before upload');}}
-function bounded(text){if(Buffer.byteLength(text)>MAX_ATTACHMENT_TEXT_BYTES)throw new AccessError(-32602,'Extracted text exceeds 256KiB; no silent truncation');return text;}
 function zipDirectory(bytes){
  let end=-1;for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(bytes.readUInt32LE(i)===0x06054b50){end=i;break;}
  if(end<0||bytes.readUInt16LE(end+4)!==0||bytes.readUInt16LE(end+6)!==0)throw new AccessError(-32602,'Invalid DOCX ZIP directory');
@@ -62,23 +61,33 @@ function extractDocx(bytes){
  }}}
  visit(tree);
  const decode=s=>s.replace(/&#x([a-f\d]+);|&#(\d+);|&(amp|lt|gt|quot|apos);/gi,(_m,h,d,e)=>h||d?String.fromCodePoint(Math.min(parseInt(h??d,h?16:10),0x10ffff)):({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"})[e]);
- const text=bounded(decode(lines.join('')).replace(/\n{3,}/g,'\n\n').trim());
+ const text=decode(lines.join('')).replace(/\n{3,}/g,'\n\n').trim();
  const warnings=['Extracted body text only; no rendered pagination, headers/footers, comments, or external-link content fetched.'];
  if(pictures||[...names].some(n=>n.startsWith('word/media/')))warnings.push('Embedded images are not visually analyzed by this text extraction; brand/image evidence remains uncovered.');
  if(deleted||/<w:ins\b/.test(xml))warnings.push('Tracked revisions exist; inserted text included and deleted text omitted, not an approved final revision.');
  return {kind:'docx',content:text||null,warnings,embeddedImages:pictures,visualAnalysis:'not-performed'};
 }
+const imageExtensions=new Set(['.png','.jpg','.jpeg','.webp']);
+function evidence(bytes,parsed){return {...parsed,parserVersion:PARSER_VERSION,originalSha256:hash(bytes),textSha256:parsed.content===null?null:hash(Buffer.from(parsed.content))};}
+/** Synchronous text extraction also serves material/analysis readers. Images remain a
+ * separate visual path: their bytes must never be decoded into pretend source text. */
+export function parseTextAttachment(bytes,name){
+ rejectGifUpload(bytes,name);
+ const extension=extname(name).toLowerCase();
+ if(imageExtensions.has(extension))return evidence(bytes,{kind:'image',content:null,visualAnalysis:'not-performed',warnings:['Image original has no extracted text; visual analysis is not performed by material or analysis reads.']});
+ const parsed=extension==='.docx'?extractDocx(bytes):{kind:'text',content:decodeTextContent(bytes),warnings:[],visualAnalysis:'not-applicable'};
+ return evidence(bytes,parsed);
+}
 export async function parseAttachment(bytes,name){
  rejectGifUpload(bytes,name);
  const extension=extname(name).toLowerCase();let parsed;
- if(['.txt','.md'].includes(extension))parsed={kind:extension.slice(1),content:bounded(checkedText(bytes)),warnings:[],visualAnalysis:'not-applicable'};
- else if(extension==='.docx')parsed=extractDocx(bytes);
- else if(['.png','.jpg','.jpeg','.webp'].includes(extension)){
+ if(!imageExtensions.has(extension))return parseTextAttachment(bytes,name);
+ else {
   try{const image=sharp(bytes,{limitInputPixels:40*1024*1024,failOn:'warning',animated:true});const metadata=await image.metadata();
    const expected={'.png':'png','.jpg':'jpeg','.jpeg':'jpeg','.webp':'webp'}[extension];if(metadata.format!==expected||!metadata.width||!metadata.height||metadata.width>12000||metadata.height>12000||(metadata.pages??1)!==1)throw new Error('Image limits/type mismatch');
    await sharp(bytes,{limitInputPixels:40*1024*1024,failOn:'warning',page:0,pages:1}).raw().toBuffer();
    parsed={kind:'image',content:null,format:metadata.format,width:metadata.width,height:metadata.pageHeight??metadata.height,pages:metadata.pages??1,visualAnalysis:'not-performed',warnings:['Image format and raster decoded; visual content and OCR have not yet been analyzed. attachment_read may present a bounded copy to the current image-capable model.']};
   }catch{throw new AccessError(-32602,'Invalid, unsupported, or over-limit image');}
- }else throw new AccessError(-32602,'Supported attachments: DOCX, UTF-8 MD/TXT, single-frame PNG/JPEG/WebP; GIF uploads are not allowed');
- return {...parsed,parserVersion:PARSER_VERSION,originalSha256:hash(bytes),textSha256:parsed.content===null?null:hash(Buffer.from(parsed.content))};
+ }
+ return evidence(bytes,parsed);
 }
