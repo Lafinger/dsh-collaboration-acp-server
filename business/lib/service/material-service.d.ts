@@ -39,6 +39,8 @@ export declare class MaterialService {
     /** Append changed content; reuse identical latest bytes, never overwrite history. */
     upload(input: UploadMaterialInput, commitMetadata?: (result: UploadResult) => void, authorization?: MaterialUploadAuthorization): UploadResult;
     private requireIntactOriginal;
+    /** Verify the exact bytes being consumed, including the fallback without a parser. */
+    private readIntactOriginal;
     getWithVersions(materialId: MaterialId): MaterialWithVersions;
     listByProject(projectId: ProjectId): readonly MaterialWithVersions[];
     /**

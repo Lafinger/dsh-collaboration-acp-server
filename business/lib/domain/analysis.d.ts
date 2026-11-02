@@ -6,8 +6,8 @@
  *
  *   1. Scope is an INPUT, not a promise. Content outside the scope never reaches the
  *      model, so "only read the scope" needs no self-discipline.
- *   2. "Not covered" has objective parts (named but unreadable, version absent, over the
- *      size cap). The server records those itself — an objective fact must not be
+ *   2. "Not covered" has objective parts (named but unreadable, version absent).
+ *      The server records those itself — an objective fact must not be
  *      self-reported by the party being checked.
  *
  * An analysis exists only once submitted (ADR: no "in progress" state).
@@ -51,7 +51,7 @@ export type UncoveredReason =
  | 'version_missing'
 /** The material itself does not exist. */
  | 'material_missing'
-/** The version exists and is readable but exceeds the size cap. */
+/** Historical analyses only: the former size cap prevented reading. Never newly emitted. */
  | 'too_large'
 /** The reader could not understand part of the content. Reported by the analysis. */
  | 'not_understood'
@@ -110,5 +110,3 @@ export interface SubmitAnalysisInput {
     readonly notUnderstood: readonly string[];
     readonly basisMissing: readonly string[];
 }
-/** Default cap for a single file fed into an analysis. */
-export declare const DEFAULT_CONTENT_LIMIT_BYTES: number;

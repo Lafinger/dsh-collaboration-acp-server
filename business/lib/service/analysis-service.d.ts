@@ -1,3 +1,18 @@
+/**
+ * Analysis business rules (M3).
+ *
+ * Two things this service does that the model cannot do for itself (ADR-0006):
+ *
+ *   1. It READS the scope. The caller supplies references; the content is fetched here and
+ *      handed back. Content outside the scope is never fetched, so it never reaches the
+ *      model — "only read the scope" is structural, not a promise.
+ *
+ *   2. It RECORDS the objective gaps itself: named-but-unreadable or version absent.
+ *      Whether a file could be read is a fact, and a fact must not be
+ *      self-reported by the party being checked.
+ *
+ * An analysis is written once, whole. An abandoned attempt leaves no trace.
+ */
 import type { DatabaseSync } from 'node:sqlite';
 import { type Analysis, type AnalysisId, type ReadRecord, type ScopeEntry, type SubmitAnalysisInput, type Uncovered } from '../domain/analysis.js';
 import type { ProjectId } from '../domain/project.js';
@@ -21,7 +36,6 @@ export interface ScopeReadOutcome {
 export interface ReadScopeInput {
     readonly projectId: ProjectId;
     readonly scope: readonly ScopeEntry[];
-    readonly limitBytes?: number | undefined;
 }
 export declare class AnalysisService {
     private readonly db;

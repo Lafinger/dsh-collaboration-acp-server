@@ -8,8 +8,8 @@ import { migrate } from '../sqlite/schema.js'
 import { ProjectService } from '../service/project-service.js'
 import { MaterialService } from '../service/material-service.js'
 import { AnalysisService } from '../service/analysis-service.js'
+import { analysisToolDefinitions } from '../tool/analysis-tools.js'
 import { CollaborationError } from '../domain/error.js'
-import { DEFAULT_CONTENT_LIMIT_BYTES } from '../domain/analysis.js'
 
 interface Env {
   db: DatabaseSync
@@ -182,41 +182,139 @@ describe('objective gaps are recorded by the server (MVP-015)', () => {
     e.cleanup()
   })
 
-  test('an over-limit file is NOT truncated — it becomes uncovered', () => {
+  test('text above the former 256KiB cap is returned whole, not uncovered or truncated', () => {
     const e = env()
-    const small = e.upload('small.txt', 'tiny')
-    const big = e.upload('big.txt', 'x'.repeat(DEFAULT_CONTENT_LIMIT_BYTES + 10))
-
-    const outcome = e.analyses.readScope({
-      projectId: e.projectId,
-      scope: [
-        { materialId: small.materialId, version: 1 },
-        { materialId: big.materialId, version: 1 },
-      ],
-    })
-
-    assert.equal(outcome.contents.length, 1, 'only the small one is returned')
-    assert.equal(outcome.contents[0]?.materialId, small.materialId)
-    const gap = outcome.uncovered.find((u) => u.entry?.materialId === big.materialId)
-    assert.equal(gap?.reason, 'too_large')
-    // The decisive part: no partial content leaked through.
-    assert.equal(
-      outcome.contents.some((c) => c.materialId === big.materialId),
-      false,
-    )
-    e.cleanup()
+    try {
+      const text = '中文'.repeat(160_000) + '\nFULL-TEXT-END'
+      const small = e.upload('small.txt', 'tiny')
+      const big = e.upload('big.html', text)
+      const outcome = e.analyses.readScope({ projectId: e.projectId, scope: [small, big] })
+      assert.equal(outcome.contents.length, 2)
+      const content = outcome.contents.find(c => c.materialId === big.materialId)?.content
+      assert.equal(content?.length, text.length)
+      assert.equal(content, text)
+      assert.ok(content?.endsWith('FULL-TEXT-END'))
+      assert.deepEqual(outcome.uncovered, [])
+      assert.ok(outcome.reads.every(r => r.ok && r.reason === null))
+    } finally { e.cleanup() }
   })
 
-  test('the size limit is configurable', () => {
+  test('trusted extraction is read exactly once via materials.read with warnings and no cap', () => {
     const e = env()
-    const a = e.upload('a.txt', 'x'.repeat(100))
-    const outcome = e.analyses.readScope({
-      projectId: e.projectId,
-      scope: [{ materialId: a.materialId, version: 1 }],
-      limitBytes: 10,
-    })
-    assert.equal(outcome.uncovered[0]?.reason, 'too_large')
-    e.cleanup()
+    try {
+      const a = e.upload('a.docx', 'binary-placeholder')
+      const text = 'extracted '.repeat(40_000) + 'DOCX-END'
+      let calls = 0
+      e.materials.contentProvider = () => {
+        calls++
+        return { content: text, issue: null, warnings: ['Image text not verified'] }
+      }
+      let reads = 0
+      const read = e.materials.read.bind(e.materials)
+      e.materials.read = reference => { reads++; return read(reference) }
+      const outcome = e.analyses.readScope({ projectId: e.projectId, scope: [a] })
+      assert.equal(reads, 1)
+      assert.equal(calls, 1)
+      assert.equal(outcome.contents[0]?.content, text)
+      assert.ok(outcome.contents[0]?.content.endsWith('DOCX-END'))
+      assert.equal(outcome.reads[0]?.ok, true)
+      assert.deepEqual(outcome.uncovered, [{ text: 'Image text not verified', entry: a, reason: 'not_understood' }])
+    } finally { e.cleanup() }
+  })
+})
+
+describe('explicit explanation scope and read consistency', () => {
+  test('analysis_begin returns full large text without advertising the removed byte cap', async () => {
+    const e = env()
+    try {
+      const text = '正文'.repeat(160_000) + 'TOOL-END'
+      const reference = e.upload('page.html', text)
+      const tool = analysisToolDefinitions(e.analyses).find(t => t.name === 'analysis_begin')
+      assert.ok(tool)
+      const result = await tool.execute({ project_id: e.projectId, scope: [{ material_id: reference.materialId, version: 1 }], trigger: 'read full text' }, {} as never) as Record<string, unknown>
+      assert.equal('limit_bytes_per_file' in result, false)
+      const materials = result.materials as { content: string }[]
+      assert.equal(materials[0]?.content.length, text.length)
+      assert.equal(materials[0]?.content, text)
+      assert.ok(materials[0]?.content.endsWith('TOOL-END'))
+      assert.match(tool.description ?? '', /explicitly in scope/)
+      assert.match(tool.description ?? '', /unreadable-original gap/)
+    } finally { e.cleanup() }
+  })
+
+  test('an explanation must be in scope and does not eliminate the unreadable original gap', () => {
+    const e = env()
+    try {
+      const binary = e.upload('artifact.bin', 'binary\0original')
+      const explanation = e.upload('artifact.bin.md', `Explanation for ${binary.materialId} v1: asserted behavior only`)
+      const visited: string[] = []
+      e.materials.contentProvider = material => { visited.push(material.id); return undefined }
+      const alone = e.analyses.readScope({ projectId: e.projectId, scope: [binary] })
+      assert.deepEqual(visited, [binary.materialId], 'same-name explanations are not discovered')
+      assert.deepEqual(alone.contents, [])
+      assert.equal(alone.uncovered[0]?.reason, 'unreadable')
+      visited.length = 0
+      const both = e.analyses.readScope({ projectId: e.projectId, scope: [binary, explanation] })
+      assert.deepEqual(visited, [binary.materialId, explanation.materialId])
+      assert.equal(both.contents.length, 1)
+      assert.equal(both.contents[0]?.materialId, explanation.materialId)
+      assert.equal(both.uncovered[0]?.entry?.materialId, binary.materialId)
+      assert.equal(both.uncovered[0]?.reason, 'unreadable')
+      const missing = e.analyses.readScope({ projectId: e.projectId, scope: [binary, { materialId: 'missing-explanation', version: 1 }] })
+      assert.deepEqual(missing.uncovered.map(g => g.reason), ['unreadable', 'material_missing'])
+      assert.deepEqual(missing.contents, [])
+    } finally { e.cleanup() }
+  })
+
+  test('analysis fallback reads supported encodings and marks corrupt originals unreadable', () => {
+    const e = env()
+    try {
+      for (const [name, bytes] of [
+        ['utf8-bom.html', Buffer.from('\ufeff原文')],
+        ['utf16-be.xml', Buffer.from('\ufeff原文', 'utf16le').swap16()],
+      ] as const) {
+        const path = e.write(name, '')
+        writeFileSync(path, bytes)
+        const uploaded = e.materials.upload({ projectId: e.projectId, sourcePath: path, purpose: 'p', submittedBy: 'Z' })
+        const reference = { materialId: uploaded.material.id, version: 1 }
+        assert.equal(e.analyses.readScope({ projectId: e.projectId, scope: [reference] }).contents[0]?.content, '原文')
+        writeFileSync(uploaded.absolutePath, 'tampered')
+        const broken = e.analyses.readScope({ projectId: e.projectId, scope: [reference] })
+        assert.equal(broken.reads[0]?.reason, 'unreadable')
+        assert.deepEqual(broken.contents, [])
+      }
+    } finally { e.cleanup() }
+  })
+
+  test('missing original cannot be replaced by successful cached extraction', () => {
+    const e = env()
+    try {
+      const reference = e.upload('cached.docx', 'original')
+      const original = e.materials.read(reference).absolutePath
+      let calls = 0
+      e.materials.contentProvider = () => { calls++; return { content: 'cached text', issue: null, warnings: [] } }
+      unlinkSync(original)
+      const outcome = e.analyses.readScope({ projectId: e.projectId, scope: [reference] })
+      assert.equal(calls, 0)
+      assert.deepEqual(outcome.contents, [])
+      assert.equal(outcome.uncovered[0]?.reason, 'unreadable')
+    } finally { e.cleanup() }
+  })
+
+  test('historical too_large reasons remain readable and unchanged by new reads', () => {
+    const e = env()
+    try {
+      const reference = e.upload('history.txt', 'readable today')
+      const analysis = e.analyses.submit({ projectId: e.projectId, trigger: 'historical fixture', scope: [reference], requirements: [], undecided: [], inferences: [], notUnderstood: [], basisMissing: [] })
+      e.db.prepare("UPDATE analysis_reads SET ok = 0, reason = 'too_large' WHERE analysis_id = ?").run(analysis.id)
+      e.db.prepare("INSERT INTO analysis_uncovered (analysis_id, position, text, reason, material_id, version) VALUES (?, 0, 'Former content cap', 'too_large', ?, 1)").run(analysis.id, reference.materialId)
+      const historical = e.analyses.get(analysis.id)
+      assert.equal(historical.reads[0]?.reason, 'too_large')
+      assert.equal(historical.uncovered[0]?.reason, 'too_large')
+      const current = e.analyses.readScope({ projectId: e.projectId, scope: [reference] })
+      assert.equal(current.contents[0]?.content, 'readable today')
+      assert.deepEqual(e.analyses.get(analysis.id), historical)
+    } finally { e.cleanup() }
   })
 })
 
@@ -331,9 +429,9 @@ describe('submit: objective gaps cannot be omitted', () => {
     e.cleanup()
   })
 
-  test('a too-large file appears in uncovered even though the caller never mentioned it', () => {
+  test('submitting large text records successful reads without new too_large gaps', () => {
     const e = env()
-    const big = e.upload('big.txt', 'x'.repeat(DEFAULT_CONTENT_LIMIT_BYTES + 1))
+    const big = e.upload('big.txt', 'x'.repeat(256 * 1024 + 1) + 'END')
 
     const analysis = e.analyses.submit({
       projectId: e.projectId,
@@ -343,7 +441,9 @@ describe('submit: objective gaps cannot be omitted', () => {
       undecided: [], inferences: [], notUnderstood: [], basisMissing: [],
     })
 
-    assert.equal(analysis.uncovered[0]?.reason, 'too_large')
+    assert.deepEqual(analysis.uncovered, [])
+    assert.equal(analysis.reads[0]?.ok, true)
+    assert.equal(analysis.reads[0]?.reason, null)
     assert.equal(analysis.requirements.length, 0, 'all three kinds may be empty')
     e.cleanup()
   })

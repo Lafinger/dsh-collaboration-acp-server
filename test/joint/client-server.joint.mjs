@@ -37,6 +37,29 @@ test('independent client adapter converses with real server runtime; no history 
  await client.peer.request('session/close',{sessionId:remote});client.disconnect();await client.open('local');assert.equal(client.mapping('local').remote_id,remote);assert.equal(store.events(remote).filter(e=>e.update.sessionUpdate==='user_message_chunk').length,2);
  }finally{client.close();await listener.close();store.close();}
 });
+test('large HTML travels from the independent client into a full source tool result without execution or business writes',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'collaboration-joint-html-')),workspace=join(root,'workspace');mkdirSync(workspace,{recursive:true});
+ const source='<html><script>globalThis.__joint_html_executed__=true;</script>\n'+ 'source text\n'.repeat(110000)+'HTML-END</html>';
+ writeFileSync(join(workspace,'index.html'),source);let inspected=false;
+ class HtmlModel extends LlmAdapter{async*stream(options){
+  const last=options.messages.at(-1),result=last?.role==='tool'?last:last?.content.find(b=>b.type==='tool-result');
+  if(!result){const human=[...options.messages].reverse().find(m=>m.role==='user').content.filter(b=>b.type==='text').map(b=>b.text).join('');const handle=human.match(/handle=([a-f0-9]{64})/u)?.[1];assert.ok(handle);yield*jointTool('attachment_read',{handle});return;}
+  const value=JSON.parse(result.content.filter(b=>b.type==='text').map(b=>b.text).join(''));assert.equal(value.ok,true);assert.equal(value.content,source);inspected=true;yield*jointText('Read full source; runtime not verified.');
+ }}
+ const collaboration=await createCollaborationRuntime({workspace,stateRoot:join(root,'state'),adapter:new HtmlModel()});
+ const store=new AccessStore(join(root,'access.sqlite')),secret='a'.repeat(64);
+ const service=new AccessService({runtime:collaboration.runtime,store,cwd:workspace,authority:new AccountAuthority({serviceId:'joint-html',accounts:{alice:secret}})}),listener=await listenAccess(service);
+ const client=new MemberClient({databasePath:join(root,'client.sqlite'),account:'alice',serviceId:'joint-html',attachments:new AttachmentAuthorization(),connect:async()=>{const peer=await connectAccess(listener.address);await peer.request('collaboration/connect',{_meta:collaborationMeta(),ticket:issueTicket({serviceId:'joint-html',account:'alice',secret})});return peer;}});
+ const {admitHumanTurn}=await import(pathToFileURL(resolve(clientRoot,'src/human-admission.mjs')).href);
+ try{
+  const project=collaboration.services.projects.create({key:'JOINT-HTML',name:'HTML source fixture'});client.selectProject('local',project.id);
+  const text='@index.html 只读取源码，不归档、不提交分析、不修改任务。',message=createUserMessage({content:[{type:'text',text}],source:{kind:'user'}});
+  const admitted=await admitHumanTurn({client,options:{sessionId:'local'},message}),entry=await client.attachments.capture({localId:'local',message,workspace,admission:admitted.admission});
+  const response=await client.prompt('local',{messageId:String(message.id),text,attachmentEntry:entry,onUpdate(){}});
+  assert.equal(response.stopReason,'end_turn');assert.equal(inspected,true);assert.equal(globalThis.__joint_html_executed__,undefined);
+  assert.equal(collaboration.services.materials.listByProject(project.id).length,0);assert.equal(collaboration.services.analyses.listByProject(project.id).length,0);
+ }finally{client.close();await listener.close();store.close();}
+});
 // L2: the real stuck-session phrasing, end to end through the real client capture path and the real
 // server runtime. Turn 1 archives the @-selected requirement and the model still cannot self-register
 // a plan; turn 2 reads the SAME handle from the session-persisted inventory (no new manifest) and an

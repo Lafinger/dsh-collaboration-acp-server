@@ -3,7 +3,6 @@ export const ATTACHMENT_PROTOCOL_VERSION = 2;
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 export const MAX_MESSAGE_ATTACHMENTS = 5;
 export const ATTACHMENT_CHUNK_BYTES = 48 * 1024;
-export const MAX_ATTACHMENT_TEXT_BYTES = 256 * 1024;
 export const attachmentCapability = () => ({ version: ATTACHMENT_PROTOCOL_VERSION });
 export function requireAttachmentCapability(value) {
   if (value?.version !== ATTACHMENT_PROTOCOL_VERSION) throw new AccessError(-32012, 'Matching attachment-capable client and server required; no upload downgrade or prompt replay');

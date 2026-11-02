@@ -8,11 +8,11 @@ function docx(xml,extras={}){return Buffer.from(zipSync({'[Content_Types].xml':s
 const xml='<w:document xmlns:w="test"><w:body><w:p><w:r><w:t>需求 &amp; evidence</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:drawing/></w:r></w:p></w:body></w:document>';
 test('DOCX extracts body/table text and image gaps; UTF-8 is strict; active/invalid ZIP XML refused',async()=>{
  const parsed=await parseAttachment(docx(xml),'requirements.docx');assert.match(parsed.content,/需求 & evidence/);assert.match(parsed.content,/cell/);assert.ok(parsed.warnings.some(w=>w.includes('images')));
- await assert.rejects(parseAttachment(Buffer.from([0xff,0xfe]),'invalid.txt'));
+ await assert.rejects(parseAttachment(Buffer.from([0xff,0xfe,0x41]),'invalid.txt'));
  await assert.rejects(parseAttachment(Buffer.from('not zip'),'invalid.docx'));
  await assert.rejects(parseAttachment(docx(xml,{'word/vbaProject.bin':strToU8('macro')}),'invalid.docx'));
  await assert.rejects(parseAttachment(docx('<!DOCTYPE w [<!ENTITY x SYSTEM "file:///etc/passwd">]>'+xml),'unsafe.docx'));
- await assert.rejects(parseAttachment(Buffer.from('unsupported'),'file.pdf'));
+ await assert.rejects(parseAttachment(Buffer.from([0x25,0x50,0x44,0x46,0x00,0xff]),'file.pdf'));
  const corrupted=docx(xml);const local=corrupted.indexOf(Buffer.from('word/document.xml'));corrupted[local+Buffer.byteLength('word/document.xml')+3]^=1;await assert.rejects(parseAttachment(corrupted,'crc-bad.docx'));
  await assert.rejects(parseAttachment(docx(xml,{'word/media/bomb.bin':new Uint8Array(9*1024*1024)}),'bomb.docx'));
  const forged=docx('<w:document xmlns:w="test"><w:body>'+('<w:p><w:r><w:t>data</w:t></w:r></w:p>'.repeat(500))+'</w:body></w:document>');let central=0;while((central=forged.indexOf(Buffer.from([0x50,0x4b,0x01,0x02]),central))>=0){const n=forged.readUInt16LE(central+28),name=forged.subarray(central+46,central+46+n).toString();if(name==='word/document.xml'){forged.writeUInt32LE(1,central+24);break;}central++;}await assert.rejects(parseAttachment(forged,'forged-size.docx'));
@@ -29,7 +29,7 @@ function ingestRequest(f,data,{handle='b'.repeat(64),name='requirements.docx'}={
  return {manifest,request:{sessionId:'alice-session',requestId:'request1',account:'alice',projectId:f.project.id,manifests:[manifest],read:async({offset,maxBytes})=>{const bytes=data.subarray(offset,offset+maxBytes);return{offset,data:bytes.toString('base64'),bytes:bytes.length,eof:offset+bytes.length===data.length};}}};
 }
 async function ingest(f,part){await f.service.ingest(part.request);}
-test('ingest stores bytes with hash verification, read returns full content, archive creates a material version and repeats create versions',async t=>{
+test('ingest verifies bytes, reads full content, archives a material version and deduplicates repeats',async t=>{
  const f=fixture(t),data=docx(xml),part=ingestRequest(f,data);
  await ingest(f,part);
  // Ownership: another account/session cannot read or archive.
@@ -41,7 +41,7 @@ test('ingest stores bytes with hash verification, read returns full content, arc
  const archive=f.service.archive('alice-session','alice',{handle:part.manifest.handle,purpose:'需求输入',role:'product'});
  assert.equal(archive.version,1);assert.equal(archive.material_id,f.materials.listByProject(f.project.id)[0].id);
  release();
- // Repeat archive in a later turn creates a new version of the same material.
+ // Repeat archive in a later turn deduplicates identical latest bytes.
  const release2=f.service.beginTurn({sessionId:'alice-session',account:'alice',projectId:f.project.id,requestId:'turn2',manifests:[part.manifest],onOperation:()=>{}},new AbortController().signal);
  const again=f.service.archive('alice-session','alice',{handle:part.manifest.handle,purpose:'需求输入',role:'product'});
  release2();
