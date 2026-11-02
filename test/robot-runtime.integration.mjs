@@ -7,12 +7,13 @@ import {RobotStream} from '../src/robot-stream.mjs';
 import {RobotStore} from '../src/robot-store.mjs';
 import {validateRobotBinding} from '../src/robot-config.mjs';
 import {ROBOT_CALLBACK_TOPIC} from '../src/robot-api.mjs';
+import {ResultDownloadService} from '../src/result-download-service.mjs';
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-function setup(f,{enabled=true,result=null}={}){
+function setup(f,{enabled=true,result=null,downloads=null}={}){
   const binding=validateRobotBinding({version:1,purpose:'independent-robot-application',corpId:f.security.corpId,clientId:'synthetic-message-app',clientSecret:'synthetic-message-secret',robotCode:'synthetic-robot',pilotAccounts:[f.a.account,f.b.account],enabled:true},f.security),state={enabled,fingerprint:'synthetic-config-1',sockets:[],sends:[],opens:0,stops:0,poll:new Set(),retry:new Set(),result};
   const timers={setInterval(fn,ms){const t={fn,ms,unref(){}};state.poll.add(t);return t;},clearInterval(t){state.poll.delete(t);},setTimeout(fn,ms){const t={fn,ms,unref(){}};state.retry.add(t);return t;},clearTimeout(t){state.retry.delete(t);}};
   class Socket extends EventEmitter{readyState=0;acks=[];constructor(){super();state.sockets.push(this);}open(){this.readyState=1;this.emit('open');}send(raw,done){this.acks.push(JSON.parse(raw));done?.();}close(){this.readyState=3;this.emit('close');}terminate(){this.close();}}
-  const bot=new RobotRuntime({...f,readConfig:()=>({enabled:state.enabled,reason:state.enabled?'ready':'disabled',fingerprint:state.fingerprint,binding}),timers,apiFactory:()=>({async openConnection(){state.opens++;return new URL('wss://wss-open-connection.dingtalk.com/connect?ticket=synthetic-'+state.opens);},stop(){state.stops++;state.abort?.();},async sendPrivateText(userId,text,{beforeSend}){assert.equal(f.security.db.isTransaction,false);if(!beforeSend())return {status:'retry-unsent',errorKind:'pre-send-guard-unavailable'};const rows=f.security.db.prepare("SELECT status FROM im_delivery_outbox WHERE scope_key=? AND status='sending'").all(binding.scopeKey);assert.equal(rows.length,1,'sending claim must precede actual HTTP');state.sends.push({userId,text});return typeof state.result==='function'?state.result():state.result??{status:'accepted',acceptedKey:'synthetic-accepted-'+state.sends.length};}}),streamFactory:options=>new RobotStream({...options,timers,WebSocketImpl:Socket,random:()=>0.5})});
+  const bot=new RobotRuntime({...f,downloads,readConfig:()=>({enabled:state.enabled,reason:state.enabled?'ready':'disabled',fingerprint:state.fingerprint,binding}),timers,apiFactory:()=>({async openConnection(){state.opens++;return new URL('wss://wss-open-connection.dingtalk.com/connect?ticket=synthetic-'+state.opens);},stop(){state.stops++;state.abort?.();},async sendPrivateText(userId,text,{beforeSend}){assert.equal(f.security.db.isTransaction,false);if(!beforeSend())return {status:'retry-unsent',errorKind:'pre-send-guard-unavailable'};const rows=f.security.db.prepare("SELECT status FROM im_delivery_outbox WHERE scope_key=? AND status='sending'").all(binding.scopeKey);assert.equal(rows.length,1,'sending claim must precede actual HTTP');state.sends.push({userId,text});return typeof state.result==='function'?state.result():state.result??{status:'accepted',acceptedKey:'synthetic-accepted-'+state.sends.length};}}),streamFactory:options=>new RobotStream({...options,timers,WebSocketImpl:Socket,random:()=>0.5})});
   const close=f.runtime.closeAll.bind(f.runtime);f.runtime.closeAll=async()=>{await bot.close();await close();};
   const store=()=>new RobotStore({security:f.security,scopeKey:binding.scopeKey});
   const frame=(actor,content,msgId='synthetic-controller-msg')=>({type:'CALLBACK',headers:{topic:ROBOT_CALLBACK_TOPIC,messageId:'synthetic-outer-'+msgId},data:JSON.stringify({robotCode:binding.robotCode,chatbotCorpId:binding.corpId,senderCorpId:binding.corpId,conversationType:'1',msgtype:'text',senderStaffId:actor.user_id,msgId,createAt:f.now(),text:{content}})});
@@ -53,6 +54,31 @@ test('two native senders run plan approval, own reviews and explicit downstream 
   const effects=f.services.tasks.outcomesOf(f.plan.plan.id,1),upstream=f.services.tasks.get(effects.find(row=>row.ref==='produce').taskId),downstream=f.services.tasks.get(effects.find(row=>row.ref==='consume').taskId),result=f.submit(upstream,f.b);f.advance(15000);await pump();const review=notice('result_review',result.resultId);assert.equal(review.status,'accepted');e.emit(f.b,'完成 '+review.ref_code,'synthetic-review-b');await flush();assert.equal(f.services.results.reviewOf(result.resultId,result.version).outcome,'complete');assert.equal(f.services.results.acceptancesOf(result.resultId,result.version).length,0,'a review never opens downstream acceptance');
   f.services.results.openAcceptances(result.resultId,result.version);f.advance(15000);await pump();const acceptance=notice('result_acceptance',result.resultId);assert.equal(acceptance.status,'accepted');e.emit(f.a,'接受 '+acceptance.ref_code,'synthetic-accept-a');await flush();assert.equal(f.services.results.acceptancesOf(result.resultId,result.version)[0].outcome,'accept');
   const final=f.submit(downstream,f.a);f.advance(15000);await pump();const finalReview=notice('result_review',final.resultId);e.emit(f.a,'完成 '+finalReview.ref_code,'synthetic-final-a');await flush();await pump();assert.equal(f.services.results.reviewOf(final.resultId,final.version).outcome,'complete');assert.equal(f.projection.candidates().length,0);assert.equal(e.bot.status().pendingWork,0);
+});
+test('fixed analysis files reach plan and task notices through the existing download service without replay',{timeout:12000},async t=>{
+  const f=await robotFixture(t),downloads=new ResultDownloadService({db:f.security.db,materials:f.services.materials,port:18080,hosts:['192.168.2.20','10.242.169.184'],now:f.now}),e=await connected(f,{downloads});
+  await e.bot.tick();await e.bot.tick();
+  const plans=e.deliveries().filter(row=>JSON.parse(row.context_json).binding?.kind==='plan_confirmation');
+  assert.equal(plans.length,2);
+  for(const row of plans){assert.match(row.payload_text,/synthetic\.txt/);assert.match(row.payload_text,/参考资料/);assert.match(row.payload_text,/http:\/\/192\.168\.2\.20:18080\/d\/[A-Za-z0-9_-]{43}/);assert.ok(!row.payload_text.includes(f.material.material.id));}
+  const token=plans[0].payload_text.match(/\/d\/([A-Za-z0-9_-]{43})/)[1],page=downloads.page(token);
+  assert.equal(page.status,200);assert.ok(page.files.some(file=>file.original_name==='synthetic.txt'));
+  const saved=plans.map(row=>[row.id,row.payload_text]),count=f.security.db.prepare('SELECT count(*) AS n FROM notification_download_tokens').get().n;
+  f.activate();f.advance(15000);for(let i=0;i<4;i++)await e.bot.tick();
+  const tasks=e.deliveries().filter(row=>JSON.parse(row.context_json).binding?.kind==='task_assignment');assert.equal(tasks.length,2);
+  for(const row of tasks){assert.match(row.payload_text,/synthetic\.txt/);assert.equal(row.ref_code,null);assert.match(row.payload_text,/\/d\/[A-Za-z0-9_-]{43}/);}
+  assert.deepEqual(e.deliveries().filter(row=>saved.some(([id])=>id===row.id)).map(row=>[row.id,row.payload_text]),saved);
+  assert.equal(f.security.db.prepare('SELECT count(*) AS n FROM notification_download_tokens').get().n,count,'same fixed list reuses unexpired token');
+  assert.equal(f.security.db.prepare('SELECT count(*) AS n FROM result_download_tokens').get().n,0);
+});
+test('an incomplete reference scope never mints a misleading good-subset download inventory',{timeout:12000},async t=>{
+  const f=await robotFixture(t);f.security.db.prepare('UPDATE analysis_scope SET version=999 WHERE analysis_id=?').run(f.analysis.id);
+  let calls=0;const e=await connected(f,{downloads:{notificationLinks(){calls++;return ['http://192.168.2.20:18080/d/'+'x'.repeat(43)];}}});await e.bot.tick();await e.bot.tick();assert.equal(calls,0);
+  for(const row of e.deliveries()){assert.match(row.payload_text,/参考资料不可用/);assert.match(row.payload_text,/下载暂不可用/);assert.ok(!row.payload_text.includes('/d/'));assert.ok(row.payload_text.includes('同意 '+row.ref_code));}
+});
+test('missing download capability is visible but preserves valid decision commands',{timeout:12000},async t=>{
+  const f=await robotFixture(t),e=await connected(f,{downloads:{notificationLinks(){throw new Error('synthetic private failure');}}});await e.bot.tick();await e.bot.tick();
+  for(const row of e.deliveries()){assert.match(row.payload_text,/下载暂不可用/);assert.ok(row.payload_text.includes('同意 '+row.ref_code));assert.ok(!row.payload_text.includes('synthetic private failure'));}
 });
 test('stop aborts an in-flight send and drains its durable outcome before the original SQLite owner closes',{timeout:12000},async t=>{
   const f=await robotFixture(t),e=await connected(f);let entered,release;const waiting=new Promise(resolve=>entered=resolve);e.state.result=()=>new Promise(resolve=>{release=resolve;entered();});e.state.abort=()=>release?.({status:'unknown',errorKind:'synthetic-stopped-send'});const sending=e.bot.tick();await waiting;assert.equal(e.deliveries()[0].status,'sending');const closing=e.bot.close();assert.equal(f.security.db.isOpen,true);await closing;await sending;assert.equal(e.deliveries()[0].status,'unknown');assert.equal(e.bot.status().enabled,false);assert.equal(e.state.poll.size,0);
