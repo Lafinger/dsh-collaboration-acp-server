@@ -2,11 +2,13 @@ import {createHash} from 'node:crypto';
 import {parseRobotCommand} from './robot-command.mjs';
 import {robotMetadataHash} from './robot-store.mjs';
 import {RobotContextError} from './robot-projection.mjs';
+import {ROLE_LABELS} from '../business/lib/domain/roles.js';
 const words=Object.freeze({plan_confirmation:{agree:'同意',reject:'拒绝'},result_review:{complete:'完成',return:'退回'},result_acceptance:{accept:'接受',reject:'拒收'}});
-const types=Object.freeze({plan_confirmation:'方案',result_review:'本职成果',result_acceptance:'下游接收'});
-const help='仅支持本人事项的完整命令：同意／拒绝、完成／退回、接受／拒收，后接通知中的8位短号；否定动作还须填写原因。主线工作请在DSH完成。';
-const stale='该短号不属于本人当前有效事项，或已失效。不会改批其他版本；失效不表示此前决定未发生，请到DSH核对。';
-const paused='入口已暂停，本次未收集决定。请到DSH办理，或恢复后重新明确发送。';
+const types=Object.freeze({plan_confirmation:'方案',result_review:'成果评审',result_acceptance:'接收'});
+const help='命令无效：请按本人通知中的动作和8位短号发送；否定动作须填原因。';
+const stale='短号不属于本人当前事项或已失效；不会改批其他版本。此前决定请在DSH核对。';
+const paused='入口已暂停，本次未记录决定。请在DSH办理或恢复后重新发送。';
+const receiptDecision=(binding,outcome)=>`${ROLE_LABELS[binding.role]??'本人职责'}已${words[binding.kind][outcome]}${binding.kind==='plan_confirmation'?`方案第${binding.version}版`:binding.kind==='result_review'?`成果第${binding.version}版评审`:`成果第${binding.version}版（下游接收）`}`;
 
 /** Narrow non-model entry. Never creates an Agent/session, opens acceptance, or enables IM tools.
  * accept() is synchronous through durable receipt insertion; its returned work is deliberately
@@ -73,7 +75,7 @@ export class RobotDecisionExecutor{
         if(current.outcome!==null){
           const same=current.outcome===command.outcome&&current.decidedBy===actor.account,status=same?'readback':'conflict';
           const result={kind:b.kind,objectId:b.objectId,version:b.version,role:b.role,taskId:b.taskId,outcome:current.outcome};
-          this.queueReceipt(event,actor,status,result,same?`已处理：${types[b.kind]}v${b.version}，职责${b.role}，${words[b.kind][current.outcome]}，短号${ref.code}。相同决定已存在，未重复写入。`:`该固定版本已有其他决定，不会覆盖。短号${ref.code}，请到DSH核对。`,ref);return {status,result};
+          this.queueReceipt(event,actor,status,result,same?`已记录过：${receiptDecision(b,current.outcome)}（短号${ref.code}），未重复写入。`:`决定冲突：${ROLE_LABELS[b.role]??'本人职责'}的${types[b.kind]}第${b.version}版已有其他决定，未覆盖（短号${ref.code}）。请在DSH核对。`,ref);return {status,result};
         }
         if(!current.pending)throw new RobotContextError();
         const common={outcome:command.outcome,reason:command.reason,submittedBy:actor.account,declaredMember:actor.account};
@@ -84,7 +86,7 @@ export class RobotDecisionExecutor{
         const after=this.requireCurrent(ref,actor,event);
         if(after.outcome!==command.outcome||after.decidedBy!==actor.account)throw new RobotContextError('decision-not-recorded');
         const result={kind:b.kind,objectId:b.objectId,version:b.version,role:b.role,taskId:b.taskId,outcome:after.outcome};
-        this.queueReceipt(event,actor,'applied',result,`已记录：${types[b.kind]}v${b.version}，职责${b.role}，${words[b.kind][after.outcome]}，短号${ref.code}。详细事实请在DSH查询。`,ref);
+        this.queueReceipt(event,actor,'applied',result,`已记录：${receiptDecision(b,after.outcome)}（短号${ref.code}）。`,ref);
         return {status:'applied',result};
       });
     }catch(error){
@@ -92,7 +94,7 @@ export class RobotDecisionExecutor{
       return this.security.transaction(()=>{
         const existing=this.store.receipt(event.msgId);if(!existing||existing.status!=='received')return {status:existing?.status??'unavailable'};
         const status=error instanceof RobotContextError?'invalid':'failed';
-        const text=kind==='entry-disabled'?paused:error instanceof RobotContextError?stale:'原组织资格或原业务前置条件暂不可用，本次未收集决定。不会补做主线工作或开放接收，请在DSH核对后重新明确发送。';
+        const text=kind==='entry-disabled'?paused:error instanceof RobotContextError?stale:'本次未记录决定：资格或业务前置条件暂不可用。请在DSH核对后重新发送。';
         this.queueReceipt(event,actor,status,{kind},text);return {status};
       });
     }

@@ -7,12 +7,17 @@ const sizeText = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixe
 const asciiName = name => name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
 
 function page(token, files) {
-  const rows = files.map(file => `<li><a href="/d/${token}/${file.position}">${escape(file.original_name)}</a> <span>${sizeText(file.size_bytes)}</span></li>`).join('');
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>成果原件</title>
+  const rows = files.map(file => {
+    const label = escape(file.original_name ?? '文件名称不可用');
+    const name = file.available === false ? label : `<a href="/d/${token}/${file.position}">${label}</a>`;
+    const info = `${file.kind === 'material' ? '参考资料' : '成果原件'}${Number.isSafeInteger(file.version) ? ` · 固定 v${file.version}` : ''}`;
+    return `<li>${name} <span>${info} · ${file.available === false ? '不可用（原件缺失或校验失败）' : sizeText(file.size_bytes)}</span></li>`;
+  }).join('');
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>相关文件</title>
 <style>body{font:16px/1.6 system-ui,sans-serif;max-width:42rem;margin:3rem auto;padding:0 1rem;color:#222}h1{font-size:1.3rem}ul{padding-left:1.2rem}li{margin:.5rem 0}span{color:#666;margin-left:.5rem}</style>
-<h1>成果原件</h1><ul>${rows || '<li>没有可下载的文件。</li>'}</ul></html>`;
+<h1>相关文件</h1><ul>${rows || '<li>没有可下载的文件。</li>'}</ul></html>`;
 }
-const message = text => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>成果原件</title><p>${text}</p></html>`;
+const message = text => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>相关文件</title><p>${text}</p></html>`;
 function html(res, status, body) {
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'", 'x-content-type-options': 'nosniff', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
   res.end(body);
@@ -27,13 +32,13 @@ function handler(downloads) {
     const token = parts[1];
     if (parts.length === 2) {
       const pageData = downloads.page(token);
-      if (pageData.status === 410) { html(res, 410, message('下载链接已过期，请联系上游重新发送成果通知。')); return; }
+      if (pageData.status === 410) { html(res, 410, message('下载链接已过期，请联系相关人员重新获取通知。')); return; }
       if (pageData.status !== 200) { html(res, 404, message('下载链接无效。')); return; }
       html(res, 200, page(token, pageData.files)); return;
     }
     if (!/^\d+$/.test(parts[2])) { html(res, 404, message('文件不存在。')); return; }
     const file = downloads.file(token, Number(parts[2]));
-    if (file.status === 410) { html(res, 410, message('下载链接已过期，请联系上游重新发送成果通知。')); return; }
+    if (file.status === 410) { html(res, 410, message('下载链接已过期，请联系相关人员重新获取通知。')); return; }
     if (file.status !== 200) { html(res, 404, message('文件不存在。')); return; }
     res.writeHead(200, {
       'content-type': 'application/octet-stream',

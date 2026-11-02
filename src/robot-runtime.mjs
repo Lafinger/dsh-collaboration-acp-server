@@ -78,7 +78,17 @@ export class RobotRuntime{
         if(!current.pending||robotMetadataHash(current.binding)!==robotMetadataHash(snapshot.binding))return;
         const informational=current.binding.kind==='task_assignment',reference=informational?null:session.store.reference(current.account,current.binding);
         let links=[];
-        if(current.display?.result?.files?.length&&this.#args.downloads){try{links=this.#args.downloads.links(current.binding.objectId,current.binding.version,current.binding.projectId);}catch{links=[];}}
+        const files=current.display?.referenceFiles??[],references=files.map(({materialId,version})=>({materialId,version}));
+        const referenceUnavailable=current.display?.referenceStatus==='unavailable'||files.some(file=>file.available!==true);
+        if(this.#args.downloads&&!referenceUnavailable){
+          try{
+            if(typeof this.#args.downloads.notificationLinks==='function')links=this.#args.downloads.notificationLinks({projectId:current.binding.projectId,resultId:current.display?.result?current.binding.objectId:null,resultVersion:current.display?.result?current.binding.version:null,references});
+            else if(current.display?.result?.files?.length)links=this.#args.downloads.links(current.binding.objectId,current.binding.version,current.binding.projectId);
+          }catch{links=[];}
+        }
+        // Availability is presentation-only. Never change the fixed binding/event key or replay a notice.
+        const hasFiles=references.length>0||current.display?.result?.files?.length>0;
+        if(hasFiles&&!links.length)current.display.downloadUnavailable=true;
         session.store.enqueue({eventKey,account:current.account,kind:informational?'task':'pending',refCode:reference?.code??null,context:{kind:'fixed-notification',binding:current.binding},text:formatRobotNotification(current,reference,links)});created++;
       });
     }

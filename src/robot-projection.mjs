@@ -59,8 +59,36 @@ export class RobotProjection{
         pending=slot.outcome===null&&downstream.task.completedAt===null;display={project,task:downstream,upstream,result,slot,review:this.services.results.reviewOf(objectId,version)};
       }
     }
+    // Display-only metadata: scope is neither per-task evidence nor proof of successful reads.
+    // Never add this inventory to the decision binding (or invalidate/re-send old decisions).
+    const references=kind==='plan_confirmation'
+      ?this.referencesFromPlan(projectId,display.plan.id,display.plan.version)
+      :this.referencesFromTask(projectId,(display.upstream??display.task).task.id,display.result?.taskVersion??display.task.task.currentVersion);
+    Object.assign(display,references);
     const binding={account,recipientUserId:member.user_id,memberRevision:member.revision,epoch:this.security.epoch,projectId,role,roleRevision:projectRoleRevision(this.security,this.services.projects,projectId),kind,objectId,version,taskId,taskVersion,upstreamTaskId,upstreamTaskVersion,peers,taskVersions:[...versions.entries()].sort((a,b)=>compare(a[0],b[0]))};
     return {account,binding,display,pending,outcome:slot?.outcome??null,decidedBy:slot?.submittedBy??null};
+  }
+  referencesFromTask(projectId,taskId,version){
+    const row=this.db.prepare('SELECT created_by_plan_id,created_by_plan_version FROM task_versions WHERE task_id=? AND version=?').get(taskId,version);
+    if(!row)return {referenceFiles:[],referenceStatus:'unavailable'};
+    return this.referencesFromPlan(projectId,row.created_by_plan_id,row.created_by_plan_version);
+  }
+  referencesFromPlan(projectId,planId,version){
+    const missing={referenceFiles:[],referenceStatus:'unavailable'};
+    const plan=this.db.prepare('SELECT project_id,source_analysis_id FROM plans WHERE id=? AND version=?').get(planId,version);
+    if(!plan||plan.project_id!==projectId)return missing;
+    if(plan.source_analysis_id===null||plan.source_analysis_id===undefined)return {referenceFiles:[],referenceStatus:'none'};
+    const analysis=this.db.prepare('SELECT project_id FROM analyses WHERE id=?').get(plan.source_analysis_id);
+    if(!analysis||analysis.project_id!==projectId)return missing;
+    const referenceFiles=this.db.prepare(`SELECT s.material_id,s.version,m.original_name,m.project_id,v.material_id AS found_version
+      FROM analysis_scope s LEFT JOIN materials m ON m.id=s.material_id
+      LEFT JOIN material_versions v ON v.material_id=s.material_id AND v.version=s.version
+      WHERE s.analysis_id=? ORDER BY s.position`).all(plan.source_analysis_id).map(row=>({
+        materialId:row.material_id,version:row.version,
+        name:row.project_id===projectId?row.original_name??null:null,
+        available:row.project_id===projectId&&row.found_version!==null,
+      }));
+    return {referenceFiles,referenceStatus:referenceFiles.length===0?'none':referenceFiles.every(row=>row.available)?'available':'unavailable'};
   }
   memberForPlan(account){const member=this.security.member(account);if(!member||member.enabled!==1||member.corp_id!==this.security.corpId||member.client_id!==this.security.clientId)unavailable('member-unavailable');return member;}
   validate(reference){
