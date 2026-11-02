@@ -7,7 +7,7 @@ export const robotTextBytes=text=>Buffer.byteLength(JSON.stringify({content:text
 /** Whitelisted saved facts only. Delimit text; never interpolate messages, paths, auth or errors.
  * Redactions are conservative presentation filters, not a general-purpose secret/DLP guarantee.
  */
-export function formatRobotNotification(snapshot,reference=null){
+export function formatRobotNotification(snapshot,reference=null,downloadLinks=[]){
   const b=snapshot?.binding,d=snapshot?.display;
   if(!b||!d||!labels[b.kind]||snapshot.pending!==true||snapshot.account!==b.account||!Number.isSafeInteger(b.version)||b.version<1)throw new Error('Current notification unavailable');
   const informational=b.kind==='task_assignment';
@@ -21,6 +21,9 @@ export function formatRobotNotification(snapshot,reference=null){
   const head=[`【${labels[b.kind]}】`,`项目：${q(d.project.name,60)}`,`本人职责：${q(b.role,30)}`,`固定对象：${q(b.objectId,200)} v${b.version}`];
   if(b.taskId)head.push(`本职任务：${q(b.taskId,200)} v${b.taskVersion}`);
   if(b.upstreamTaskId)head.push(`上游任务：${q(b.upstreamTaskId,200)} v${b.upstreamTaskVersion}`);
+  // Internal bearer links are server-generated, never saved business text: keep them out of q().
+  const links=(Array.isArray(downloadLinks)?downloadLinks:[]).filter(link=>typeof link==='string'&&/^http:\/\/[^\s"'<>]+\/d\/[A-Za-z0-9_-]{43}$/u.test(link));
+  const linkBlock=links.length?`\n下载原件（30天内有效）：\n${links.join('\n')}`:'';
   const lines=[];
   const task=(name,view)=>{if(!view)return;lines.push(`${name}内容：${q(view.current.content)}`,`${name}所需成果：${q(view.current.requiredResults)}`,`${name}完成标准：${q(view.current.completionCriteria)}`,`${name}当前依赖：${view.current.dependsOn.map(id=>q(id,200)).join('，')||'无'}`);};
   if(b.kind==='plan_confirmation'){
@@ -34,7 +37,7 @@ export function formatRobotNotification(snapshot,reference=null){
   }
   const commands=informational?'这是任务提醒，没有审批短号；请在DSH执行并提交成果，不接受直接回复“完成”。':b.kind==='plan_confirmation'?`同意 ${reference.code}\n拒绝 ${reference.code} 原因（必填，最多2000字）`:b.kind==='result_review'?`完成 ${reference.code}\n退回 ${reference.code} 原因（必填，最多8000字）`:`接受 ${reference.code}\n拒收 ${reference.code} 原因（必填，最多8000字）`;
   const footer=`\n${informational?'办理方式':'仅限本人，单条私聊发送以下一个完整命令'}：\n${commands}\n仅针对上列固定版本；资料、分析、编修、执行与成果提交仍在DSH。`;
-  const render=(body,partial)=>`${head.join('\n')}\n业务原文预览${partial?'（不完整）':''}：\n${body}${partial?'\n预览不完整：请先在DSH核对同一固定版本及附件，勿据片段决定。':''}${footer}`;
+  const render=(body,partial)=>`${head.join('\n')}${linkBlock}\n业务原文预览${partial?'（不完整）':''}：\n${body}${partial?'\n预览不完整：请先在DSH核对同一固定版本及附件，勿据片段决定。':''}${footer}`;
   const body=lines.join('\n');if(robotTextBytes(render(body,incomplete))<=ROBOT_TEXT_BUDGET_BYTES)return render(body,incomplete);
   if(robotTextBytes(render('',true))>ROBOT_TEXT_BUDGET_BYTES)throw new Error('Notification framing exceeds safe budget');
   const points=Array.from(body).slice(0,ROBOT_TEXT_BUDGET_BYTES);let low=0,high=points.length;

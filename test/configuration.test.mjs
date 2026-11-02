@@ -47,3 +47,21 @@ test('invalid, ambiguous, legacy and shared-secret config fails closed with reda
   writeFileSync(f.file, '{invalid'); assert.equal(resolveServerConfiguration({ configFile: f.file }).state, 'configuration-required');
   if (process.platform !== 'win32') { writeFileSync(f.file, JSON.stringify(f.config)); chmodSync(f.file, 0o644); assert.equal(resolveServerConfiguration({ configFile: f.file }).state, 'configuration-required'); }
 });
+test('MVP download entry accepts one or two distinct internal IPs and rejects unsafe shapes',()=>{
+ const f=fixture(),{accounts,socketPath,...plain}=f.config,base={...plain,mode:'mvp-qr',dingtalk:{...plain.dingtalk,administratorUserId:'boss'}};
+ const download={port:18080,hosts:['192.168.2.20','10.242.169.184']};
+ writeFileSync(f.file,JSON.stringify({...base,download}),{mode:0o600});
+ const configured=resolveServerConfiguration({configFile:f.file});
+ assert.equal(configured.state,'configured');assert.deepEqual(configured.config.download,download);
+ for(const bad of [
+  {...base,download:{port:0,hosts:['192.168.2.20']}},
+  {...base,download:{port:18080,hosts:[]}},
+  {...base,download:{port:18080,hosts:['192.168.2.20','192.168.2.20']}},
+  {...base,download:{port:18080,hosts:['not-an-ip']}},
+  {...base,download:{port:18080,hosts:['0.0.0.0']}},
+  {...base,download:{port:18080,hosts:['8.8.8.8']}},
+  {...base,download:{port:18080,hosts:['::']}},
+  {...base,download:{port:18080,hosts:['192.168.2.20'],extra:1}},
+  {...base,download:'x'}
+ ]){writeFileSync(f.file,JSON.stringify(bad),{mode:0o600});assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required');}
+});

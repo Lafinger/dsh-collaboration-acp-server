@@ -14,6 +14,7 @@ import { TraceService } from '../business/lib/service/trace-service.js';
 import { ResultService } from '../business/lib/service/result-service.js';
 import { registerTools } from '../business/lib/tool/register.js';
 import { AttachmentService } from './attachment-service.mjs';
+import { ResultDownloadService } from './result-download-service.mjs';
 import { humanToolDenial, humanVisibleTool, allowsHumanTool } from './human-authorization.mjs';
 import { registerAttachmentTools } from './attachment-tools.mjs';
 import { IdentityStore } from './identity-store.mjs';
@@ -51,6 +52,7 @@ export async function createCollaborationRuntime(config, ctx) {
   const access=security?new ProjectAccess({identities:security,services,refreshMember:account=>login.refresh(account)}):null;
   const attachments = new AttachmentService({ db, root: join(root, 'attachments'), materials, projects: services.projects });
   materials.contentProvider = attachments.materialContent.bind(attachments);
+  const downloads = config.download ? new ResultDownloadService({ db, materials, port: config.download.port, hosts: config.download.hosts }) : null;
   const vision=new VisionAccess({ctx,attachments,access});
   runtime = new DshRuntime({ ctx, provider: config.provider, model: config.model,
     setup: (agentCtx, agent, account,principal) => {
@@ -82,10 +84,10 @@ export async function createCollaborationRuntime(config, ctx) {
   communication=security&&!mvp?new CommunicationBridge({identities:security,login,access,services,runtime,workspace,retentionDays:config.dingtalk.communicationRetentionDays}):null;
   await communication?.registerExistingLogs();
   // Optional private owner-file switch only; never pass original login-app credentials.
-  if(qr&&security){try{robot=new RobotRuntime({root,security,login,access,services});void robot.start();}catch{robot=null;}}
+  if(qr&&security){try{robot=new RobotRuntime({root,security,login,access,services,downloads});void robot.start();}catch{robot=null;}}
   const close = runtime.closeAll.bind(runtime);
   let closing;
   runtime.closeAll = () => closing ??= (async () => { try { try{await robot?.close();}finally{try{await communication?.close();}finally{await close();}} } finally { try{db.close();}finally{await maintenance.release();} } })();
-  return { runtime, workspace, root, services, attachments,security,login,access,communication,robot };
+  return { runtime, workspace, root, services, attachments, downloads,security,login,access,communication,robot };
   }catch(error){try{try{await robot?.close();}finally{try{await communication?.close();}finally{await runtime?.closeAll();}}}finally{try{if(db.isOpen)db.close();}finally{await maintenance.release();}}throw error;}
 }

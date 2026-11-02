@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { isIP } from 'node:net';
 import { join, isAbsolute, resolve, relative } from 'node:path';
 import { AccountAuthority } from './authority.mjs';
 export const defaultConfigPath = () => join(homedir(), '.dsh', 'collaboration-acp-server.json');
@@ -7,7 +8,7 @@ const required = ['serviceId', 'workspace', 'stateRoot', 'socketPath', 'provider
 const text = v => typeof v === 'string' && v.trim().length > 0 && v.length <= 200;
 const nested = (a, b) => { const r = relative(resolve(a), resolve(b)); return r === '' || (!r.startsWith('..') && !isAbsolute(r)); };
 function resolveMvp(config,configPath,pending){
-  const keys=['mode','serviceId','workspace','stateRoot','provider','model','dingtalk',...(config.mode==='mvp-qr'?['authenticationOnly']:[])];
+  const keys=['mode','serviceId','workspace','stateRoot','provider','model','dingtalk','download',...(config.mode==='mvp-qr'?['authenticationOnly']:[])];
   if(config.authenticationOnly!==undefined&&config.authenticationOnly!==true)return pending('认证验证模式须明确为true；生产配置不填写');
   if(Object.keys(config).some(k=>!keys.includes(k))||['serviceId','provider','model'].some(k=>!text(config[k])))return pending('MVP配置仅支持统一HTTPS、宿主模型和钉钉组织字段');
   if(![config.workspace,config.stateRoot].every(v=>typeof v==='string'&&isAbsolute(v))||nested(config.workspace,config.stateRoot)||nested(config.stateRoot,config.workspace))return pending('MVP工作区与私有状态须为分离绝对目录');
@@ -15,6 +16,12 @@ function resolveMvp(config,configPath,pending){
   if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!allowed.includes(k))||['corpId','clientId','administratorUserId'].some(k=>!text(d[k]))||typeof d.clientSecret!=='string'||!d.clientSecret.trim()||d.clientSecret.length>4096||(config.mode!=='mvp-qr'&&(typeof d.agentId!=='string'||!/^\d{1,30}$/.test(d.agentId))))return pending(config.mode==='mvp-qr'?'扫码MVP需组织／应用秘密和指定管理员身份，不使用个人SSH账号':'MVP需组织／应用秘密／AgentId和指定管理员身份，不使用个人SSH账号');
   try{const u=new URL(d.publicOrigin);if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||u.hash)throw new Error();}catch{return pending('MVP服务地址须为明确可信HTTPS origin');}
   if(!Number.isSafeInteger(d.loginPort)||d.loginPort<1||d.loginPort>65535)return pending('MVP需本机后端端口');
+  const dl=config.download;
+  if(dl!==undefined){
+    if(!dl||typeof dl!=='object'||Array.isArray(dl)||Object.keys(dl).some(k=>!['port','hosts'].includes(k)))return pending('下载入口只支持port与hosts');
+    if(!Number.isSafeInteger(dl.port)||dl.port<1||dl.port>65535)return pending('下载入口端口无效');
+    if(!Array.isArray(dl.hosts)||dl.hosts.length<1||dl.hosts.length>2||dl.hosts.some(host=>typeof host!=='string'||isIP(host)!==4||!(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/u.test(host)))||new Set(dl.hosts).size!==dl.hosts.length)return pending('下载入口须绑定1-2个不同IP');
+  }
   // The QR/MVP path is the one this deployment actually uses, so it must not pin a shorter lease than
   // the host path: a five-minute pin here silently undid the longer re-verification window.
   const organizationTtlMs=d.organizationTtlMs??900000;

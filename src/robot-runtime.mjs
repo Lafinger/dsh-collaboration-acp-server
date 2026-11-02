@@ -11,8 +11,8 @@ import {formatRobotNotification} from './robot-format.mjs';
  */
 export class RobotRuntime{
   #args;#read;#apiFactory;#streamFactory;#timers;#session=null;#poll=null;#tick=null;#closing=null;#closed=false;#started=false;#reason='disabled';#blocked=null;
-  constructor({root,security,login,access,services,readConfig=()=>readRobotBinding({root,security}),apiFactory=binding=>new RobotApplicationApi({binding,now:()=>security.now()}),streamFactory=options=>new RobotStream(options),timers={setInterval,clearInterval}}){
-    this.#args={security,login,access,services};this.#read=readConfig;this.#apiFactory=apiFactory;this.#streamFactory=streamFactory;this.#timers=timers;
+  constructor({root,security,login,access,services,downloads=null,readConfig=()=>readRobotBinding({root,security}),apiFactory=binding=>new RobotApplicationApi({binding,now:()=>security.now()}),streamFactory=options=>new RobotStream(options),timers={setInterval,clearInterval}}){
+    this.#args={security,login,access,services,downloads};this.#read=readConfig;this.#apiFactory=apiFactory;this.#streamFactory=streamFactory;this.#timers=timers;
   }
   #config(){try{return this.#read();}catch{return {enabled:false,reason:'robot-configuration-unavailable'};}}
   #live(session,source=session?.stream.currentSource()){
@@ -77,7 +77,9 @@ export class RobotRuntime{
         let current;try{this.#scope(snapshot.binding,snapshot.account);current=session.projection.describe(snapshot.binding,snapshot.account);}catch{return;}
         if(!current.pending||robotMetadataHash(current.binding)!==robotMetadataHash(snapshot.binding))return;
         const informational=current.binding.kind==='task_assignment',reference=informational?null:session.store.reference(current.account,current.binding);
-        session.store.enqueue({eventKey,account:current.account,kind:informational?'task':'pending',refCode:reference?.code??null,context:{kind:'fixed-notification',binding:current.binding},text:formatRobotNotification(current,reference)});created++;
+        let links=[];
+        if(current.display?.result?.files?.length&&this.#args.downloads){try{links=this.#args.downloads.links(current.binding.objectId,current.binding.version,current.binding.projectId);}catch{links=[];}}
+        session.store.enqueue({eventKey,account:current.account,kind:informational?'task':'pending',refCode:reference?.code??null,context:{kind:'fixed-notification',binding:current.binding},text:formatRobotNotification(current,reference,links)});created++;
       });
     }
   }
