@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream';
 
 const escape = value => String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const sizeText = bytes => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MiB` : bytes >= 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${bytes} B`;
@@ -13,7 +14,7 @@ function page(token, files) {
 }
 const message = text => `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>成果原件</title><p>${text}</p></html>`;
 function html(res, status, body) {
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'", 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' });
+  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'", 'x-content-type-options': 'nosniff', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
   res.end(body);
 }
 function handler(downloads) {
@@ -42,9 +43,7 @@ function handler(downloads) {
       'cache-control': 'no-store',
     });
     downloads.record(token);
-    const stream = createReadStream(file.path);
-    stream.on('error', () => res.destroy());
-    stream.pipe(res);
+    pipeline(createReadStream(file.path), res, () => {});
   };
 }
 
@@ -54,7 +53,11 @@ export async function listenResultDownloads(downloads, { port = downloads.port, 
   const servers = [];
   try {
     for (const host of hosts) {
-      const server = createServer(handler(downloads));
+      const serve = handler(downloads);
+      const server = createServer((req, res) => {
+        try { serve(req, res); }
+        catch { if (res.headersSent) res.destroy(); else html(res, 500, message('暂时无法下载，请稍后重试。')); }
+      });
       await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
       servers.push(server);
     }

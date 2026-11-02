@@ -20,7 +20,7 @@ function resolveMvp(config,configPath,pending){
   if(dl!==undefined){
     if(!dl||typeof dl!=='object'||Array.isArray(dl)||Object.keys(dl).some(k=>!['port','hosts'].includes(k)))return pending('下载入口只支持port与hosts');
     if(!Number.isSafeInteger(dl.port)||dl.port<1||dl.port>65535)return pending('下载入口端口无效');
-    if(!Array.isArray(dl.hosts)||dl.hosts.length<1||dl.hosts.length>2||dl.hosts.some(host=>typeof host!=='string'||isIP(host)===0)||new Set(dl.hosts).size!==dl.hosts.length)return pending('下载入口须绑定1-2个不同IP');
+    if(!Array.isArray(dl.hosts)||dl.hosts.length<1||dl.hosts.length>2||dl.hosts.some(host=>typeof host!=='string'||isIP(host)!==4||!(/^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)/u.test(host)))||new Set(dl.hosts).size!==dl.hosts.length)return pending('下载入口须绑定1-2个不同IP');
   }
   // The QR/MVP path is the one this deployment actually uses, so it must not pin a shorter lease than
   // the host path: a five-minute pin here silently undid the longer re-verification window.

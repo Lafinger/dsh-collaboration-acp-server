@@ -68,6 +68,18 @@ test('expired and malformed tokens are refused', t => {
   assert.equal(f.downloads.file(token, 0).status, 410);
 });
 
+test('HTTP request errors do not terminate the shared backend', async t => {
+  const downloads = { page() { throw new Error('database temporarily unavailable'); } };
+  const listener = await listenResultDownloads(downloads, { port: 0, hosts: ['127.0.0.1'] });
+  t.after(() => listener.close());
+  const origin = `http://127.0.0.1:${listener.addresses[0].port}`;
+  const failed = await fetch(`${origin}/d/${'a'.repeat(43)}`);
+  assert.equal(failed.status, 500);
+  assert.ok(!(await failed.text()).includes('database'));
+  const subsequent = await fetch(`${origin}/unknown`);
+  assert.equal(subsequent.status, 404);
+});
+
 test('HTTP page lists the file and streams the exact original bytes', async t => {
   const f = fixture(t);
   const token = f.downloads.ensure('result-1', 1, f.project.id).token;

@@ -58,6 +58,9 @@ test('MVP download entry accepts one or two distinct internal IPs and rejects un
   {...base,download:{port:18080,hosts:[]}},
   {...base,download:{port:18080,hosts:['192.168.2.20','192.168.2.20']}},
   {...base,download:{port:18080,hosts:['not-an-ip']}},
+  {...base,download:{port:18080,hosts:['0.0.0.0']}},
+  {...base,download:{port:18080,hosts:['8.8.8.8']}},
+  {...base,download:{port:18080,hosts:['::']}},
   {...base,download:{port:18080,hosts:['192.168.2.20'],extra:1}},
   {...base,download:'x'}
  ]){writeFileSync(f.file,JSON.stringify(bad),{mode:0o600});assert.equal(resolveServerConfiguration({configFile:f.file}).state,'configuration-required');}
