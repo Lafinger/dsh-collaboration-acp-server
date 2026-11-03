@@ -17,7 +17,7 @@ export class DingTalkIdentityProvider {
       for await(const chunk of response.body){size+=chunk.length;if(size>128*1024)throw unavailable();parts.push(chunk);}
       const value=JSON.parse(Buffer.concat(parts).toString('utf8'));
       if(revokedCode!==undefined&&[revokedCode,String(revokedCode)].includes(value?.errcode))throw revoked();
-      if (!value || Array.isArray(value) || typeof value!=='object' || (value.errcode!==undefined && String(value.errcode)!=='0')) throw unavailable();
+      if (!value || Array.isArray(value) || typeof value!=='object' || (value.errcode!==undefined && value.errcode!==0 && value.errcode!=='0')) throw unavailable();
       return value;
     } catch(error) { if(error?.qualificationRevoked===true)throw error;throw unavailable(); }
   }
@@ -34,8 +34,11 @@ export class DingTalkIdentityProvider {
   async resolveUnion(unionId,{displayName=false}={}) {
     requireText(unionId,'unionId',200); const token=await this.applicationToken();
     const value=await this.json(`https://oapi.dingtalk.com/topapi/user/getbyunionid?access_token=${encodeURIComponent(token)}`,{body:{unionid:unionId},revokedCode:60121});
-    if(String(value.result?.contact_type)==='1')throw revoked();
-    if(String(value.result?.contact_type)!=='0')throw unavailable();
+    const contactType=value.result?.contact_type;
+    // Only the documented number/string enum is authoritative; coercing [1] to '1'
+    // would turn a malformed payload into a durable organization revocation.
+    if(contactType===1||contactType==='1')throw revoked();
+    if(contactType!==0&&contactType!=='0')throw unavailable();
     const userId=requireText(value.result?.userid,'organization userId',200);
     const detail=await this.json(`https://oapi.dingtalk.com/topapi/v2/user/get?access_token=${encodeURIComponent(token)}`,{body:{userid:userId},revokedCode:33012});
     const detailUserId=detail.result?.userid,detailUnionId=detail.result?.unionid;
