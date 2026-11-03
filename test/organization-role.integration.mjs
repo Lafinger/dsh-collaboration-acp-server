@@ -20,6 +20,19 @@ test('organization revocation fences old robot code and all task-owner tool comm
  assert.throws(()=>f.projection.validate(reference),'old member/role fingerprint never resumes');
 });
 
+test('real result-review and peer plan shortcodes never revive through official re-login and same-account acknowledgement',async t=>{
+ const f=await robotFixture(t),planItem=f.projection.candidates().find(v=>v.account===f.a.account),planRef=f.store.reference(planItem.account,planItem.binding);
+ const {upstream}=f.activate(),result=f.submit(upstream,f.b),reviewItem=f.projection.candidates().find(v=>v.binding.kind==='result_review'&&v.binding.objectId===result.resultId),reviewRef=f.store.reference(reviewItem.account,reviewItem.binding);
+ f.security.invalidateOrganization(f.b.account,f.security.member(f.b.account).revision);
+ assert.throws(()=>f.projection.validate(reviewRef));assert.throws(()=>f.projection.validate(planRef));
+ f.security.enroll(f.official('b'));
+ assert.throws(()=>f.projection.validate(reviewRef));assert.throws(()=>f.projection.validate(planRef));
+ await f.assignRole('frontend',f.b.account);
+ assert.throws(()=>f.projection.validate(reviewRef));assert.throws(()=>f.projection.validate(planRef));
+ const current=f.projection.candidates().find(v=>v.binding.kind==='result_review'&&v.binding.objectId===result.resultId);
+ assert.ok(current);assert.notEqual(f.store.reference(current.account,current.binding).code,reviewRef.code);
+});
+
 test('mere trusted name change preserves saved decision binding and does not replay accepted notices',async t=>{
  const f=await robotFixture(t),item=f.projection.candidates().find(v=>v.account===f.b.account),before=f.projection.describe(item.binding,f.b.account);
  f.setVerifier(async m=>({...f.official(m.user_id),name:'Updated official display'}));
