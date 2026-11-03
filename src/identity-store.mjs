@@ -39,6 +39,16 @@ export class IdentityStore extends EventEmitter {
         browser_hash TEXT,code_hash TEXT UNIQUE,status TEXT NOT NULL,expires_at INTEGER NOT NULL,epoch TEXT NOT NULL,member_revision INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS collaboration_security_audit(
         seq INTEGER PRIMARY KEY AUTOINCREMENT,at INTEGER NOT NULL,actor TEXT NOT NULL,action TEXT NOT NULL,subject TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS collaboration_organization_state(
+        account TEXT PRIMARY KEY REFERENCES collaboration_members(account),
+        qualification TEXT NOT NULL CHECK(qualification IN('verified','unknown','revoked','relogin-required')),
+        generation INTEGER NOT NULL DEFAULT 0,last_verified_at INTEGER NOT NULL DEFAULT 0,
+        last_checked_at INTEGER NOT NULL DEFAULT 0,verified_until INTEGER NOT NULL DEFAULT 0,reason TEXT);
+      CREATE TABLE IF NOT EXISTS collaboration_role_qualifications(
+        project_id TEXT NOT NULL REFERENCES projects(id),role TEXT NOT NULL,account TEXT NOT NULL REFERENCES collaboration_members(account),
+        generation INTEGER NOT NULL,PRIMARY KEY(project_id,role));
+      INSERT OR IGNORE INTO collaboration_organization_state(account,qualification)
+        SELECT account,'unknown' FROM collaboration_members;
     `);
     this.transaction(() => {
       const scope = JSON.stringify([serviceId, corpId, clientId]);
@@ -99,26 +109,74 @@ export class IdentityStore extends EventEmitter {
       AND (pr.member_label=? OR c.submitted_by=?) AND (? IS NULL OR p.project_id=?)`)
       .run(new Date(this.now()).toISOString(),reason,account,account,projectId,projectId);
   }
-  markVerified(account, {corpId,userId,unionId,internal}) {
+  organization(account) { return this.db.prepare('SELECT * FROM collaboration_organization_state WHERE account=?').get(account) ?? null; }
+  profile(account) {
+    const m=this.member(account);if(!m)return null;
+    const state=this.organization(account),qualification=m.enabled?(state?.qualification??'unknown'):'disabled';
+    const verifiedUntil=Math.min(state?.verified_until??0,m.verified_until);
+    return {account,name:account,qualification,assignable:!!m.enabled&&qualification==='verified'&&verifiedUntil>this.now(),
+      lastVerifiedAt:state?.last_verified_at||null,lastCheckedAt:state?.last_checked_at||null,verifiedUntil,
+      disambiguator:createHash('sha256').update(account).digest('hex').slice(0,8),generation:state?.generation??0};
+  }
+  markVerified(account, {corpId,userId,unionId,internal,name}, {officialLogin=false}={}) {
     const m = this.member(account);
     if (!m || !m.enabled || corpId!==this.corpId || userId!==m.user_id || unionId!==m.union_id || internal!==true) deny();
-    this.db.prepare('UPDATE collaboration_members SET verified_until=? WHERE account=?').run(this.now()+this.organizationTtlMs,account);
+    const state=this.organization(account),now=this.now(),until=now+this.organizationTtlMs;
+    const blocked=['revoked','relogin-required'].includes(state?.qualification)&&!officialLogin;
+    this.db.prepare(`INSERT INTO collaboration_organization_state(account,qualification,last_verified_at,last_checked_at,verified_until)
+      VALUES(?,?,?,?,?) ON CONFLICT(account) DO UPDATE SET qualification=excluded.qualification,
+      last_verified_at=excluded.last_verified_at,last_checked_at=excluded.last_checked_at,verified_until=excluded.verified_until,reason=NULL`)
+      .run(account,blocked?'relogin-required':'verified',now,now,blocked?0:until);
+    this.db.prepare('UPDATE collaboration_members SET verified_until=? WHERE account=?').run(blocked?0:until,account);
+    this.updateTrustedName?.(account,name);
   }
-  invalidateOrganization(account,revision){
-    this.transaction(()=>{const current=this.member(account);if(!current||current.revision!==revision)return;
+  markOrganizationUnknown(account,revision) {
+    const m=this.member(account);if(!m||m.revision!==revision)return;
+    this.db.prepare(`INSERT INTO collaboration_organization_state(account,qualification,last_checked_at,reason) VALUES(?,'unknown',?,'verification-unavailable')
+      ON CONFLICT(account) DO UPDATE SET qualification=CASE WHEN qualification IN('revoked','relogin-required') THEN qualification ELSE 'unknown' END,
+      last_checked_at=excluded.last_checked_at,reason=excluded.reason`).run(account,this.now());
+  }
+  invalidateOrganization(account,revision,reason='organization-revoked'){
+    let changed=false;
+    this.transaction(()=>{const current=this.member(account),state=this.organization(account);
+      if(!current||current.revision!==revision)return;
+      if(['revoked','relogin-required'].includes(state?.qualification)){
+        this.db.prepare("UPDATE collaboration_organization_state SET qualification='revoked',last_checked_at=?,verified_until=0,reason=? WHERE account=?").run(this.now(),reason,account);return;
+      }
+      this.db.prepare(`INSERT INTO collaboration_organization_state(account,qualification,generation,last_checked_at,reason) VALUES(?,'revoked',1,?,?)
+        ON CONFLICT(account) DO UPDATE SET qualification='revoked',generation=generation+1,last_checked_at=excluded.last_checked_at,verified_until=0,reason=excluded.reason`)
+        .run(account,this.now(),reason);
+      const generation=this.organization(account).generation;
+      this.db.prepare(`INSERT INTO collaboration_role_qualifications(project_id,role,account,generation)
+        SELECT project_id,role,member_label,? FROM project_roles WHERE member_label=?
+        ON CONFLICT(project_id,role) DO UPDATE SET account=excluded.account,generation=excluded.generation`).run(generation,account);
       this.db.prepare('UPDATE collaboration_members SET revision=revision+1,verified_until=0 WHERE account=?').run(account);
       this.db.prepare('UPDATE collaboration_logins SET revoked=1 WHERE account=?').run(account);
-      this.suspendPending(account,null,'Organization qualification explicitly revoked');this.audit('official-organization-refresh','member-qualification-revoked',account);
-    });this.emit('authorization-change',{account});
+      this.db.prepare("UPDATE collaboration_login_requests SET status='expired' WHERE account=? AND status IN('pending','processing','verified')").run(account);
+      this.suspendPending(account,null,'Organization qualification explicitly revoked');this.audit('official-organization-refresh','member-qualification-revoked',account);changed=true;
+    });if(changed)this.emit('authorization-change',{account});return changed;
+  }
+  roleNeedsReassignment(account,projectId,role) {
+    return !!this.db.prepare('SELECT 1 FROM collaboration_role_qualifications WHERE project_id=? AND role=? AND account=?').get(projectId,role,account);
+  }
+  requireRole(account,projectId,role) {
+    this.requireProject(account,projectId);
+    if(this.roleNeedsReassignment(account,projectId,role)||!this.db.prepare('SELECT 1 FROM project_roles WHERE project_id=? AND role=? AND member_label=?').get(projectId,role,account))deny();
+    return true;
+  }
+  acknowledgeRole(projectId,role,account) {
+    if(account!==null){const m=this.requireMember(account);if(!this.profile(m.account).assignable)deny();}
+    this.db.prepare('DELETE FROM collaboration_role_qualifications WHERE project_id=? AND role=?').run(projectId,role);
   }
   requireMemberLink(account) {
     const m = this.member(account);
-    if (!m || !m.enabled || m.corp_id!==this.corpId || m.client_id!==this.clientId) deny();
+    if (!m || !m.enabled || m.corp_id!==this.corpId || m.client_id!==this.clientId || ['revoked','relogin-required'].includes(this.organization(account)?.qualification)) deny();
     return m;
   }
   requireMember(account) {
     const m = this.requireMemberLink(account);
-    if (m.verified_until<=this.now()) deny();
+    const state=this.organization(account);
+    if (m.verified_until<=this.now() || (state&&state.verified_until<=this.now())) deny();
     return m;
   }
   requireAdministrator(account) { const m = this.requireMember(account); if (!m.administrator) deny(); return m; }
@@ -138,7 +196,7 @@ export class IdentityStore extends EventEmitter {
   }
   roles(account, projectId) {
     this.requireProject(account,projectId);
-    return this.db.prepare('SELECT role FROM project_roles WHERE project_id=? AND member_label=? ORDER BY role').all(projectId,account).map(r=>r.role);
+    return this.db.prepare('SELECT role FROM project_roles WHERE project_id=? AND member_label=? ORDER BY role').all(projectId,account).filter(r=>!this.roleNeedsReassignment(account,projectId,r.role)).map(r=>r.role);
   }
   issueLogin(account, deviceId) {
     requireText(deviceId,'deviceId',200); const m=this.requireMember(account), token=opaqueSecret(), id=randomUUID(), expiresAt=this.now()+this.loginTtlMs;

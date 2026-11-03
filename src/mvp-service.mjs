@@ -38,7 +38,13 @@ export class MvpAccessService extends AccessService {
       const result=this.login.logout(p);c.login=null;for(const e of this.sessions.values())if(e.connection===c)e.controller?.abort();return result;
     }
     if(method==='collaboration/login/status'){
-      try{this.requireBusinessIdentity(c);return {authenticated:true,...c.identity,expiresAt:c.login.expiresAt};}catch{return {authenticated:false,serviceId:this.identities.serviceId};}
+      if(c.login)await this.login.refresh(c.identity.account);
+      try{this.requireBusinessIdentity(c);c.identity={...c.identity,...this.identities.display(c.identity.account)};return {authenticated:true,...c.identity,expiresAt:c.login.expiresAt};}catch{return {authenticated:false,serviceId:this.identities.serviceId};}
+    }
+    if(method==='collaboration/whoami'){
+      if(!c.login)deny();await this.login.refresh(c.identity.account);this.requireBusinessIdentity(c);
+      c.identity={...c.identity,...this.identities.display(c.identity.account)};
+      return {...c.identity,runtimePid:process.pid,identitySource:'dingtalk',expiresAt:c.login.expiresAt};
     }
     if(method==='collaboration/admin'){
       if(!c.login)deny();await this.login.refresh(c.identity.account);this.requireBusinessIdentity(c);this.identities.requireAdministrator(c.identity.account);
@@ -49,17 +55,37 @@ export class MvpAccessService extends AccessService {
     return super.dispatch(c,method,p);
   }
   roleRevision(projectId){return projectRoleRevision(this.identities,this.projects,projectId);}
-  adminView(account,projectId){
+  memberProfile(account){
+    if(this.identities.profile)return this.identities.profile(account);
+    const row=this.identities.db.prepare('SELECT m.account,n.name FROM collaboration_members m LEFT JOIN mvp_member_names n ON n.account=m.account WHERE m.account=?').get(account);
+    return row?{account:row.account,name:row.name??'历史成员',qualification:'unknown',assignable:false}:null;
+  }
+  projectView(projectId){
+    const project=this.projects.getWithRoles(projectId);
+    return {...project,roles:project.roles.map(slot=>({...slot,memberProfile:slot.member?this.memberProfile(slot.member):null,
+      roleNeedsReassignment:!!(slot.member&&this.identities.roleNeedsReassignment?.(slot.member,projectId,slot.role))}))};
+  }
+  adminView(account,projectId,sync){
     this.identities.requireAdministrator(account);
-    const members=this.identities.db.prepare('SELECT m.account,n.name FROM collaboration_members m LEFT JOIN mvp_member_names n ON n.account=m.account WHERE m.enabled=1 ORDER BY n.name,m.account').all().map(row=>({account:row.account,name:row.name??row.account}));
+    const members=this.identities.db.prepare('SELECT account FROM collaboration_members ORDER BY account').all().map(row=>this.memberProfile(row.account)).filter(Boolean);
+    members.sort((a,b)=>a.name.localeCompare(b.name,'zh-CN')||a.account.localeCompare(b.account));
     const projects=this.projects.list().map(p=>({id:p.id,key:p.key,name:p.name}));
-    return {members,projects,...projectId?{project:this.projects.getWithRoles(projectId),revision:this.roleRevision(projectId)}:{}};
+    return {members,projects,observedAt:this.identities.now(),...(sync?{sync}:{}),...projectId?{project:this.projectView(projectId),revision:this.roleRevision(projectId)}:{}};
   }
   async manage(account,p,guard=()=>{}){
     this.identities.requireAdministrator(account);guard();
     if(!p||typeof p!=='object'||Array.isArray(p))throw new AccessError(-32602,'管理请求格式不正确');
-    if(exact(p,['action'],['projectId'])&&p.action==='view')return this.adminView(account,p.projectId);
-    if(p.action==='role'&&p.account!==null)await this.login.refresh(p.account);
+    if(exact(p,['action'],['projectId'])&&p.action==='view'){
+      let sync;
+      if(this.login.organizationSync)sync=await this.login.organizationSync.sync({force:true});
+      else{
+        const members=this.identities.db.prepare('SELECT account FROM collaboration_members WHERE enabled=1 ORDER BY account').all();let partial=false;
+        for(const row of members)try{await this.login.refresh(row.account,{force:true});}catch{partial=true;}
+        sync={status:partial?'partial':'complete',checkedAt:this.identities.now()};
+      }
+      guard();this.identities.requireAdministrator(account);return this.adminView(account,p.projectId,sync);
+    }
+    if(p.action==='role'&&exact(p,['action','commandId','projectId','role','account','revision'])&&p.account!==null)await this.login.refresh(p.account,{force:true});
     const valid=p.action==='create'?exact(p,['action','commandId','key','name'],['background','goal']):p.action==='role'&&exact(p,['action','commandId','projectId','role','account','revision']);
     if(!valid)throw new AccessError(-32602,'仅支持创建项目与角色分配');
     requireText(p.commandId,'管理操作标识',100);
@@ -75,12 +101,14 @@ export class MvpAccessService extends AccessService {
       }else{
         requireText(p.projectId,'项目',200);requireText(p.role,'职责',100);
         if(p.revision!==this.roleRevision(p.projectId))throw new AccessError(-32007,'角色安排已变化，请刷新后明确重新提交');
-        if(p.account!==null)this.identities.requireMember(p.account);
+        if(p.account!==null){this.identities.requireMember(p.account);if(this.identities.profile&&!this.identities.profile(p.account)?.assignable)throw new AccessError(-32014,'目标成员资格尚未核验有效，请刷新后重试');}
         const previousMember=this.projects.getWithRoles(p.projectId).roles.find(r=>r.role===p.role)?.member;
+        const restoring=!!(previousMember&&this.identities.roleNeedsReassignment?.(previousMember,p.projectId,p.role));
         this.projects.setMember(p.projectId,p.role,p.account);
-        if(previousMember!==p.account)this.identities.db.prepare('INSERT INTO mvp_project_revisions VALUES(?,2) ON CONFLICT(project_id) DO UPDATE SET revision=revision+1').run(p.projectId);
+        this.identities.acknowledgeRole?.(p.projectId,p.role,p.account);
+        if(previousMember!==p.account||restoring)this.identities.db.prepare('INSERT INTO mvp_project_revisions VALUES(?,2) ON CONFLICT(project_id) DO UPDATE SET revision=revision+1').run(p.projectId);
         this.identities.audit(account,'role-assignment',JSON.stringify([p.projectId,p.role,p.account]));
-        result={ok:true,project:this.projects.getWithRoles(p.projectId),revision:this.roleRevision(p.projectId)};
+        result={ok:true,project:this.projectView(p.projectId),revision:this.roleRevision(p.projectId)};
       }
       this.identities.db.prepare('INSERT INTO mvp_admin_commands VALUES(?,?,?,?)').run(p.commandId,account,bodyHash,JSON.stringify(result));return result;
     });

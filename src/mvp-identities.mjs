@@ -38,9 +38,7 @@ export class MvpIdentityStore extends IdentityStore {
         this.audit(this.enrollmentActor,'member-auto-enroll',account);
       }
       if(!!this.member(account).administrator!==(userId===this.administratorUserId))deny();
-      const name=typeof identity.name==='string'&&identity.name.trim()&&identity.name.length<=200?identity.name.trim():userId;
-      this.db.prepare('INSERT INTO mvp_member_names VALUES(?,?) ON CONFLICT(account) DO UPDATE SET name=excluded.name').run(account,name);
-      this.markVerified(account,identity);return this.member(account);
+      this.markVerified(account,identity,{officialLogin:true});return this.member(account);
     });
   }
   requireProject(account,projectId){
@@ -57,5 +55,10 @@ export class MvpIdentityStore extends IdentityStore {
     return {enabled:1,revision:1};
   }
   projects(account){this.requireMember(account);return this.db.prepare('SELECT id FROM projects WHERE archived_at IS NULL ORDER BY created_at,id').all().map(row=>row.id);}
-  display(account){const member=this.requireMember(account);return {account,name:this.db.prepare('SELECT name FROM mvp_member_names WHERE account=?').get(account)?.name??account,administrator:!!member.administrator};}
+  updateTrustedName(account,name){
+    if(typeof name!=='string'||!name.trim()||name.length>200)return;
+    this.db.prepare('INSERT INTO mvp_member_names VALUES(?,?) ON CONFLICT(account) DO UPDATE SET name=excluded.name').run(account,name.trim());
+  }
+  profile(account){const profile=super.profile(account);return profile?{...profile,name:this.db.prepare('SELECT name FROM mvp_member_names WHERE account=?').get(account)?.name??account}:null;}
+  display(account){const member=this.requireMember(account);return {account,name:this.profile(account).name,administrator:!!member.administrator};}
 }
