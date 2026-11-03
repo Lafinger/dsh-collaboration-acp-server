@@ -30,6 +30,22 @@ test('scan creates own fixed notices once; accepted deliveries are skipped befor
   const f=await robotFixture(t),e=await connected(f);await e.bot.tick();await e.bot.tick();assert.equal(e.state.sends.length,2);assert.equal(e.deliveries().length,2);assert.ok(e.deliveries().every(row=>row.status==='accepted'));const codes=e.deliveries().map(row=>row.ref_code);
   f.advance(300001);await e.bot.tick();await e.bot.tick();assert.equal(e.state.sends.length,2);assert.equal(f.contacts.length,0);assert.deepEqual(e.deliveries().map(row=>row.ref_code),codes);
 });
+test('revoking another historical role never replays accepted tasks or mints a new token across adapter restart',{timeout:12000},async t=>{
+  const f=await robotFixture(t),departed=f.security.enroll(f.official('historical')),db=f.security.db;
+  f.services.projects.setMember(f.project.id,'design',departed.account);f.activate();
+  const downloads=new ResultDownloadService({db,materials:f.services.materials,port:18080,hosts:['192.168.2.20','10.242.169.184'],now:f.now}),e=await connected(f,{downloads});
+  await e.bot.tick();await e.bot.tick();assert.equal(e.deliveries().length,2);assert.ok(e.deliveries().every(row=>row.kind==='task'&&row.status==='accepted'));
+  const saved=e.deliveries(),tokens=db.prepare('SELECT * FROM notification_download_tokens').all(),bindings=saved.map(row=>JSON.parse(row.context_json).binding);
+  f.security.invalidateOrganization(departed.account,departed.revision);
+  assert.equal(f.security.roleNeedsReassignment(departed.account,f.project.id,'design'),true);
+  for(const binding of bindings)assert.deepEqual(f.projection.describe(binding,binding.account).binding,binding);
+  f.advance(31*86400000);await f.login.refresh(f.a.account,{force:true});await f.login.refresh(f.b.account,{force:true});
+  await e.bot.tick();await e.bot.tick();assert.deepEqual(e.deliveries(),saved);assert.deepEqual(db.prepare('SELECT * FROM notification_download_tokens').all(),tokens);assert.equal(e.state.sends.length,2);
+  e.state.enabled=false;await e.bot.tick();e.state.enabled=true;await e.bot.tick();e.state.sockets.at(-1).open();await e.bot.tick();await e.bot.tick();
+  assert.deepEqual(e.deliveries(),saved);assert.deepEqual(db.prepare('SELECT * FROM notification_download_tokens').all(),tokens);assert.equal(e.state.sends.length,2);
+  f.security.enroll(f.official('historical'));f.advance(15001);await e.bot.tick();await e.bot.tick();
+  assert.deepEqual(e.deliveries(),saved);assert.equal(e.state.sends.length,2,'official re-login does not acknowledge the frozen historical role');
+});
 test('a pending unsent notice with an expired recipient cache is refreshed, not permanently suppressed',{timeout:12000},async t=>{
   const f=await robotFixture(t),e=await connected(f);await e.bot.tick();assert.equal(e.state.sends.length,1);f.advance(300001);await e.bot.tick();assert.equal(e.state.sends.length,2);assert.deepEqual(f.contacts,['b']);assert.ok(e.deliveries().every(row=>row.status==='accepted'));
 });

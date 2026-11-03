@@ -41,14 +41,13 @@ test('confirmed organization removal is nonassignable; retained role is readable
  assert.equal(view.sync.status,'partial');assert.equal(view.project.roles.find(r=>r.role==='frontend').member,f.a.account);
  assert.equal(view.project.roles.find(r=>r.role==='frontend').roleNeedsReassignment,true);
  assert.equal(view.project.roles.find(r=>r.role==='frontend').memberProfile.name,'同名成员');
- assert.notEqual(view.revision,revision);assert.throws(()=>f.identities.verifyLogin(token.token,f.a.account,'device'));
+ assert.equal(view.revision,revision,'qualification is not a role assignment');assert.throws(()=>f.identities.verifyLogin(token.token,f.a.account,'device'));
 });
-test('same-account rejoin requires explicit assignment, invalidates stale revision, and never revives old device or old role hash',async t=>{
+test('same-account rejoin requires explicit assignment, whose monotonic revision never revives the old device or assignment hash',async t=>{
  const f=fixture(t);f.projects.setMember(f.project.id,'frontend',f.a.account);const old=f.service.roleRevision(f.project.id),token=f.identities.issueLogin(f.a.account,'device');
  f.identities.invalidateOrganization(f.a.account,f.identities.member(f.a.account).revision);
  f.identities.enroll(official('a','重新加入'));assert.throws(()=>f.identities.requireRole(f.a.account,f.project.id,'frontend'));
- const view=f.service.adminView(f.admin.account,f.project.id);assert.notEqual(view.revision,old);
- await assert.rejects(f.service.manage(f.admin.account,{action:'role',commandId:'stale',projectId:f.project.id,role:'frontend',account:f.a.account,revision:old}));
+ const view=f.service.adminView(f.admin.account,f.project.id);assert.equal(view.revision,old,'re-login alone is not assignment');
  const response=await f.service.manage(f.admin.account,{action:'role',commandId:'restore',projectId:f.project.id,role:'frontend',account:f.a.account,revision:view.revision});
  assert.equal(f.identities.requireRole(f.a.account,f.project.id,'frontend'),true);assert.notEqual(response.revision,old);assert.notEqual(response.revision,view.revision);
  assert.throws(()=>f.identities.verifyLogin(token.token,f.a.account,'device'));
