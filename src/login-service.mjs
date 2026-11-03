@@ -53,7 +53,7 @@ export class LoginService {
       if(!member||identity.corpId!==member.corp_id||identity.userId!==member.user_id||identity.unionId!==member.union_id||identity.internal!==true)deny();
       this.identities.transaction(()=>{
         const current=this.request(row.id);if(current.status!=='processing')deny();
-        this.identities.markVerified(row.account,identity);
+        this.identities.markVerified(row.account,identity,{officialLogin:true});
         this.db.prepare("UPDATE collaboration_login_requests SET status='verified' WHERE id=?").run(row.id);
       });
       return {requestId:row.id,status:'verified'};
@@ -62,17 +62,31 @@ export class LoginService {
       deny();
     }
   }
-  async refresh(account) {
+  async refresh(account,{force=false}={}) {
     const member=this.identities.member(account);if(!member?.enabled)deny();
-    if(member.verified_until>this.now())return;
     let task=this.refreshes.get(account);
+    // Unknown legacy rows must be checked even if the previous deployment left a fresh lease.
+    if(!task&&!force&&this.identities.profile(account)?.assignable)return this.identities.profile(account);
     if(!task){
       task=(async()=>{const revision=member.revision;let identity;
-        try{identity=await this.provider.verifyMember(member);}catch(error){if(error?.qualificationRevoked===true)this.identities.invalidateOrganization(account,revision);deny();}
+        try{
+          identity=await this.provider.verifyMember(member);
+          if(!identity||identity.corpId!==member.corp_id||identity.internal!==true||typeof identity.userId!=='string'||!identity.userId||typeof identity.unionId!=='string'||!identity.unionId)throw new Error('Unavailable organization data');
+          if(identity.userId!==member.user_id||identity.unionId!==member.union_id)throw Object.assign(new Error('Organization identity changed'),{qualificationRevoked:true,identityChanged:true});
+        }catch(error){
+          if(error?.qualificationRevoked===true)this.identities.invalidateOrganization(account,revision,error.identityChanged?'identity-changed':'organization-revoked');
+          else this.identities.markOrganizationUnknown(account,revision);
+          deny();
+        }
         this.identities.transaction(()=>{const current=this.identities.member(account);if(!current||current.revision!==revision)deny();this.identities.markVerified(account,identity);});
-      })().finally(()=>this.refreshes.delete(account));this.refreshes.set(account,task);
+        return this.identities.profile(account);
+      })().finally(()=>{if(this.refreshes.get(account)===task)this.refreshes.delete(account);});this.refreshes.set(account,task);
     }
-    await task;
+    try{return await task;}catch(error){
+      // Temporary errors do not revoke a still-valid old login/lease. Forced checks report failure.
+      if(!force){try{this.identities.requireMember(account);return this.identities.profile(account);}catch{}}
+      throw error;
+    }
   }
   async claim(account,{requestId,deviceId,proof}) {
     requireText(proof,'device request proof',200);const row=this.request(requestId);

@@ -11,7 +11,11 @@ export class AccessService {
     this.authority = authority; this.store = store; this.runtime = runtime; this.cwd = resolve(cwd);
     this.login=login;this.identities=identities;this.projects=projects;this.communication=communication;
     this.connections = new Set(); this.sessions = new Map(); this.closing = false;
-    this.onAuthorizationChange=({account,projectId})=>{for(const e of this.sessions.values())if((!account||e.connection?.identity?.account===account)&&(!projectId||e.principal?.projectId===projectId))e.controller?.abort();};
+    this.onAuthorizationChange=({account,projectId})=>{
+      for(const e of this.sessions.values())if((!account||e.connection?.identity?.account===account)&&(!projectId||e.principal?.projectId===projectId))e.controller?.abort();
+      // Only a real login/member revocation closes a device; lease expiry alone remains a pause.
+      for(const c of this.connections)if(c.login&&(!account||c.identity?.account===account))try{this.identities.requireLoginLink(c.login);}catch{c.login=null;c.peer?.close();}
+    };
     this.onLoginRevoked=({loginId})=>{for(const c of this.connections)if(c.login?.loginId===loginId){c.login=null;for(const e of this.sessions.values())if(e.connection===c)e.controller?.abort();}};
     identities?.on('authorization-change',this.onAuthorizationChange);identities?.on('login-revoked',this.onLoginRevoked);
     this.authorizationMonitor=identities?setInterval(()=>{for(const e of this.sessions.values())if(e.controller)try{this.requireQualification(e.connection,e.id);}catch{e.controller.abort();}},1000):null;

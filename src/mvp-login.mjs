@@ -11,6 +11,7 @@ export class MvpLoginService extends LoginService {
     super(options);if(typeof agentId!=='string'||!/^\d{1,30}$/.test(agentId))throw new Error('Official PC application AgentId required');this.agentId=agentId;
     this.db.exec(`CREATE TABLE IF NOT EXISTS mvp_login_requests(id TEXT PRIMARY KEY,device_id TEXT NOT NULL,proof_hash TEXT NOT NULL,browser_hash TEXT,browser_token TEXT UNIQUE NOT NULL,pairing_code TEXT UNIQUE NOT NULL,code_hash TEXT UNIQUE,identity_json TEXT,account TEXT,status TEXT NOT NULL,expires_at INTEGER NOT NULL,epoch TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS mvp_login_expiry ON mvp_login_requests(expires_at);`);
+    if(!this.db.prepare('PRAGMA table_info(mvp_login_requests)').all().some(column=>column.name==='member_revision'))this.db.exec('ALTER TABLE mvp_login_requests ADD COLUMN member_revision INTEGER');
     this.expireInterrupted();
   }
   expireInterrupted(){
@@ -54,12 +55,15 @@ export class MvpLoginService extends LoginService {
       this.db.prepare("UPDATE mvp_login_requests SET status='processing',code_hash=? WHERE id=? AND status='pending'").run(hashSecret(code),requestId);
     });
     try{
+      const revisions=new Map(this.db.prepare('SELECT account,revision FROM collaboration_members').all().map(m=>[m.account,m.revision]));
       const identity=await this.provider.exchangePc(code);
       return this.identities.transaction(()=>{
         const current=this.request(requestId);if(current.status!=='processing'||identity.corpId!==this.identities.corpId||identity.internal!==true)unavailable();
         requireText(identity.userId,'员工身份',200);requireText(identity.unionId,'组织身份',200);
         // Stage verified identity first; the page must show the actual person before approval.
-        this.db.prepare("UPDATE mvp_login_requests SET status='identified',identity_json=? WHERE id=?").run(JSON.stringify(identity),requestId);
+        const prior=this.db.prepare('SELECT account,revision FROM collaboration_members WHERE corp_id=? AND client_id=? AND user_id=?').get(this.identities.corpId,this.identities.clientId,identity.userId);
+        if(prior&&revisions.get(prior.account)!==prior.revision)unavailable();
+        this.db.prepare("UPDATE mvp_login_requests SET status='identified',identity_json=?,member_revision=? WHERE id=?").run(JSON.stringify(identity),prior?.revision??0,requestId);
         return {identified:true,name:identity.name??identity.userId,corpId:identity.corpId,serviceId:this.identities.serviceId};
       });
     }catch{
@@ -69,10 +73,14 @@ export class MvpLoginService extends LoginService {
   confirm({requestId,cookie}){
     return this.identities.transaction(()=>{
       const row=this.request(requestId);if(row.status!=='identified'||!cookie||hashSecret(cookie)!==row.browser_hash)unavailable();
-      const identity=JSON.parse(row.identity_json),member=this.identities.enroll(identity);
+      const identity=JSON.parse(row.identity_json);
+      const prior=this.db.prepare('SELECT account,revision FROM collaboration_members WHERE corp_id=? AND client_id=? AND user_id=?').get(this.identities.corpId,this.identities.clientId,identity.userId);
+      if(row.member_revision===null||(row.member_revision===0?!!prior:prior?.revision!==row.member_revision))unavailable();
+      const member=this.identities.enroll(identity);
       // Confirmation must not extend the lifetime of an earlier official verification.
       this.db.prepare('UPDATE collaboration_members SET verified_until=MIN(verified_until,?) WHERE account=?').run(row.expires_at,member.account);
-      this.db.prepare("UPDATE mvp_login_requests SET status='verified',account=?,identity_json=NULL WHERE id=?").run(member.account,requestId);
+      this.db.prepare('UPDATE collaboration_organization_state SET verified_until=MIN(verified_until,?) WHERE account=?').run(row.expires_at,member.account);
+      this.db.prepare("UPDATE mvp_login_requests SET status='verified',account=?,member_revision=?,identity_json=NULL WHERE id=?").run(member.account,member.revision,requestId);
       return {verified:true,...this.identities.display(member.account)};
     });
   }
@@ -80,20 +88,20 @@ export class MvpLoginService extends LoginService {
     secret(proof);const row=this.request(requestId);
     if(row.device_id!==deviceId||row.proof_hash!==hashSecret(proof))unavailable();
     if(['pending','processing','identified'].includes(row.status))return {status:'pending'};
-    if(row.status!=='verified')unavailable();
+    if(row.status!=='verified'||row.member_revision!==this.identities.member(row.account)?.revision)unavailable();
     await this.refresh(row.account);
     return this.identities.transaction(()=>{
-      const current=this.request(requestId);if(current.status!=='verified')unavailable();
+      const current=this.request(requestId);if(current.status!=='verified'||current.member_revision!==this.identities.member(current.account)?.revision)unavailable();
       const login=this.identities.issueLogin(row.account,deviceId);
       this.db.prepare("UPDATE mvp_login_requests SET status='claimed',browser_hash=NULL WHERE id=?").run(requestId);
       return {status:'authenticated',...login,...this.identities.display(row.account)};
     });
   }
-  async refresh(account){
+  async refresh(account,options){
     const before=this.identities.member(account);if(!before?.enabled)unavailable();
-    try{await super.refresh(account);}catch(error){
+    try{return await super.refresh(account,options);}catch(error){
       const current=this.identities.member(account);
-      if(current?.enabled&&current.revision===before.revision&&current.verified_until<=this.now())throw new AccessError(-32014,'暂时无法复核钉钉组织资格，业务已暂停；登录未延长，请稍后查询，不必反复登录');
+      if(current?.enabled&&current.revision===before.revision&&!['revoked','relogin-required'].includes(this.identities.profile(account)?.qualification)&&current.verified_until<=this.now())throw new AccessError(-32014,'暂时无法复核钉钉组织资格，业务已暂停；登录未延长，请稍后查询，不必反复登录');
       throw error;
     }
   }

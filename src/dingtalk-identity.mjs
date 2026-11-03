@@ -8,7 +8,7 @@ export class DingTalkIdentityProvider {
     this.corpId=requireText(corpId,'corpId',200); this.clientId=requireText(clientId,'clientId',200);
     this.clientSecret=requireText(clientSecret,'clientSecret',4096); this.fetch=fetchImpl; this.now=now; this.cached=null; this.pending=null;
   }
-  async json(url,{body,headers={}}={}) {
+  async json(url,{body,headers={},revokedCode}={}) {
     try {
       const response=await this.fetch(url,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',...headers},
         ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(10000),redirect:'error'});
@@ -16,10 +16,10 @@ export class DingTalkIdentityProvider {
       let size=0;const parts=[];
       for await(const chunk of response.body){size+=chunk.length;if(size>128*1024)throw unavailable();parts.push(chunk);}
       const value=JSON.parse(Buffer.concat(parts).toString('utf8'));
-      if(value?.errcode===33012)throw revoked();
+      if(revokedCode!==undefined&&[revokedCode,String(revokedCode)].includes(value?.errcode))throw revoked();
       if (!value || Array.isArray(value) || typeof value!=='object' || (value.errcode!==undefined && String(value.errcode)!=='0')) throw unavailable();
       return value;
-    } catch(error) { if(error?.qualificationRevoked===true)throw revoked();throw unavailable(); }
+    } catch(error) { if(error?.qualificationRevoked===true)throw error;throw unavailable(); }
   }
   async applicationToken() {
     if(this.cached?.until>this.now())return this.cached.token;
@@ -33,15 +33,19 @@ export class DingTalkIdentityProvider {
   }
   async resolveUnion(unionId,{displayName=false}={}) {
     requireText(unionId,'unionId',200); const token=await this.applicationToken();
-    const value=await this.json(`https://oapi.dingtalk.com/topapi/user/getbyunionid?access_token=${encodeURIComponent(token)}`,{body:{unionid:unionId}});
+    const value=await this.json(`https://oapi.dingtalk.com/topapi/user/getbyunionid?access_token=${encodeURIComponent(token)}`,{body:{unionid:unionId},revokedCode:60121});
     if(String(value.result?.contact_type)==='1')throw revoked();
     if(String(value.result?.contact_type)!=='0')throw unavailable();
     const userId=requireText(value.result?.userid,'organization userId',200);
-    const detail=await this.json(`https://oapi.dingtalk.com/topapi/v2/user/get?access_token=${encodeURIComponent(token)}`,{body:{userid:userId}});
-    if([false,'false'].includes(detail.result?.active)||detail.result?.userid!==userId||detail.result?.unionid!==unionId)throw revoked();
-    if(![true,'true'].includes(detail.result?.active))throw unavailable();
-    const name=typeof detail.result?.name==='string'&&detail.result.name.trim()&&detail.result.name.length<=200?detail.result.name.trim():userId;
-    return {corpId:this.corpId,userId,unionId,internal:true,...displayName?{name}:{}};
+    const detail=await this.json(`https://oapi.dingtalk.com/topapi/v2/user/get?access_token=${encodeURIComponent(token)}`,{body:{userid:userId},revokedCode:33012});
+    const detailUserId=detail.result?.userid,detailUnionId=detail.result?.unionid;
+    // Missing/malformed data is unavailable, not evidence that a person left the organization.
+    if(typeof detailUserId!=='string'||!detailUserId.trim()||detailUserId.length>200||typeof detailUnionId!=='string'||!detailUnionId.trim()||detailUnionId.length>200)throw unavailable();
+    if(detailUserId!==userId||detailUnionId!==unionId)throw Object.assign(revoked(),{identityChanged:true});
+    // active means DingTalk activation, NOT employment; false is valid internal membership.
+    if(![true,false,'true','false'].includes(detail.result?.active))throw unavailable();
+    const name=typeof detail.result?.name==='string'&&detail.result.name.trim()&&detail.result.name.length<=200?detail.result.name.trim():undefined;
+    return {corpId:this.corpId,userId,unionId,internal:true,...displayName&&name?{name}:{}};
   }
   async exchange(code,{displayName=false}={}) {
     requireText(code,'authorization code',4096);
@@ -64,8 +68,8 @@ export class DingTalkIdentityProvider {
   }
   async verifyMember(member) {
     if(member.corp_id!==this.corpId||member.client_id!==this.clientId)throw unavailable();
-    const identity=await this.resolveUnion(member.union_id);
-    if(identity.userId!==member.user_id)throw revoked();
+    const identity=await this.resolveUnion(member.union_id,{displayName:true});
+    if(identity.userId!==member.user_id)throw Object.assign(revoked(),{identityChanged:true});
     return identity;
   }
 }

@@ -18,6 +18,7 @@ export class QrLoginService extends LoginService {
    state TEXT UNIQUE NOT NULL,browser_hash TEXT,code_hash TEXT UNIQUE,account TEXT,status TEXT NOT NULL,
    expires_at INTEGER NOT NULL,epoch TEXT NOT NULL,login_id TEXT,claim_recovery TEXT);
    CREATE INDEX IF NOT EXISTS qr_login_device ON qr_login_requests(device_id,expires_at);`);
+  if(!this.db.prepare('PRAGMA table_info(qr_login_requests)').all().some(column=>column.name==='member_revision'))this.db.exec('ALTER TABLE qr_login_requests ADD COLUMN member_revision INTEGER');
   this.expireInterrupted();
  }
  expireInterrupted(){this.db.prepare("UPDATE qr_login_requests SET status='failed',browser_hash=NULL WHERE status='processing'").run();}
@@ -57,11 +58,16 @@ export class QrLoginService extends LoginService {
   const row=this.request(candidate.id);if(row.status!=='pending'||!cookie||!row.browser_hash||hashSecret(cookie)!==row.browser_hash)unavailable();
   try{this.identities.transaction(()=>{if(this.request(row.id).status!=='pending')unavailable();this.db.prepare("UPDATE qr_login_requests SET status='processing',code_hash=? WHERE id=? AND status='pending'").run(hashSecret(code),row.id);});}catch{this.db.prepare("UPDATE qr_login_requests SET status='failed',browser_hash=NULL WHERE id=? AND status='pending'").run(row.id);unavailable();}
   try{
+   // Snapshot before official I/O: an old authorization cannot undo a concurrent revocation.
+   const revisions=new Map(this.db.prepare('SELECT account,revision FROM collaboration_members').all().map(m=>[m.account,m.revision]));
    const identity=await this.provider.exchange(code,{displayName:true});
    return this.identities.transaction(()=>{
     const current=this.request(row.id);if(current.status!=='processing'||identity?.corpId!==this.identities.corpId||identity.internal!==true)unavailable();
+    const prior=this.db.prepare('SELECT account,revision FROM collaboration_members WHERE corp_id=? AND client_id=? AND user_id=?').get(this.identities.corpId,this.identities.clientId,identity.userId);
+    if(prior&&revisions.get(prior.account)!==prior.revision)unavailable();
     const member=this.identities.enroll(identity);this.db.prepare('UPDATE collaboration_members SET verified_until=MIN(verified_until,?) WHERE account=?').run(row.expires_at,member.account);
-    this.db.prepare("UPDATE qr_login_requests SET status='verified',account=?,browser_hash=NULL WHERE id=?").run(member.account,row.id);
+    this.db.prepare('UPDATE collaboration_organization_state SET verified_until=MIN(verified_until,?) WHERE account=?').run(row.expires_at,member.account);
+    this.db.prepare("UPDATE qr_login_requests SET status='verified',account=?,member_revision=?,browser_hash=NULL WHERE id=?").run(member.account,member.revision,row.id);
     return {requestId:row.id,status:'verified'};
    });
   }catch{this.db.prepare("UPDATE qr_login_requests SET status='failed',browser_hash=NULL WHERE id=? AND status='processing'").run(row.id);unavailable();}
@@ -69,12 +75,13 @@ export class QrLoginService extends LoginService {
  cancel(_account,p){return this.identities.transaction(()=>{const row=this.device(p);if(row.status==='claimed')return {status:'completed'};if(row.status==='cancelled')return {status:'cancelled'};this.db.prepare("UPDATE qr_login_requests SET status='cancelled',browser_hash=NULL,claim_recovery=NULL WHERE id=?").run(row.id);return {status:'cancelled'};});}
  status(_account,p){const row=this.device(p);return {status:row.status==='claimed'?'completed':['pending','processing','verified'].includes(row.status)?'pending':row.status,expiresAt:row.expires_at};}
  acknowledge(_account,p){return this.identities.transaction(()=>{const row=this.device(p);if(row.status!=='claimed')unavailable();this.db.prepare('UPDATE qr_login_requests SET claim_recovery=NULL WHERE id=?').run(row.id);return {status:'acknowledged'};});}
- async refresh(account){const before=this.identities.member(account);if(!before?.enabled)unavailable();try{await super.refresh(account);}catch(error){const current=this.identities.member(account);if(current?.enabled&&current.revision===before.revision&&current.verified_until<=this.now())throw new AccessError(-32014,'暂时无法复核钉钉组织资格，业务已暂停；登录未延长，请稍后查询');throw error;}}
+ async refresh(account,options){const before=this.identities.member(account);if(!before?.enabled)unavailable();try{return await super.refresh(account,options);}catch(error){const current=this.identities.member(account);if(current?.enabled&&current.revision===before.revision&&!['revoked','relogin-required'].includes(this.identities.profile(account)?.qualification)&&current.verified_until<=this.now())throw new AccessError(-32014,'暂时无法复核钉钉组织资格，业务已暂停；登录未延长，请稍后查询');throw error;}}
  async claim(_account,p){
-  let row=this.device(p);if(['pending','processing'].includes(row.status))return {status:'pending'};if(!['verified','claimed'].includes(row.status))unavailable();
+  let row=this.device(p);if(['pending','processing'].includes(row.status))return {status:'pending'};if(!['verified','claimed'].includes(row.status)||row.member_revision!==this.identities.member(row.account)?.revision)unavailable();
   await this.refresh(row.account);
   return this.identities.transaction(()=>{
    row=this.device(p);
+   if(row.member_revision!==this.identities.member(row.account)?.revision)unavailable();
    if(row.status==='claimed'){
     if(row.claim_recovery!=='recoverable')unavailable();const token=deviceToken(row.id,p.proof),login=this.identities.verifyLogin(token,row.account,p.deviceId);return {status:'authenticated',...login,token,...this.identities.display(row.account),loginMethod:this.method};
    }

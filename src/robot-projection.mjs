@@ -12,13 +12,14 @@ export class RobotProjection{
   constructor({security,services,pilotAccounts}){this.security=security;this.db=security.db;this.services=services;this.pilots=new Set(pilotAccounts);}
   member(account){
     const member=this.security.member(account);
-    if(!this.pilots.has(account)||!member||member.enabled!==1||member.corp_id!==this.security.corpId||member.client_id!==this.security.clientId)unavailable('member-unavailable');return member;
+    if(!this.pilots.has(account)||!member||member.enabled!==1||member.corp_id!==this.security.corpId||member.client_id!==this.security.clientId)unavailable('member-unavailable');
+    try{this.security.requireMemberLink?.(account);}catch{unavailable('member-unavailable');}return member;
   }
   describe(address,account){
     const {projectId,kind,objectId,version,role}=address;
     if(!['plan_confirmation','result_review','result_acceptance','task_assignment'].includes(kind)||!Number.isSafeInteger(version)||version<1)unavailable();
     const member=this.member(account),project=this.services.projects.getWithRoles(projectId);
-    if(project.archivedAt!==null||project.roles.find(row=>row.role===role)?.member!==account)unavailable();
+    if(project.archivedAt!==null||project.roles.find(row=>row.role===role)?.member!==account||this.security.roleNeedsReassignment?.(account,projectId,role))unavailable();
     const versions=new Map(),taskCache=new Map();let taskId=null,taskVersion=null,upstreamTaskId=null,upstreamTaskVersion=null,peers=[],slot=null,display,pending=false,ownPlanEffects=null;
     const addTask=id=>{
       if(versions.has(id))return taskCache.get(id);
@@ -39,7 +40,7 @@ export class RobotProjection{
         if(proposal.taskId){const target=addTask(proposal.taskId);if(plan.activatedAt===null&&(target.task.completedAt!==null||target.task.cancelledAt!==null))unavailable();}
         for(const dependency of proposal.dependsOn)if(!additions.has(dependency))addTask(dependency);
       }
-      peers=plan.relevantRoles.map(peerRole=>{const peer=project.roles.find(row=>row.role===peerRole)?.member??null;return [peerRole,peer,peer===null?null:this.memberForPlan(peer).revision];}).sort((a,b)=>compare(a[0],b[0]));
+      peers=plan.relevantRoles.map(peerRole=>{const peer=project.roles.find(row=>row.role===peerRole)?.member??null;if(peer&&this.security.roleNeedsReassignment?.(peer,projectId,peerRole))unavailable();return [peerRole,peer,peer===null?null:this.memberForPlan(peer).revision];}).sort((a,b)=>compare(a[0],b[0]));
       pending=slot.outcome===null&&plan.activatedAt===null;display={project,plan,slot};
     }else if(kind==='task_assignment'){
       const task=addTask(objectId);if(task.task.role!==role||task.task.currentVersion!==version)unavailable();
@@ -90,7 +91,7 @@ export class RobotProjection{
       }));
     return {referenceFiles,referenceStatus:referenceFiles.length===0?'none':referenceFiles.every(row=>row.available)?'available':'unavailable'};
   }
-  memberForPlan(account){const member=this.security.member(account);if(!member||member.enabled!==1||member.corp_id!==this.security.corpId||member.client_id!==this.security.clientId)unavailable('member-unavailable');return member;}
+  memberForPlan(account){const member=this.security.member(account);if(!member||member.enabled!==1||member.corp_id!==this.security.corpId||member.client_id!==this.security.clientId)unavailable('member-unavailable');try{this.security.requireMemberLink?.(account);}catch{unavailable('member-unavailable');}return member;}
   validate(reference){
     if(!reference||reference.invalidated_at!==null)unavailable();
     const current=this.describe(reference.binding,reference.account),before=reference.binding;

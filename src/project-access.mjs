@@ -72,6 +72,15 @@ export class ProjectAccess {
     const allowed=principal.channel==='dsh'?dshTools:principal.channel==='im-private'?privateImTools:new Set(['session_whoami']);
     if(!allowed.has(name))unavailable();
     this.references(args,principal);
+    // An official re-login restores membership, not previously revoked responsibility slots.
+    if(['plan_confirm','result_review'].includes(name)&&args.role)this.identities.requireRole?.(principal.account,principal.projectId,args.role);
+    if(['progress_add','result_submit','result_acceptance_open','result_accept'].includes(name)){
+      let taskId=args.task_id;
+      if(!taskId&&args.result_id)taskId=this.db.prepare('SELECT task_id FROM result_versions WHERE result_id=? AND version=?').get(args.result_id,args.version)?.task_id;
+      if(taskId){const task=this.services.tasks.get(taskId).task;const owner=this.services.projects.getWithRoles(principal.projectId).roles.find(slot=>slot.role===task.role)?.member;
+        if(owner)this.identities.requireRole?.(owner,principal.projectId,task.role);
+      }
+    }
     if(name.endsWith('_list')||['project_get','project_update_details','material_upload','analysis_begin','analysis_submit','plan_register','todo_unread','todo_mark_read'].includes(name)){
       if(name!=='project_list'&&args.project_id===undefined&&!['progress_list','result_list'].includes(name))unavailable();
     }
@@ -86,7 +95,7 @@ export class ProjectAccess {
     }
     if(name==='plan_confirm'){
       const plan=this.services.plans.get(args.plan_id),project=this.services.projects.getWithRoles(principal.projectId);
-      for(const role of plan.plan.relevantRoles){const account=project.roles.find(r=>r.role===role)?.member;if(account)this.identities.requireProject(account,principal.projectId);}
+      for(const role of plan.plan.relevantRoles){const account=project.roles.find(r=>r.role===role)?.member;if(account){this.identities.requireProject(account,principal.projectId);this.identities.requireRole?.(account,principal.projectId,role);}}
     }
     if(name==='result_submit'){
       // Result file descriptors reference trusted project material versions, never arbitrary rel_paths.
